@@ -1,6 +1,5 @@
 package holon
 
-// Is this where we call our modules?
 abstract class ProcFun {
   def process(
       outputFunction: (Byte, LogProducerRecords) => Unit,
