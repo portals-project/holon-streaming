@@ -15,6 +15,7 @@ import holon.Utils.*
 object Query {
   Logger.setRootLevel("ERROR")
 
+  // Define the consumer and producer references 
   private def consumerRef(chn: Byte, topic: String, partition: Int): ConsumerRef =
     ConsumerRef(
       chn = chn,
@@ -32,6 +33,7 @@ object Query {
       topic = topic,
     )
 
+  // Job function creates a job object with the specified consumers and producers
   def job(partition: Int): Job = {
     val consumers = List(
       consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition),
