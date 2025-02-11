@@ -2,6 +2,7 @@
 .metals
 .vscode
 .idea
+.gcp
 .bloop
 metals.sbt
 project/project/

@@ -2,12 +2,9 @@ package holon.example.nexmark
 
 import upickle.default.*
 
-import org.apache.pekko.cluster.ddata.*
-
 import holon.*
 import holon.backend.*
 import holon.example.nexmark.Config.*
-import holon.example.CRDT.*
 import holon.example.Nexmark
 import holon.Utils.*
 
@@ -49,12 +46,13 @@ object Query {
     val job = Job(
       consumers = consumers,
       producers = producers,
-      procFun = new QueryProcFun(partition),
+      procFun = new RecordProcFun(partition),
     )
 
     job
   }
 
+  /** Run the Nexmark producer */
   def runNexmarkProducer() = {
     val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
     val iter = Nexmark.iterator()
