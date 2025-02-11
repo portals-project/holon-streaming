@@ -71,11 +71,16 @@ class Recovery {
         // 1. Poll, process each consumer
         for ((chn, consumer) <- consumers) {
             val records = consumer.poll()
-            if !records.isEmpty then procFun.process(out, chn, records)
+            if !records.isEmpty then procFun.process(outputFunction, chn, records)
         }
 
         // 2. Flush all producers
         for ((chn, producer) <- producers) do producer.flush()
+    }
+
+    // Callback function for the processor function
+    def outputFunction(chn: Byte, recs: LogProducerRecords): Unit = {
+        out.collect(chn, recs)
     }
 
     private inline def safeSnapshot(snapshot: Array[Byte]): Unit = {

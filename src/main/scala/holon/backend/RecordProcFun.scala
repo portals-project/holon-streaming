@@ -18,7 +18,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     logger.info("Starting RecordProcFunction")
 
     override def process(
-        out: OutputCollector,
+        outputFunction: (Byte, LogProducerRecords) => Unit,
         chn: Byte,
         recs: LogConsumerRecords,
     ): Unit = {
@@ -46,12 +46,12 @@ class RecordProcFun(partition: Int) extends ProcFun {
         }
 
         // emit latest CRDT value
-        out.collect(CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
+        outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
 
         // emit CRDT delta values
         if bidsCRDT.delta.isDefined then
             val delta = bidsCRDT.delta.get
-            out.collect(CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
+            outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
             bidsCRDT = bidsCRDT.resetDelta
     }
     
