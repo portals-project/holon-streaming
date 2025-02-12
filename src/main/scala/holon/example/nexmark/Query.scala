@@ -103,7 +103,7 @@ object Query {
 
       for (i <- 0 until KAFKA_N_PARTITIONS) {
         val j = job(i)
-        val holon = Holon()
+        val holon = Holon(i)
         holon.submitOrUpdate(j)
       }
 

@@ -1,11 +1,16 @@
 package holon.backend
 
-import java.util.concurrent.ConcurrentLinkedQueue
-
 import holon.*
 import holon.Utils.*
+import holon.backend.GCSClient.{bucketName, downloadStringFromBucket}
+import upickle.default.*
 
-class Recovery {
+import java.util.Base64
+import java.util.concurrent.ConcurrentLinkedQueue
+
+class Recovery(number: Int) {
+
+    private val nodeNr = number
     private val consumers = scala.collection.mutable.Map.empty[Byte, LogConsumer]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
     private var procFun: ProcFun = null
@@ -25,7 +30,7 @@ class Recovery {
     }
 
     private def setup(job: Job): Unit = {
-        logger.info("Setting up job")
+        logger.info(s"Setting up job: $nodeNr")
         // setup consumers
         this.consumers.clear()
         job.consumers.foreach: ref =>
@@ -40,11 +45,18 @@ class Recovery {
 
         // setup procFun
         this.procFun = job.procFun
+
+        // Recover from the last snapshot
+        if (GCSClient.checkIfFileExists(GCSClient.bucketName, "node" + nodeNr)) {
+            logger.debug(s"Restoring snapshot for Node $nodeNr")
+            restoreSnapshot()
+        }
     }
 
     private def run(): Unit = {
         var time = 0L
-        var checkpointTime = 0L
+        var checkpointTime = System.currentTimeMillis()
+
         while true do
             // check the job queue every 1_000 milliseconds
             val t = System.currentTimeMillis()
@@ -54,9 +66,9 @@ class Recovery {
 
             // Take a snapshot after every checkpoint interval
             if this.procFun != null && (t - checkpointTime) > checkpointInterval then
-                logger.debug("Checkpointing")
+                logger.debug(s"Checkpointing Node $nodeNr")
                 val snapshot = this.procFun.snapshot()
-                safeSnapshot(snapshot);
+                safeSnapshot(snapshot)
                 checkpointTime = System.currentTimeMillis()
 
             runStep()
@@ -83,8 +95,66 @@ class Recovery {
         out.collect(chn, recs)
     }
 
-    private inline def safeSnapshot(snapshot: Array[Byte]): Unit = {
-        logger.debug("Taking snapshot: " + snapshot)
+    /**
+     * Safe snapshot of current state to Google Cloud Storage
+     * Format: {channel: [partition,offset]}snapshot
+     * E.g. {0:[1,1110];1:[0,4]}snapshot
+     */
+    private def safeSnapshot(snapshot: Array[Byte]): Unit = {
+        val objectName = "node" + nodeNr
+
+        val offsetsPerChannel = scala.collection.mutable.Map.empty[Byte, Iterable[(Int, Long)]]
+        for ((chn, consumer) <- consumers) {
+            val offsets = consumer.offsets()
+            offsetsPerChannel.put(chn, offsets)
+        }
+
+        // Build snapshot string representation in format: {channel: [partition,offset]}snapshot
+        val stringBuilder = new StringBuilder("{")
+        for ((chn, offsets) <- offsetsPerChannel) {
+            stringBuilder.append(s"$chn:")
+            val firstOffset = offsets.head
+            stringBuilder.append(s"[${firstOffset._1},${firstOffset._2}];")
+        }
+        // Remove the trailing comma
+        if (stringBuilder.last == ';') stringBuilder.setLength(stringBuilder.length - 1)
+
+        val base64EncodedSnapshot = Base64.getEncoder.encodeToString(snapshot)
+        stringBuilder.append(s"}$base64EncodedSnapshot")
+        val content = stringBuilder.toString()
+        logger.debug(s"Snapshot for Node $nodeNr: $content")
+
+        // Get GCSUploader object
+        GCSClient.uploadStringToBucket(GCSClient.bucketName, objectName, content)
+    }
+
+    private def restoreSnapshot(): Unit = {
+        val snapshotString = GCSClient.downloadStringFromBucket(GCSClient.bucketName, "node" + nodeNr)
+
+        // Get string after closing }
+        val snapshotBase64Encoded = snapshotString.split("}")(1)
+
+        // Get content between { } and split on ;
+        val contentBetweenBraces = snapshotString.substring(snapshotString.indexOf("{") + 1, snapshotString.indexOf("}"))
+
+        // Split the content on ;
+        val offsetsPerChannel = contentBetweenBraces.split(";").map { pair =>
+            val Array(key, value) = pair.split(":")
+            val values = value.stripPrefix("[").stripSuffix("]").split(",").map(_.toInt)
+            key.toInt -> values
+        }.toMap
+
+        // Restore the state from the snapshot
+        this.procFun.restore(Base64.getDecoder.decode(snapshotBase64Encoded))
+        logger.debug(s"Restored snapshot for Node $nodeNr: $snapshotString")
+
+        // Restore the offsets
+        for ((chn, offsets) <- offsetsPerChannel) {
+            val consumer = this.consumers(chn.toByte)
+
+            // Restore the offsets (partition, offset)
+            consumer.seek(offsets(0), offsets(1))
+        }
     }
 
 }

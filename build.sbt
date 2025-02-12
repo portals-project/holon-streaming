@@ -32,5 +32,6 @@ lazy val root = project
     libraryDependencies += "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
     libraryDependencies += "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
     libraryDependencies += "org.apache.beam" % "beam-sdks-java-nexmark" % nexmarkVersion,
+    libraryDependencies += "com.google.cloud" % "google-cloud-storage" % "2.28.0",
     // libraryDependencies += "com.jspenger" %% "sporks3" % "0.1.0-SNAPSHOT",
   )

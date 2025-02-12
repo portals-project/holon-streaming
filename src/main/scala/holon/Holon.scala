@@ -7,5 +7,5 @@ trait Holon {
 }
 
 object Holon {
-  def apply(): Holon = HolonImpl()
+  def apply(number: Int): Holon = HolonImpl(number)
 }

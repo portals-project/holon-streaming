@@ -3,6 +3,7 @@
 .vscode
 .idea
 .gcp
+.bsp/sbt.json
 .bloop
 metals.sbt
 project/project/
