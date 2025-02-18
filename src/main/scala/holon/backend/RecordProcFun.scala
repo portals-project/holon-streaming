@@ -1,8 +1,8 @@
 package holon.backend
 
-import org.apache.pekko.cluster.ddata.GCounter
+import org.apache.pekko.cluster.ddata.{GCounter, GSet}
+import org.apache.pekko.cluster.ddata.SelfUniqueAddress
 import upickle.default.*
-
 import holon.*
 import holon.example.nexmark.Config.*
 import holon.example.CRDT.*
@@ -10,57 +10,99 @@ import holon.example.Nexmark
 
 class RecordProcFun(partition: Int) extends ProcFun {
     private var bidsCRDT = GCounter.empty
+    private var maxBidsCRDT = GSet.empty[(SelfUniqueAddress, Long)]
     private val addr = address(partition)
+    private var curValue = Option[Long](0)
+
     private val logger = Logger.apply("RecordProcFunction")
-
     Logger.setLevel("RecordProcFunction", "INFO")
-
     logger.info("Starting RecordProcFunction")
 
     override def process(
-        outputFunction: (Byte, LogProducerRecords) => Unit,
-        chn: Byte,
-        recs: LogConsumerRecords,
-    ): Unit = {
+                          outputFunction: (Byte, LogProducerRecords) => Unit,
+                          chn: Byte,
+                          recs: LogConsumerRecords,
+                        ): Unit = {
         // process inputs
         chn match {
             case CHN_NEXMARK =>
                 for (rec <- recs) {
                     val event = Nexmark.deserialize(rec._2).event
-                    event match
-                        case Nexmark.Events.Bid(_, _, _, _, _) =>
+                    event match {
+                        case bid: Nexmark.Events.Bid =>
                             bidsCRDT = bidsCRDT.increment(addr, 1)
-                            logger.debug(s"Received bid: $bidsCRDT")
-                        case _ => () // ignore
+                            logger.info(s"Received bid event: $bid")
+
+                            // Extract max value safely
+                            val maxOpt = maxBidsCRDT.elements.map(_._2).maxOption
+                            maxOpt match {
+                                case Some(currentMax) =>
+                                    if (bid.price > currentMax) {
+                                        logger.info(s"Updating max value CRDT: $bid, current max: $currentMax")
+                                        maxBidsCRDT = maxBidsCRDT.add(addr, bid.price)
+                                        logger.info(s"Updated max value for CRDT: $maxBidsCRDT")
+                                    } else {
+                                        logger.debug(s"Received bid with price less than max value: $bid")
+                                    }
+                                case None =>
+                                    logger.info(s"No previous max value found. Initializing with: $bid")
+                                    maxBidsCRDT = maxBidsCRDT.add(addr, bid.price)
+                            }
+
+                        case _ =>
+                            logger.debug(s"Ignored non-bid event: $event")
+                    }
                 }
+
             case CHN_BROADCAST =>
                 for (rec <- recs) {
-                    crdtFromBinaryWithManifest(rec._2) match
+                    crdtFromBinaryWithManifest(rec._2) match {
                         case (Nexmark.BIDS_MANIFEST, delta) =>
                             bidsCRDT = bidsCRDT.mergeDelta(delta.asInstanceOf[GCounter])
                             logger.debug(s"Received broadcast: $bidsCRDT")
-                        case _ => () // ignore
+                        // Uncomment if needed for GSet merging
+                        // case (Nexmark.BIDS_MANIFEST, delta: GSet[(SelfUniqueAddress, Long)]) =>
+                        //     maxBidsCRDT = maxBidsCRDT.mergeDelta(delta)
+                        //     logger.debug(s"Received broadcast and merged delta: $maxBidsCRDT")
+                        case _ =>
+                            logger.warn(s"Ignored broadcast with unknown manifest or invalid data")
+                    }
                 }
+
             case _ =>
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
 
-        // emit latest CRDT value
-        outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
+    // Emit the latest CRDT value
+    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+    // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(maxBidsCRDT.elements.map(_._2).maxOption.getOrElse(0L))))
 
-        // emit CRDT delta values
-        if bidsCRDT.delta.isDefined then
-            val delta = bidsCRDT.delta.get
-            outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
-            bidsCRDT = bidsCRDT.resetDelta
+    // Emit CRDT delta values (if exists)
+    if (bidsCRDT.delta.isDefined) {
+        val delta = bidsCRDT.delta.get
+        outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
+        bidsCRDT = bidsCRDT.resetDelta
     }
-    
+
+    // Emit CRDT delta values for maxBidsCRDT (if exists)
+    // Uncomment this section if needed
+    // if (maxBidsCRDT.delta.isDefined) {
+    //     val delta = maxBidsCRDT.delta.get
+    //     outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
+    //     maxBidsCRDT = maxBidsCRDT.resetDelta
+    // }
+
+    }
+
     override def snapshot(): Array[Byte] = {
         crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
+        // If you also want to snapshot maxBidsCRDT, include it here:
+        // crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, maxBidsCRDT)
     }
-    
+
     override def restore(snapshot: Array[Byte]): Unit = {
         bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
+        // Restore maxBidsCRDT if needed
+        // maxBidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GSet[(SelfUniqueAddress, Long)]]
     }
 }
-

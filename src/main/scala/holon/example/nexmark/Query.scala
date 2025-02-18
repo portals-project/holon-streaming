@@ -76,18 +76,25 @@ object Query {
         case records =>
           records.foreach: r =>
             val bids = readBinary[(Long)](r._2)
-            logger.info(s"Bids: $bids")
+            val partition = readBinary[Int](r._1)
+            logger.info(s"Bids: $bids from partition $partition")
   }
 
   def setupKafka(): Unit = {
+    val logger = Logger.apply("Kafka")
+    Logger.setLevel("Kafka", "INFO")
+    logger.info("Setting up Kafka")
+
     val system = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
     system.startStream(KAFKA_TOPIC_NEXMARK)
     system.startStream(KAFKA_TOPIC_BROADCAST)
     system.startStream(KAFKA_TOPIC_OUTPUT)
+
+    logger.info("Kafka setup complete")
   }
 
   def main(args: Array[String]): Unit = {
-    SafeRun(10_000) {
+    SafeRun(20_000) {
       val logger = Logger.apply("Nexmark Query")
       Logger.setLevel("Nexmark Query", "INFO")
       logger.info("Starting Nexmark Query")
@@ -107,7 +114,7 @@ object Query {
         holon.submitOrUpdate(j)
       }
 
-      Thread.sleep(10_000)
+      Thread.sleep(30_000)
     }
   }
 }
