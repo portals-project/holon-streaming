@@ -75,9 +75,9 @@ object Query {
           Thread.sleep(CONSUMER_SLEEP_MS)
         case records =>
           records.foreach: r =>
-            val bids = readBinary[(Long)](r._2)
+            val maxBidPrice = readBinary[(Long)](r._2)
             val partition = readBinary[Int](r._1)
-            logger.info(s"Bids: $bids from partition $partition")
+            logger.info(s"Latest Max Bid Found: $maxBidPrice from partition $partition")
   }
 
   def setupKafka(): Unit = {
@@ -114,7 +114,7 @@ object Query {
         holon.submitOrUpdate(j)
       }
 
-      Thread.sleep(30_000)
+      Thread.sleep(50_000)
     }
   }
 }
