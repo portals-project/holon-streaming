@@ -43,7 +43,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                             if (bid.price > maxBidRegister.value) {
                                 val newPrice = bid.price
                                 maxBidRegister = maxBidRegister.withValue(addr, newPrice)
-                                logger.info(s"Updated max value from LWWRegister: ${maxBidRegister.updatedBy} with new value: $newPrice, LWWRegister value: ${maxBidRegister.value}")
+                                logger.debug(s"Updated max value from LWWRegister: ${maxBidRegister.updatedBy} with new value: $newPrice, LWWRegister value: ${maxBidRegister.value}")
                             }
 
                             // Extract max value safely
@@ -76,7 +76,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
 
                         case (Nexmark.BIDS_MANIFEST, state: LWWRegister[Long]) =>
                             maxBidRegister = maxBidRegister.merge(state)
-                            logger.info(s"Received broadcast and merged state: ${maxBidRegister.updatedBy} State: $state")
+                            logger.debug(s"Received broadcast and merged state: ${maxBidRegister.updatedBy} State: $state")
 
                         // Uncomment if needed for GSet merging
                         case (Nexmark.BIDS_MANIFEST, delta: GSet[(SelfUniqueAddress, Long)]) =>
@@ -84,7 +84,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                              logger.debug(s"Received broadcast and merged delta: $maxBidsCRDT")
 
                         case _ =>
-                            logger.warn(s"Ignored broadcast with unknown manifest or invalid data ${rec._2}")
+                            logger.debug(s"Ignored broadcast with unknown manifest or invalid data ${rec._2}")
                     }
                 }
 
@@ -92,8 +92,12 @@ class RecordProcFun(partition: Int) extends ProcFun {
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
 
+
+    // Emit the latest LWWRegister value
+    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(maxBidRegister.value))))
+
     // Emit the latest CRDT value
-    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+//    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
     // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(maxBidsCRDT.elements.map(_._2).maxOption.getOrElse(0L))))
 
     // Emit CRDT state (LWWRegister)
@@ -117,7 +121,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     }
 
     override def snapshot(): Array[Byte] = {
-        logger.info("Taking snapshot")
+        logger.debug("Taking snapshot")
         crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
 //        crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
         // If you also want to snapshot maxBidsCRDT, include it here:
@@ -125,7 +129,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     }
 
     override def restore(snapshot: Array[Byte]): Unit = {
-        logger.info("Restoring from snapshot")
+        logger.debug("Restoring from snapshot")
 //        bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
         // Restore maxBidsCRDT if needed
         // maxBidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GSet[(SelfUniqueAddress, Long)]]
