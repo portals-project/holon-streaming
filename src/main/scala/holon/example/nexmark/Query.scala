@@ -46,7 +46,8 @@ object Query {
     val job = Job(
       consumers = consumers,
       producers = producers,
-      procFun = new RecordProcFun(partition),
+      // procFun = new RecordProcFun(partition),
+      procFun = new WindowedRecordProcFun(partition),
     )
 
     job
@@ -68,6 +69,7 @@ object Query {
   def runOutputConsumer() = {
     val logger = Logger.apply("Consumer")
     Logger.setLevel("Consumer", "INFO")
+    val hashMap = scala.collection.mutable.Map.empty[Int, Long]
     val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
     while true do
       output.poll() match
@@ -94,15 +96,15 @@ object Query {
   }
 
   def main(args: Array[String]): Unit = {
-    SafeRun(20_000) {
+    SafeRun(100_000) {
       val logger = Logger.apply("Nexmark Query")
       Logger.setLevel("Nexmark Query", "INFO")
       logger.info("Starting Nexmark Query")
 
       setupKafka()
 
-      // Set the end time to 5 seconds from now
-      val endTime = System.currentTimeMillis() + 2_000
+      // Set the end time for the producers (streams)
+      val endTime = System.currentTimeMillis() + 200_000
 
       RunThread(runNexmarkProducer(endTime))
       RunThread(runNexmarkProducer(endTime))
@@ -117,7 +119,7 @@ object Query {
         holon.submitOrUpdate(j)
       }
 
-      Thread.sleep(50_000)
+      Thread.sleep(100_000)
     }
   }
 }
