@@ -53,10 +53,10 @@ object Query {
   }
 
   /** Run the Nexmark producer */
-  def runNexmarkProducer() = {
+  def runNexmarkProducer(end_time: Long) = {
     val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
     val iter = Nexmark.iterator()
-    while true do
+    while System.currentTimeMillis() < end_time do
       for i <- 0 until KAFKA_N_PARTITIONS do //
         // TODO: Add extra bit for work stealing
         val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
@@ -101,11 +101,14 @@ object Query {
 
       setupKafka()
 
-      RunThread(runNexmarkProducer())
-      RunThread(runNexmarkProducer())
-      RunThread(runNexmarkProducer())
-      RunThread(runNexmarkProducer())
-      RunThread(runNexmarkProducer())
+      // Set the end time to 5 seconds from now
+      val endTime = System.currentTimeMillis() + 2_000
+
+      RunThread(runNexmarkProducer(endTime))
+      RunThread(runNexmarkProducer(endTime))
+      RunThread(runNexmarkProducer(endTime))
+      RunThread(runNexmarkProducer(endTime))
+      RunThread(runNexmarkProducer(endTime))
       RunThread(runOutputConsumer())
 
       for (i <- 0 until KAFKA_N_PARTITIONS) {
