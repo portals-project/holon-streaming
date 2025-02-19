@@ -87,7 +87,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
     }
 
     // Emit the current global max value.
-    // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(globalMaxRegister.value))))
+    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(globalMaxRegister.value))))
 
     // Broadcast the current window state.
     outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, currentWindowRegister))))
