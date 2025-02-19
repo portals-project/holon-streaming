@@ -1,19 +1,16 @@
 package holon.backend
 
-import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWRegister, LWWRegisterKey}
+import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWRegister}
 import org.apache.pekko.cluster.ddata.SelfUniqueAddress
 import upickle.default.*
 import holon.*
 import holon.example.nexmark.Config.*
 import holon.example.CRDT.*
 import holon.example.Nexmark
-import scala.concurrent.duration._
-import java.time.Instant
 
 class RecordProcFun(partition: Int) extends ProcFun {
     private var bidsCRDT = GCounter.empty
     private var maxBidsCRDT = GSet.empty[(SelfUniqueAddress, Long)]
-
 
     private val addr = address(partition)
     private var curValue = Option[Long](0)
@@ -37,7 +34,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                     val event = Nexmark.deserialize(rec._2).event
                     event match {
                         case bid: Nexmark.Events.Bid =>
-                            bidsCRDT = bidsCRDT.increment(addr, 1)
+//                            bidsCRDT = bidsCRDT.increment(addr, 1)
 
                             // Update LWWRegister with max value if needed
                             if (bid.price > maxBidRegister.value) {
@@ -72,7 +69,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                 for (rec <- recs) {
                     crdtFromBinaryWithManifest(rec._2) match {
 //                        case (Nexmark.BIDS_MANIFEST, delta) =>
-//                            bidsCRDT = bidsCRDT.mergeDelta(delta.asInstanceOf[GCounter])
+//                        bidsCRDT = bidsCRDT.mergeDelta(delta.asInstanceOf[GCounter])
 
                         case (Nexmark.BIDS_MANIFEST, state: LWWRegister[Long]) =>
                             maxBidRegister = maxBidRegister.merge(state)
@@ -97,18 +94,18 @@ class RecordProcFun(partition: Int) extends ProcFun {
     outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(maxBidRegister.value))))
 
     // Emit the latest CRDT value
-//    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+    // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
     // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(maxBidsCRDT.elements.map(_._2).maxOption.getOrElse(0L))))
 
     // Emit CRDT state (LWWRegister)
     outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, maxBidRegister))))
 
     // Emit CRDT delta values (if exists)
-    if (bidsCRDT.delta.isDefined) {
-        val delta = bidsCRDT.delta.get
-        outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
-        bidsCRDT = bidsCRDT.resetDelta
-    }
+//    if (bidsCRDT.delta.isDefined) {
+//        val delta = bidsCRDT.delta.get
+//        outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
+//        bidsCRDT = bidsCRDT.resetDelta
+//    }
 
     // Emit CRDT delta values for maxBidsCRDT (if exists)
     // Uncomment this section if needed

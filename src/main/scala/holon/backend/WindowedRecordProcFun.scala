@@ -18,13 +18,13 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
   Logger.setLevel("WindowedRecordProcFun", "INFO")
 
   // Window configuration: for example, a 2-second tumbling window.
-  private val windowDuration: Long = 2000L  // duration in milliseconds
+  private val windowDuration: Long = 2000L
   private var currentWindowStart: Long = System.currentTimeMillis()
-  // Register for the current window
+  // Current window register tracks the max bid price in the current window.
   private var currentWindowRegister: LWWRegister[Long] = LWWRegister(addr, 0L)
-  // Global register aggregates the results from all closed windows
+  // Global register aggregates the results from all closed windows.
   private var globalMaxRegister: LWWRegister[Long] = LWWRegister(addr, 0L)
-  // (for debug) Keep track of how many windows have been processed
+  // (for debug) Keep track of how many windows have been processed.
   private var windowCount: Int = 0
 
   override def process(
@@ -44,7 +44,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
       // Optionally, emit the closed window result before resetting.
       outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(globalMaxRegister.value))))
 
-      // Reset the window: start a new window with an empty register.
+      // Reset the window.
       currentWindowStart = now
       currentWindowRegister = LWWRegister(addr, 0L)
       // Increment the window count.
@@ -87,7 +87,8 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
     }
 
     // Emit the current global max value.
-    outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(globalMaxRegister.value))))
+    // outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(globalMaxRegister.value))))
+
     // Broadcast the current window state.
     outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, currentWindowRegister))))
   }
