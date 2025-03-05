@@ -96,7 +96,7 @@ object Query {
   }
 
   def main(args: Array[String]): Unit = {
-    SafeRun(100_000) {
+    SafeRun(30_000) {
       val logger = Logger.apply("Nexmark Query")
       Logger.setLevel("Nexmark Query", "INFO")
       logger.info("Starting Nexmark Query")
@@ -119,7 +119,7 @@ object Query {
         holon.submitOrUpdate(j)
       }
 
-      Thread.sleep(100_000)
+      Thread.sleep(30_000)
     }
   }
 }
