@@ -26,9 +26,11 @@ def defineWindow(eventTime: Long): Long = {
 val windowMap1 = scala.collection.mutable.Map.empty[Long, GCounter]
 val windowMap2 = scala.collection.mutable.Map.empty[Long, GCounter]
 
+val outputMap = scala.collection.mutable.Map.empty[Long, BigInt]
+
 // Simulate stream.
 for (i <- 1 to 10) {
-  val event = Random.nextLong(10000)
+  val event = Random.nextLong(100000)
 //  println(s"event: $event")
   // Determine the window for the event.
   val window = defineWindow(event)
@@ -48,22 +50,40 @@ for (i <- 1 to 10) {
 for ((k, v) <- windowMap1) {
   println(s"Window: $k, Value: ${v.value}")
 }
+println(s"----------------")
 for ((k, v) <- windowMap2) {
   println(s"Window: $k, Value: ${v.value}")
 }
+
 
 // Simulate broadcasting and merging.
 for ((k, v) <- windowMap1) {
   if windowMap2.contains(k) then
     windowMap2(k) = windowMap2(k).merge(v)
 }
+for ((k, v) <- windowMap2) {
+  if windowMap1.contains(k) then
+    windowMap1(k) = windowMap1(k).merge(v)
+}
 
 // Values should be the same
 for ((k, v) <- windowMap1) {
-  println(s"Window: $k, Value: ${v.value}")
+  if windowMap2.contains(k) then
+    assert(v.value == windowMap2(k).value)
+    outputMap(k) = v.value
+//    println(s"Window: $k, Value: ${v.value}")
 }
 for ((k, v) <- windowMap2) {
-  println(s"Window: $k, Value: ${v.value}")
+  if windowMap1.contains(k) then
+  assert(v.value == windowMap1(k).value)
+  outputMap(k) = v.value
+  //    println(s"Window: $k, Value: ${v.value}")
+}
+
+println(s"----------------")
+// Consume the output.
+for ((k, v) <- outputMap) {
+  println(s"Window: $k, Value: $v")
 }
 
 println("--- End of the CRDT playground! ---")
