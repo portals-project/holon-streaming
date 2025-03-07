@@ -41,6 +41,10 @@ class Recovery {
       // check the job queue every 1_000 milliseconds
       val t = System.currentTimeMillis()
       if (t - time) > 1_000 then
+        if this.procFun != null then
+          val snap = this.procFun.snapshot()
+          println(s"Snapshot: ${snap}")
+
         time = t
         checkJobQueue()
       runStep()

@@ -11,6 +11,7 @@ import org.apache.beam.sdk.values.*
 object Nexmark:
   final val AUCTIONS_MANIFEST = "A"
   final val BIDS_MANIFEST = "B"
+  final val SNAPSHOT_MANIFEST = "B"
   final val PERSONS_MANIFEST = "C"
 
   private val reader = summon[ReadWriter[Events.TimeStampedEvent]]

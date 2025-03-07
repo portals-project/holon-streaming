@@ -54,6 +54,23 @@ class QueryProcFun(partition: Int) extends ProcFun {
       out.collect(CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
       bidsCRDT = bidsCRDT.resetDelta
   }
+
+  override def snapshot(): Array[Byte] = synchronized {
+    logger.info(s"Partition Snapshotting CRDT: $bidsCRDT")
+    val snap = crdtToBinaryWithManifest(Nexmark.SNAPSHOT_MANIFEST, bidsCRDT)
+    logger.info(s"Snapshot: ${snap.mkString(",")}")
+    val decoded = crdtFromBinaryWithManifest(snap)._2.asInstanceOf[GCounter]
+    logger.info(s"Snapshot decoded $decoded")
+    bidsCRDT = decoded
+    logger.info(s"Restored CRDT: $bidsCRDT")
+    logger.info(s"CRDT.value: ${bidsCRDT.value}")
+
+    snap
+  }
+
+  override def restore(snapshot: Array[Byte]): Unit = {
+    bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
+  }
 }
 
 /** Count the total number of bids. */
