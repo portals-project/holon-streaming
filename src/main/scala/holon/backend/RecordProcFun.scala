@@ -2,14 +2,16 @@ package holon.backend
 
 import org.apache.pekko.cluster.ddata.GCounter
 import upickle.default.*
-
 import holon.*
 import holon.example.nexmark.Config.*
 import holon.example.CRDT.*
 import holon.example.Nexmark
 
+import java.util.Base64
+
 class RecordProcFun(partition: Int) extends ProcFun {
     private var bidsCRDT = GCounter.empty
+    private val partitionId = partition
     private val addr = address(partition)
     private val logger = Logger.apply("RecordProcFunction")
 
@@ -18,7 +20,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     logger.info("Starting RecordProcFunction")
 
     override def process(
-        outputFunction: (Byte, LogProducerRecords) => Unit,
+        outputFunction: (Int, Byte, LogProducerRecords) => Unit,
         chn: Byte,
         recs: LogConsumerRecords,
     ): Unit = {
@@ -46,21 +48,40 @@ class RecordProcFun(partition: Int) extends ProcFun {
         }
 
         // emit latest CRDT value
-        outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
+        outputFunction(partitionId, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
 
         // emit CRDT delta values
         if bidsCRDT.delta.isDefined then
             val delta = bidsCRDT.delta.get
-            outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
+            logger.debug(s"Broadcasting delta: $delta")
+            outputFunction(partitionId, CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
             bidsCRDT = bidsCRDT.resetDelta
     }
     
-    override def snapshot(): Array[Byte] = {
-        crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
+    override def snapshot(): Array[Byte] = synchronized {
+        logger.info(s"Partition $partitionId Snapshotting CRDT: $bidsCRDT")
+        val snap = crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
+        logger.info(s"Partition $partitionId Snapshot: ${snap}")
+        logger.info(s"Partition $partitionId snapshot decoded ${crdtFromBinaryWithManifest(snap)._2.asInstanceOf[GCounter]}")
+
+
+        snap
     }
     
     override def restore(snapshot: Array[Byte]): Unit = {
         bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
+        logger.info(s"Partition $partitionId Restored CRDT: $bidsCRDT")
     }
+
+}
+
+
+def main(args: Array[String]): Unit = {
+    val procFunction = new RecordProcFun(0)
+    //val snap = procFunction.snapshot(Base64.getDecoder.decode("kqFCxH2SxHgKFgoQCgQKABAAFQAAAAAdAAAAABICDJAKFgoQCgQKABAAFQEAAAAdAAAAABICDJQKFgoQCgQKABAAFQEAAAAdAAAAABICKXEKFgoQCgQKABAAFQIAAAAdAAAAABICKXoKFgoQCgQKABAAFQMAAAAdAAAAABICJh6hRg=="))
+
+    procFunction.restore(Base64.getDecoder.decode("kqFCxH2SxHgKFgoQCgQKABAAFQAAAAAdAAAAABICDJAKFgoQCgQKABAAFQEAAAAdAAAAABICDJQKFgoQCgQKABAAFQEAAAAdAAAAABICKXEKFgoQCgQKABAAFQIAAAAdAAAAABICKXoKFgoQCgQKABAAFQMAAAAdAAAAABICJh6hRg=="))
+
+
 }
 

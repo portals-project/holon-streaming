@@ -26,6 +26,7 @@ class KafkaLogConsumer(
   props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KAFKA_DES)
   private val cons = new KafkaConsumer[Array[Byte], Array[Byte]](props)
   cons.assign(partitions.map(p => new TopicPartition(topic, p)).asJava)
+  val partition: Int = if (partitions.nonEmpty) partitions.head else -1 // TODO: allow for multiple partitions per consumer
 
   override def poll(): LogConsumerRecords =
     val records = cons.poll(java.time.Duration.ZERO)
@@ -40,6 +41,8 @@ class KafkaLogConsumer(
     cons.assignment().asScala.map { tp =>
       (tp.partition(), cons.position(tp))
     }
+  override def toString: String =
+    s"KafkaLogConsumer(host=$host, port=$port, topic=$topic, partitions=$partitions)"
 }
 
 object KafkaLogConsumer {

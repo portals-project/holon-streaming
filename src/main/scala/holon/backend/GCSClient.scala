@@ -1,17 +1,20 @@
 package holon.backend
 
-import com.google.cloud.storage.{BlobId, BlobInfo, Storage}
-import java.nio.file.{Files, Paths}
+import holon.*
+import com.google.cloud.storage.{BlobId, BlobInfo}
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.StorageOptions
 import java.io.FileInputStream
-import java.util.Base64
 
 
 object GCSClient {
 
-    val credentials = GoogleCredentials.fromStream(new FileInputStream("/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json"))
+    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", "/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json")
+    val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService
+    val logger = Logger.apply("GCSClient")
+    Logger.setLevel("GCSClient", "INFO")
+    
 
     val bucketName: String = "failure-recovery-dev"
 
@@ -25,7 +28,7 @@ object GCSClient {
         val blobId = BlobId.of(bucketName, objectName)
         val blobInfo = BlobInfo.newBuilder(blobId).build()
         storage.create(blobInfo, content.getBytes("UTF-8"))
-        println(s"String uploaded to gs://$bucketName/$objectName")
+        logger.debug(s"String uploaded to gs://$bucketName/$objectName")
     }
 
     /**

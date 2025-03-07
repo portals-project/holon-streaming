@@ -18,6 +18,15 @@ ThisBuild / scalacOptions ++= Seq(
   //  "-Xfatal-warnings"
 )
 
+ThisBuild / javaOptions ++= Seq(
+    "-XX:+PrintGCDetails",
+    "-XX:+PrintGCDateStamps",
+    "-Xloggc:gc.log",
+    "-XX:+UseGCLogFileRotation",
+    "-XX:NumberOfGCLogFiles=5",
+    "-XX:GCLogFileSize=10M"
+    )
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -33,5 +42,7 @@ lazy val root = project
     libraryDependencies += "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
     libraryDependencies += "org.apache.beam" % "beam-sdks-java-nexmark" % nexmarkVersion,
     libraryDependencies += "com.google.cloud" % "google-cloud-storage" % "2.28.0",
+    libraryDependencies += "com.google.cloud" % "google-cloud-firestore" % "3.0.6",
+    libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.11",
     // libraryDependencies += "com.jspenger" %% "sporks3" % "0.1.0-SNAPSHOT",
   )
