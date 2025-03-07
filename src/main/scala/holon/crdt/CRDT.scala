@@ -7,15 +7,17 @@ import org.apache.pekko.cluster.*
 import org.apache.pekko.cluster.ddata.*
 
 object CRDT:
+  private final val protocolName = "pekko"
+  private final val systemName = "MyActorSystem"
   def address(id: Int) =
     SelfUniqueAddress(
       UniqueAddress(
-        Address("", "", "", 0),
+        Address(protocolName, systemName, "", 0),
         id.toLong,
       )
     )
 
-  private final val extendedActorSystem = org.apache.pekko.actor.ActorSystem("MyActorSystem")
+  private final val extendedActorSystem = org.apache.pekko.actor.ActorSystem(systemName)
   private final val serializer_rdata = new org.apache.pekko.cluster.ddata.protobuf.ReplicatedDataSerializer(extendedActorSystem.asInstanceOf)
 
   private def crdtToBinary(obj: AnyRef): Array[Byte] =
