@@ -1,7 +1,9 @@
+import holon.example.CRDT.{crdtFromBinaryWithManifest, crdtToBinaryWithManifest}
 import holon.example.Nexmark.Events.Event
 import holon.example.{CRDT, Nexmark}
 import org.apache.pekko.cluster.ddata.GCounter
 import upickle.default.writeBinary
+
 import scala.util.Random
 println("--- Welcome to the CRDT playground! ---")
 // Create unqiue addresses for the GCounter replicas.
@@ -22,6 +24,20 @@ def defineWindow(eventTime: Long): Long = {
     (eventTime / windowDuration) + 1
 }
 
+var testCRDT = GCounter.empty
+testCRDT = testCRDT.increment(addr1, 1)
+testCRDT = testCRDT.increment(addr1, 2)
+
+println(s"Initial CRDT value: ${testCRDT.getValue}")
+
+val binary = crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, testCRDT)
+
+testCRDT = testCRDT.increment(addr1, 2)
+
+testCRDT = crdtFromBinaryWithManifest(binary)._2.asInstanceOf[GCounter]
+
+println(s"Deserialized CRDT value: ${testCRDT.value}")
+
 // Define a map with the window as the key and the GCounter as the value.
 val windowMap1 = scala.collection.mutable.Map.empty[Long, GCounter]
 val windowMap2 = scala.collection.mutable.Map.empty[Long, GCounter]
@@ -29,8 +45,8 @@ val windowMap2 = scala.collection.mutable.Map.empty[Long, GCounter]
 val outputMap = scala.collection.mutable.Map.empty[Long, BigInt]
 
 // Simulate stream.
-for (i <- 1 to 10) {
-  val event = Random.nextLong(100000)
+for (i <- 1 to 10000) {
+  val event = Random.nextLong(10000)
 //  println(s"event: $event")
   // Determine the window for the event.
   val window = defineWindow(event)
@@ -41,9 +57,9 @@ for (i <- 1 to 10) {
     windowMap2(window) = GCounter.empty
 
   if i % 2 == 0 then
-    windowMap1(window) = windowMap1(window).increment(addr1, event)
+    windowMap1(window) = windowMap1(window).increment(addr1, 1L)
   else
-    windowMap2(window) = windowMap2(window).increment(addr2, event)
+    windowMap2(window) = windowMap2(window).increment(addr2, 1L)
 }
 
 // Local Aggregate values
