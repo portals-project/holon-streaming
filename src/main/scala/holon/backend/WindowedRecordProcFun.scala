@@ -1,54 +1,38 @@
 package holon.backend
 
-import org.apache.pekko.cluster.ddata.{PNCounter, SelfUniqueAddress}
-import upickle.default.*
 import holon.*
+import holon.example.CRDT.*
 import holon.example.nexmark.Config.*
 import holon.example.{CRDT, Nexmark}
-import holon.example.CRDT.*
-
-// Define a custom ReadWriter for PNCounter that uses our CRDT serialization.
-implicit val pncounterRW: ReadWriter[PNCounter] = readwriter[Array[Byte]].bimap[PNCounter](
-  (p: PNCounter) => CRDT.crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, p),
-  (bytes: Array[Byte]) => CRDT.crdtFromBinaryWithManifest(bytes)._2.asInstanceOf[PNCounter]
-)
+import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
+import upickle.default.writeBinary
 
 /**
  * A case class for broadcasting the local window state.
  * It includes both the vector clock and the current window's counter.
  */
-case class WindowState(partitionId: Int, vectorClock: Array[Long], currentWindowCounter: PNCounter, currentWindowStart: Long, currentWindowEnd: Long, windowCount: Int)
-object WindowState {
-  implicit val rw: ReadWriter[WindowState] = macroRW
-}
+case class WindowState(
+                        partitionId: Int,
+                        vectorClock: Array[Long],
+                        windowMap: scala.collection.mutable.Map[Long, (GCounter, Boolean)]
+                      )
 
-/**
- * This ProcFun implementation applies a tumbling window to incoming bid events.
- * Each window maintains a local PN counter for the number of bids received.
- * Each window also maintains a vector clock to track the event-time progress among all partitions.
- * The window boundaries are also aligned across partitions to keep every partition in sync with the increasing vector clock.
- */
 class WindowedRecordProcFun(partition: Int) extends ProcFun {
   private val addr: SelfUniqueAddress = address(partition)
   private val logger = Logger("WindowedRecordProcFun")
   Logger.setLevel("WindowedRecordProcFun", "INFO")
 
-  // Tumbling window duration in milliseconds.
-  // Large window for debugging purposes.
-  private val windowDuration: Long = 1000000L
-
-  // Window boundaries (based on event timestamps), should be aligned across partitions somehow.
-  private var currentWindowStart: Long = -1L
-  private var currentWindowEnd: Long = -1L
-
-  // Local PN counter for partition.
-  private var currentWindowCounter: PNCounter = PNCounter.empty
-
   // (for logging) Counter for processed windows.
   private var windowCount: Int = 0
 
   // The vector clock holds the highest event-time seen from each partition.
-  private var vectorClock: Array[Long] = Array.fill(KAFKA_N_PARTITIONS)(0L)
+  private val vectorClock: Array[Long] = Array.fill(KAFKA_N_PARTITIONS)(0L)
+
+  // Define a mutable map with the window as the key and the (GCounter, Boolean) as the value.
+  private val windowMap = scala.collection.mutable.Map.empty[Long, (GCounter, Boolean)]
+
+  // Helper function to convert any object to Array[Byte] using its string representation.
+  private def asBytes(x: Any): Array[Byte] = x.toString.getBytes("UTF-8")
 
   override def process(
                         outputFunction: (Byte, LogProducerRecords) => Unit,
@@ -65,87 +49,85 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
               val eventTimestamp: Long = bid.dateTime
               // Update our own element in the vector clock.
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
-              logger.info(s"[window:$windowCount | partition:$partition] Updated vectorClock: ${vectorClock.mkString("Array(", ", ", ")")}")
+//              logger.info(s"[window:$windowCount | partition:$partition] Updated vectorClock: ${vectorClock.mkString("Array(", ", ", ")")}")
 
-              // Initialize window boundaries on the first event.
-              if (currentWindowStart == -1L) {
-                currentWindowStart = 0L
-                currentWindowEnd = currentWindowStart + windowDuration
-                logger.info(s"[window:$windowCount | partition:$partition] First event with timestamp $eventTimestamp. Setting window to [$currentWindowStart, $currentWindowEnd)")
-              }
-              // If the event falls into the current window, update the counter.
-              if (eventTimestamp >= currentWindowStart && eventTimestamp < currentWindowEnd) {
-                currentWindowCounter = currentWindowCounter.increment(addr, 1L)
-                logger.info(s"[window:$windowCount | partition:$partition] Incremented counter; new value: ${currentWindowCounter.value}")
-              }
+              // Determine the window for this event.
+              val window = defineWindow(eventTimestamp)
 
-              // Else if the event is beyond the current window and all nodes have advanced, close the window.
-              else if (vectorClock.min >= currentWindowEnd) {
-                logger.info(s"[window:$windowCount | partition:$partition] Closing window. Current window counter: ${currentWindowCounter.value}")
+              // Initialize window counter if not present; otherwise, increment.
+              if (!windowMap.contains(window))
+                windowMap(window) = (GCounter.empty, false)
+              else
+                windowMap(window) = (windowMap(window)._1.increment(addr, 1L), false)
 
-                // Emit the current window counter's value.
-                outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(currentWindowCounter.value))))
+              // Determine the last window we can close, if value is -1, we can't close any window.
+              if ((defineWindow(vectorClock.min) - 1) >= 0) {
+                val passedWindow = defineWindow(vectorClock.min) - 1
+                logger.info(s"[window:$windowCount | partition:$partition] Passed window: $passedWindow")
 
-                // Reset the local window by setting value to 0.
-                currentWindowCounter = currentWindowCounter.decrement(addr, currentWindowCounter.value)
-                windowCount += 1
+                // If the window exists and hasn't been processed, process (close) it.
+                if (windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
+                  windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
+                  logger.info(s"[window:$windowCount | partition:$partition] Closing window: $passedWindow")
+                  windowCount += 1
 
-                // Update the window boundaries using the minimum value from the vector clock.
-                val newStart = (vectorClock.min / windowDuration) * windowDuration
-                currentWindowStart = newStart
-                currentWindowEnd = currentWindowStart + windowDuration
-                logger.info(s"[window:$windowCount | partition:$partition] New window boundaries: [$currentWindowStart, $currentWindowEnd) based on vectorClock.min=${vectorClock.min}")
-
-                // Process the current event in the new window if applicable.
-                if (eventTimestamp >= currentWindowStart && eventTimestamp < currentWindowEnd) {
-                  currentWindowCounter = currentWindowCounter.increment(addr, 1L)
+                  // Emit the current window's GCounter value.
+                  // We convert both key (partition) and value (counter value) to Array[Byte].
+                  outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(windowMap(passedWindow)._1.value))))
                 }
-              } else {
-                logger.info(s"[window:$windowCount | partition:$partition] Event with timestamp $eventTimestamp does not fit in current window [$currentWindowStart, $currentWindowEnd) and cannot trigger window close since vectorClock.min=${vectorClock.min} < currentWindowEnd.")
               }
-            case _ =>
-              logger.debug(s"Ignored non-bid event: $event")
+            case other =>
+              logger.debug(s"Ignored non-bid event: $other")
           }
         }
-
       case CHN_BROADCAST =>
         // Merge state received from other nodes.
+        logger.info(s"[window:$windowCount | partition:$partition] Merging state from other partitions")
         for (rec <- recs) {
-          // Deserialize the broadcasted state as WindowState.
-          val receivedState = readBinary[WindowState](rec._2)
+          // Assuming rec._2 is already a WindowState.
+          val receivedState = rec._2.asInstanceOf[WindowState]
+          val receivedPartition = receivedState.partitionId
+          val receivedVectorClock = receivedState.vectorClock
+          val receivedWindowMap = receivedState.windowMap
 
-          logger.info(s"[window:$windowCount | partition:$partition] Received broadcast from partition ${receivedState.partitionId} with state: $receivedState")
+          // Merge window maps element-wise.
+          for ((k, v) <- receivedWindowMap) {
+            if windowMap.contains(k) then
+            windowMap(k) = (windowMap(k)._1.merge(v._1), windowMap(k)._2)
+          }
 
           // Merge vector clocks element-wise.
           for (i <- 0 until KAFKA_N_PARTITIONS) {
-            vectorClock(i) = math.max(vectorClock(i), receivedState.vectorClock(i))
-          }
-          // Update window boundaries based on receivedState if data is ahead of local state.
-          if (receivedState.currentWindowStart > currentWindowStart) {
-            logger.info(s"[window:$windowCount | partition:$partition] Updating window boundaries based on received state")
-            currentWindowStart = receivedState.currentWindowStart
-            currentWindowEnd = receivedState.currentWindowEnd
-            windowCount = receivedState.windowCount
+            vectorClock(i) = math.max(vectorClock(i), receivedVectorClock(i))
           }
 
-          // Merge the PN counter. PN counter merge preserves per-replica contributions, summing them.
-          currentWindowCounter = currentWindowCounter.merge(receivedState.currentWindowCounter)
-          logger.info(s"[window:$windowCount | partition:$partition] Merged broadcast state. Updated vectorClock.min=${vectorClock.min} and counter value=${receivedState.currentWindowCounter.value}")
+          logger.info(s"[partition:$partition] Merging state from partition $receivedPartition: $receivedState")
         }
 
       case _ =>
         throw new RuntimeException(s"Unknown channel: $chn")
     }
 
-    // Broadcast the current local state: both the vector clock and current window counter.
-    val stateToBroadcast = WindowState(partition, vectorClock, currentWindowCounter, currentWindowStart, currentWindowEnd, windowCount)
+//    var test = GCounter.empty
+//    test = test.increment(addr, 1L)
+//    outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, test))))
+
+    // Broadcast the current local state.
+    val stateToBroadcast = WindowState(partition, vectorClock, windowMap)
+    outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), asBytes(stateToBroadcast))))
     logger.info(s"[window:$windowCount | partition:$partition] Broadcasting state: $stateToBroadcast")
-    outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), writeBinary(stateToBroadcast))))
+  }
+
+  // Returns the window index given an event time.
+  override def defineWindow(eventTime: Long): Long = {
+    val windowDuration: Long = 1000L
+    if (eventTime % windowDuration == 0) eventTime / windowDuration
+    else (eventTime / windowDuration) + 1
   }
 
   override def snapshot(): Array[Byte] = {
-    // Snapshot the current window counter's value.
-    writeBinary(currentWindowCounter.value)
+    // TODO: implement snapshot
+    asBytes(0)
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
