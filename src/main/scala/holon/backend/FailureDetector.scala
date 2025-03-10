@@ -1,5 +1,6 @@
 package holon.backend
 
+import holon.*
 import holon.example.nexmark.Config.*
 
 class FailureDetector(currentNodeId: Int) {
@@ -29,7 +30,7 @@ class FailureDetector(currentNodeId: Int) {
     def checkNodeFailures(): List[Int] = {
         val t = System.currentTimeMillis()
         if heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > HEARTBEAT_INTERVAL then {
-            logger.debug(s"Node $nodeId checking for failed nodes $heartbeatMap")
+            logger.debug(s"Checking for failed nodes $heartbeatMap")
             heartbeatCheckTime = System.currentTimeMillis()
 
             val failedNodes = heartbeatMap.filter { case (_, lastHeartbeat) =>
@@ -37,7 +38,7 @@ class FailureDetector(currentNodeId: Int) {
             }.keys
 
             return failedNodes.toList
-        } else if hearbeatCheckTime < 0 then {
+        } else if heartbeatCheckTime < 0 then {
             heartbeatCheckTime = System.currentTimeMillis()
         }
 

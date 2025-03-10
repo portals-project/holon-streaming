@@ -3,12 +3,8 @@ package holon.backend
 import holon.*
 import holon.Utils.*
 import holon.backend.GCSClient.bucketName
-import holon.example.CRDT.crdtFromBinaryWithManifest
 import holon.example.nexmark.Config.*
-import org.apache.pekko.cluster.ddata.GCounter
 import upickle.default.*
-
-import java.util.Base64
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class Recovery(nodeId: Int) {
@@ -17,20 +13,16 @@ class Recovery(nodeId: Int) {
 
     private val BROADCAST_PARTITION_ID = -1
     private var partitions: List[Int] = List.empty
-    private val consumers = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
+    private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
     private var procFunctionPerPartition: Map[Int, ProcFun] = Map.empty
     private val out = OutputCollectorImpl(producers)
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
+    private val checkpointManager = CheckpointManager()
     private val logger = Logger.apply("Recovery")
 
-    private val hearbeatMap = scala.collection.mutable.Map.empty[Int, Long]
-
     Logger.setLevel("Recovery", "INFO")
-
-    // Checkpoint interval in milliseconds
-    private val CHECKPOINT_INTERVAL = 5_000L
 
     RunThread(this.run())
 
@@ -43,14 +35,14 @@ class Recovery(nodeId: Int) {
 
         logger.info(s"Setting up job for node $nodeId")
         // Setup consumers
-        this.consumers.clear()
+        this.consumerPerPartition.clear()
         job.consumers.foreach: ref =>
             val consumer = KafkaLogConsumer.fromRef(ref)
             logger.debug(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
             val partition = if (ref.chn == CHN_NEXMARK) consumer.partition else BROADCAST_PARTITION_ID
-            this.consumers.put(partition, (ref.chn, consumer))
+            this.consumerPerPartition.put(partition, (ref.chn, consumer))
 
-        logger.debug(s"Consumers: $consumers")
+        logger.debug(s"Consumers: $consumerPerPartition")
 
 
         for partitionId <- partitions do
@@ -85,20 +77,13 @@ class Recovery(nodeId: Int) {
             FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
         })
 
-        // Recover from the last snapshot for each partition
-        this.partitions.foreach(partitionId => {
-            if (GCSClient.checkIfFileExists(bucketName, getSnapshotName(partitionId))) {
-                logger.debug(s"Restoring snapshot for partition $partitionId")
-                restoreSnapshot(getSnapshotName(partitionId), partitionId, true)
-            }
-        })
+        // Recover from the last checkpoint for each partition
+        this.checkpointManager.recoverCheckpointForAllPartitions(this.partitions, true,
+                                                                 this.procFunctionPerPartition, this.consumerPerPartition)
     }
 
     private def run(): Unit = {
         var time = 0L
-        var checkpointTime = System.currentTimeMillis()
-
-        failureDetector.initializeHeartBeatMap(NODE_ID);
 
         while true do
             val t = System.currentTimeMillis()
@@ -108,19 +93,8 @@ class Recovery(nodeId: Int) {
                 time = t
                 checkJobQueue()
 
-            // Take a snapshot after every checkpoint interval
-            if (t - checkpointTime) > CHECKPOINT_INTERVAL then
-                this.procFunctionPerPartition.foreach((partitionId, procFun) => {
-                    logger.info(s"Checkpointing partition $partitionId at ${System.currentTimeMillis()}")
-                    val (partitionChn, partitionConsumer) = this.consumers(partitionId)
-                    logger.info(s"Node $nodeId partition $partitionId offset ${partitionConsumer.offsets().head}")
-                    val snapshot = procFun.snapshot()
-                    logger.info(s"Node $nodeId partition $partitionId snapshot before ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
-                    safeSnapshot(getSnapshotName(partitionId), partitionId, snapshot)
-                    logger.info(s"Node $nodeId partition $partitionId snapshot after ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
-                })
-                checkpointTime = System.currentTimeMillis()
-                logger.info(s"Checkpointed done for node $nodeId at ${System.currentTimeMillis()}")
+            // Create checkpoint if its time for it
+            this.checkpointManager.createCheckpointIfRequired(procFunctionPerPartition, consumerPerPartition)
 
 
             // Check for failed nodes & handle failures
@@ -136,16 +110,13 @@ class Recovery(nodeId: Int) {
 
     private inline def runStep(): Unit = {
         // 1. Poll, process each consumer
-        for ((partitionId, (chn, consumer)) <- consumers) {
+        for ((partitionId, (chn, consumer)) <- consumerPerPartition) {
             val records = consumer.poll()
             logger.debug(s"Node $nodeId is polling partition $partitionId from channel $chn: Consumer: $consumer - Records nonEmpty: ${records.nonEmpty}")
 
             if records.nonEmpty then {
                 chn match {
                     case CHN_BROADCAST =>
-                        // Update the heartbeat map for each received broadcast
-                        val currentTime = System.currentTimeMillis()
-
                         for (rec <- records) {
                             // Track heartbeats from other nodes
                             val (key, value) = rec
@@ -156,8 +127,8 @@ class Recovery(nodeId: Int) {
 
                             // Send broadcast to each processing function
                             this.procFunctionPerPartition.foreach((_, procFun) =>
-                                                                      procFun.process(outputFunction, chn, Iterable.single((key, recValue)))
-                                                                  )
+                                procFun.process(outputFunction, chn, Iterable.single((key, recValue)))
+                            )
                         }
                     case _ =>
                         // Send message for partition to specific processing function
@@ -184,6 +155,8 @@ class Recovery(nodeId: Int) {
     def outputFunction(partitionId: Int, chn: Byte, recs: LogProducerRecords): Unit = {
         chn match {
             case Config.CHN_BROADCAST =>
+                if nodeId == 0 then return // Skip broadcasting from node 0
+
                 // Add id of current node to the broadcast message for heartbeat tracking
                 val recordsWithNodeId = recs.map { case (key, value) =>
                     (key, writeBinary((nodeId, value)))
@@ -192,18 +165,17 @@ class Recovery(nodeId: Int) {
             case Config.CHN_OUTPUT =>
                 // Handle output for CHN_OUTPUT
 
-                // Check if node is responsible for partition before committing
-                val (ownerNodeId, _) =
-                    if ownerNodeId == nodeId then {
-                        recs.foreach: r =>
-                            val bids = readBinary[(Long)](r._2)
-                            logger.info(s"Node $nodeId partition $partitionId commits: $bids")
+                // Check if node is responsible for partition
+                val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
+                if ownerNodeId == nodeId then {
+                    recs.foreach: r =>
+                        val bids = readBinary[(Long)](r._2)
+                        logger.info(s"Node $nodeId partition $partitionId commits: $bids")
 
-                        // Committing output
-                        out.collect(chn, recs)
-                    } else {
-                        logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
-                    }
+                    out.collect(chn, recs)
+                } else {
+                    logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
+                }
             case _ =>
                 logger.warn(s"Unknown channel: $chn")
         }
@@ -213,11 +185,13 @@ class Recovery(nodeId: Int) {
      * Handle failed nodes by redistributing partitions.
      */
     private def handleFailedNodes(failedNodes: List[Int]): Unit = {
+        if (failedNodes.isEmpty) return;
+
         logger.warn(s"Node $nodeId detected other failed nodes: $failedNodes")
 
         for failedNode <- failedNodes do
             // Check if current node needs to take over partitions from failed node
-            if checkFailureRedistributionResponsibility(failedNode, failedNodes) then
+            if (checkFailureRedistributionResponsibility(failedNode, failedNodes)) {
                 logger.warn(s"Node $nodeId is responsible for redistribution of partitions from failed node $failedNode")
                 val partitions = FirestoreClient.queryPartitionsByNodeId(FirestoreClient.OWNERSHIP_COLLECTION_NAME, failedNode)
 
@@ -227,7 +201,7 @@ class Recovery(nodeId: Int) {
                     logger.info(s"Node $nodeId is new owner of partition $partitionId")
 
                 // Create procFunction, consumer & restore snapshot for each partition
-                for (partitionId, versionNr) <- partitions do
+                for ((partitionId, versionNr) <- partitions) {
                     procFunctionPerPartition += partitionId -> new RecordProcFun(partitionId)
                     val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
                         chn = CHN_NEXMARK,
@@ -236,14 +210,14 @@ class Recovery(nodeId: Int) {
                         topic = KAFKA_TOPIC_NEXMARK,
                         partitions = List(partitionId),
                         ))
-                    this.consumers.put(partitionId, (CHN_NEXMARK, inputConsumer))
+                    this.consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
 
-                    val snapshotName = getSnapshotName(partitionId)
-                    if GCSClient.checkIfFileExists(bucketName, snapshotName) then
-                        restoreSnapshot(snapshotName, partitionId, false)
-
-                    else
-                        logger.info(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
+                    this.checkpointManager.recoverCheckpoint(partitionId, false,
+                                                             procFunctionPerPartition, consumerPerPartition)
+                }
+            } else {
+                logger.info(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
+            }
     }
 
     /**
@@ -257,68 +231,6 @@ class Recovery(nodeId: Int) {
             owner = (failedNode + 1) % N_NODES
 
         owner == nodeId
-    }
-
-    /**
-     * Safe snapshot of current state to Google Cloud Storage
-     * Saves offset for partition consumer and broadcast consumer
-     * Format: {channel: [partition,offset]}snapshot
-     * E.g. {0:[1,1110];1:[0,4]}snapshot
-     */
-    private def safeSnapshot(snapshotName: String, partitionId: Int, snapshot: Array[Byte]): Unit = {
-        val (partitionChn, partitionConsumer) = this.consumers(partitionId)
-        val partitionOffset = partitionConsumer.offsets().head
-        logger.info(s"Node $nodeId partition $partitionId offset: $partitionOffset")
-
-        val (broadcastChn, broadcastConsumer) = this.consumers(BROADCAST_PARTITION_ID)
-        val broadcastOffset = broadcastConsumer.offsets().head
-
-        val base64EncodedSnapshot = Base64.getEncoder.encodeToString(snapshot)
-        val content = s"{$partitionChn:[$partitionId,${partitionOffset._2}];$broadcastChn:[0,${broadcastOffset._2}]}$base64EncodedSnapshot"
-
-        logger.debug(s"Snapshot for partition $partitionId: $content")
-
-        // Get GCSUploader object
-        GCSClient.uploadStringToBucket(bucketName, snapshotName, content)
-    }
-
-    /**
-     * Load snapshot from Google Cloud Storage and restore state.
-     * Set offset for both partition and broadcast consumer.
-     */
-    private def restoreSnapshot(snapshotName: String, partitionId: Int, restoreBroadcastChannel: Boolean): Unit = {
-        val snapshotString = GCSClient.downloadStringFromBucket(bucketName, snapshotName)
-
-        // Get string after closing }
-        val snapshotBase64Encoded = snapshotString.split("}")(1)
-
-        // Get content between { } and split on ;
-        val contentBetweenBraces = snapshotString.substring(snapshotString.indexOf("{") + 1, snapshotString.indexOf("}"))
-
-        // Split the content on ;
-        val offsetsPerChannel = contentBetweenBraces.split(";").map { pair =>
-            val Array(key, value) = pair.split(":")
-            val values = value.stripPrefix("[").stripSuffix("]").split(",").map(_.toInt)
-            key.toInt -> values
-        }.toMap
-
-        // Restore the state from the snapshot
-        val procFun = this.procFunctionPerPartition.get(partitionId)
-        if (procFun.nonEmpty) {
-            procFun.get.restore(Base64.getDecoder.decode(snapshotBase64Encoded))
-            logger.debug(s"Restored snapshot for Node $nodeId: $snapshotString")
-        }
-
-        val (partitionChn, partitionConsumer) = this.consumers(partitionId)
-        partitionConsumer.seek(offsetsPerChannel(partitionChn)(0), offsetsPerChannel(partitionChn)(1))
-
-        if restoreBroadcastChannel then
-            val (broadcastChn, broadcastConsumer) = this.consumers(BROADCAST_PARTITION_ID)
-            broadcastConsumer.seek(offsetsPerChannel(broadcastChn)(0), offsetsPerChannel(broadcastChn)(1))
-    }
-
-    private def getSnapshotName(partitionId: Int): String = {
-        "partition" + partitionId
     }
 
 }
