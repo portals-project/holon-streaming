@@ -32,18 +32,9 @@ object Query {
 
   // Job function creates a job object with the specified consumers and producers
   def job(partitions: List[Int]): Job = {
-    val logger = Logger.apply("Job")
-    Logger.setLevel("Job", "INFO")
     val consumers = partitions.map { partition =>
       consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition)
     } :+ consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0)
-
-    logger.info(s"Job Consumers: $consumers")
-
-//    val consumers = List(
-//      consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partitions.head), // TODO - consumers for each partition
-//      consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0),
-//    )
 
     val producers = List(
       producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK),

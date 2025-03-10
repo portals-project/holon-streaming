@@ -11,7 +11,7 @@ object FirestoreClient {
     
     val OWNERSHIP_COLLECTION_NAME = "ownership_registry"
 
-    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", "/Users/kolya/kth_projects/holon-streaming/.gcp/firebase-user-account.json")
+    val credentialsPath = sys.env.getOrElse("GOOGLE_FIRESTORE_CREDENTIALS", "/Users/kolya/kth_projects/holon-streaming/.gcp/firebase-user-account.json")
     val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val firestore: Firestore = FirestoreOptions.newBuilder().setCredentials(credentials).build().getService
     val logger = Logger.apply("FirestoreClient")
@@ -72,15 +72,6 @@ object FirestoreClient {
         val apiFuture = docRef.set(javaMap)
         apiFuture.get() // Wait for the write to complete
         logger.info(s"Data written to Firestore collection: $collectionName, document: $documentId")
-    }
-
-    /**
-     * Connects to Firestore and returns the Firestore instance.
-     *
-     * @return Firestore instance
-     */
-    def getFirestoreInstance: Firestore = {
-        firestore
     }
 
     def main(args: Array[String]): Unit = {

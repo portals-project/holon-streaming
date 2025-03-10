@@ -38,20 +38,19 @@ class Recovery(number: Int) {
     }
 
     private def setup(job: Job): Unit = {
-        logger.info(s"Setting up job: $nodeId")
-        // setup consumers
+        logger.info(s"Setting up job for node $nodeId")
+        // Setup consumers
         this.consumers.clear()
         job.consumers.foreach: ref =>
             val consumer = KafkaLogConsumer.fromRef(ref)
-            logger.info(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
+            logger.debug(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
             val partition = if (ref.chn == CHN_NEXMARK) consumer.partition else BROADCAST_PARTITION_ID
             this.consumers.put(partition, (ref.chn, consumer))
 
-        // Log the KafkaLogConsumer in more detail
-        logger.info(s"Consumers: $consumers")
+        logger.debug(s"Consumers: $consumers")
 
 
-        // setup producers
+        // Setup producers
         this.producers.clear()
         job.producers.foreach: ref =>
             val producer = KafkaLogProducer.fromRef(ref)
@@ -93,7 +92,7 @@ class Recovery(number: Int) {
 
             if (nodeId == 1) then
                 val diff = t - time
-                logger.info(s"Node $nodeId is running step at time: $t this is $diff ms after the last step")
+                logger.debug(s"Node $nodeId is running step at time: $t this is $diff ms after the last step")
 
             // check the job queue every 1_000 milliseconds
             if (t - time) > 1_000 then
@@ -188,10 +187,6 @@ class Recovery(number: Int) {
     def outputFunction(partitionId: Int, chn: Byte, recs: LogProducerRecords): Unit = {
         chn match {
             case Config.CHN_BROADCAST =>
-
-                if nodeId == 0 then // TODO - remove this
-                    return
-
                 // Add id of current node to the broadcast message for heartbeat tracking
                 val recordsWithNodeId = recs.map { case (key, value) =>
                     (key, writeBinary((nodeId, value)))
