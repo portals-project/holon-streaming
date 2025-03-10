@@ -11,16 +11,18 @@ import upickle.default.*
 import java.util.Base64
 import java.util.concurrent.ConcurrentLinkedQueue
 
-class Recovery(number: Int) {
+class Recovery(nodeId: Int) {
+
+    val NODE_ID: Int = nodeId
 
     private val BROADCAST_PARTITION_ID = -1
-    private val nodeId = number
     private var partitions: List[Int] = List.empty
     private val consumers = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
     private var procFunctionPerPartition: Map[Int, ProcFun] = Map.empty
     private val out = OutputCollectorImpl(producers)
     private val queue = new ConcurrentLinkedQueue[Job]()
+    private val failureDetector = FailureDetector(nodeId)
     private val logger = Logger.apply("Recovery")
 
     private val hearbeatMap = scala.collection.mutable.Map.empty[Int, Long]
@@ -29,7 +31,6 @@ class Recovery(number: Int) {
 
     // Checkpoint interval in milliseconds
     private val CHECKPOINT_INTERVAL = 5_000L
-    private val HEARTBEAT_INTERVAL = 5_000L
 
     RunThread(this.run())
 
@@ -38,6 +39,8 @@ class Recovery(number: Int) {
     }
 
     private def setup(job: Job): Unit = {
+        val partitions = job.partitions
+
         logger.info(s"Setting up job for node $nodeId")
         // Setup consumers
         this.consumers.clear()
@@ -49,6 +52,21 @@ class Recovery(number: Int) {
 
         logger.debug(s"Consumers: $consumers")
 
+
+        for partitionId <- partitions do
+            // Check partition ownership
+            val (ownerNodeId, versionNr) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
+
+            // If partition is not owned by any node, set ownership to current node
+            if ownerNodeId == -1 then
+                FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
+            else if ownerNodeId != nodeId then
+            // Ask for ownership of partition
+
+
+                logger.info(s"Node $nodeId is not responsible for partition $partitionId")
+            else
+                logger.info(s"Node $nodeId is already responsible for partition $partitionId")
 
         // Setup producers
         this.producers.clear()
@@ -79,20 +97,11 @@ class Recovery(number: Int) {
     private def run(): Unit = {
         var time = 0L
         var checkpointTime = System.currentTimeMillis()
-        var hearbeatCheckTime: Long = -1
 
-
-        // Add nodes to the heartbeat map
-        for i <- 0 until N_NODES do
-            if i != nodeId then
-                hearbeatMap.put(i, System.currentTimeMillis())
+        failureDetector.initializeHeartBeatMap(NODE_ID);
 
         while true do
             val t = System.currentTimeMillis()
-
-            if (nodeId == 1) then
-                val diff = t - time
-                logger.debug(s"Node $nodeId is running step at time: $t this is $diff ms after the last step")
 
             // check the job queue every 1_000 milliseconds
             if (t - time) > 1_000 then
@@ -113,20 +122,9 @@ class Recovery(number: Int) {
                 checkpointTime = System.currentTimeMillis()
                 logger.info(s"Checkpointed done for node $nodeId at ${System.currentTimeMillis()}")
 
-            // Check for failed nodes
-            if hearbeatCheckTime > 0 && (t - hearbeatCheckTime) > HEARTBEAT_INTERVAL then {
-                hearbeatCheckTime = System.currentTimeMillis()
-                logger.info(s"Node $nodeId checking for failed nodes $hearbeatMap")
-                val failedNodes = hearbeatMap.filter { case (_, lastHeartbeat) =>
-                    (t - lastHeartbeat) > HEARTBEAT_INTERVAL
-                }.keys
-                if failedNodes.nonEmpty then {
-                    handleFailedNodes(failedNodes.toList)
-                }
-            } else if hearbeatCheckTime < 0 then {
-                hearbeatCheckTime = System.currentTimeMillis()
-            }
 
+            // Check for failed nodes & handle failures
+            handleFailedNodes(failureDetector.checkNodeFailures());
 
             runStep()
     }
@@ -149,13 +147,12 @@ class Recovery(number: Int) {
                         val currentTime = System.currentTimeMillis()
 
                         for (rec <- records) {
-
                             // Track heartbeats from other nodes
                             val (key, value) = rec
                             val (receivedNodeId, recValue) = readBinary[(Int, Array[Byte])](value)
                             logger.debug(s"($nodeId) Received broadcast from $receivedNodeId")
-                            if (receivedNodeId != nodeId)
-                                hearbeatMap.put(receivedNodeId, currentTime)
+
+                            if (receivedNodeId != nodeId) failureDetector.setHeartbeat(receivedNodeId)
 
                             // Send broadcast to each processing function
                             this.procFunctionPerPartition.foreach((_, procFun) =>
@@ -195,17 +192,18 @@ class Recovery(number: Int) {
             case Config.CHN_OUTPUT =>
                 // Handle output for CHN_OUTPUT
 
-                // Check if node is responsible for partition
-                val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
-                if ownerNodeId == nodeId then {
-                    recs.foreach: r =>
-                        val bids = readBinary[(Long)](r._2)
-                        logger.info(s"Node $nodeId partition $partitionId commits: $bids")
+                // Check if node is responsible for partition before committing
+                val (ownerNodeId, _) =
+                    if ownerNodeId == nodeId then {
+                        recs.foreach: r =>
+                            val bids = readBinary[(Long)](r._2)
+                            logger.info(s"Node $nodeId partition $partitionId commits: $bids")
 
-                    out.collect(chn, recs)
-                } else {
-                    logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
-                }
+                        // Committing output
+                        out.collect(chn, recs)
+                    } else {
+                        logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
+                    }
             case _ =>
                 logger.warn(s"Unknown channel: $chn")
         }
