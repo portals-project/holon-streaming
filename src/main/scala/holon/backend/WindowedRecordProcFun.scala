@@ -50,7 +50,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
   Logger.setLevel("WindowedRecordProcFun", "INFO")
 
   // (for logging) Counter for processed windows.
-  private var windowCount: Int = 0
+//  private var windowCount: Int = 0
 
   // The vector clock holds the highest event-time seen from each partition.
   private val vectorClock: Array[Long] = Array.fill(KAFKA_N_PARTITIONS)(0L)
@@ -70,7 +70,10 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
           val event = Nexmark.deserialize(rec._2).event
           event match {
             case bid: Nexmark.Events.Bid =>
+              // TODO: Figure out what this timestamp means. Determines nr. of windows
+              // +/- 1 second of runtime ends with timestamp 50_000, explains large number of windows
               val eventTimestamp: Long = bid.dateTime
+
               // Update our own element in the vector clock.
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
@@ -82,21 +85,6 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
                 windowMap(window) = (GCounter.empty, false)
               else
                 windowMap(window) = (windowMap(window)._1.increment(addr, 1L), false)
-
-              // Determine the last window we can close.
-              if ((defineWindow(vectorClock.min) - 1) >= 0) {
-                val passedWindow = defineWindow(vectorClock.min) - 1
-//                logger.info(s"[window:$windowCount | partition:$partition] Passed window: $passedWindow")
-                if (windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
-                  windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
-//                  logger.info(s"[window:$windowCount | partition:$partition] Closing window: $passedWindow")
-                  windowCount += 1
-
-                  val outputState = OutputState(partition, passedWindow, windowMap(passedWindow)._1.value)
-                  // Emit the current window's GCounter value.
-                  outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
-                }
-              }
             case other =>
               logger.debug(s"Ignored non-bid event: $other")
           }
@@ -119,6 +107,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
                 windowMap(k) = (windowMap(k)._1.merge(v._1), windowMap(k)._2)
 //                logger.info(s"[partition:$partition] Merged window $k with new value: ${windowMap(k)._1.value} merged with ${v._1},")
               else
+                // TODO: Causes windows to not be emitted, think of alternative
                 windowMap(k) = v
             }
 
@@ -133,6 +122,19 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
       case _ =>
         throw new RuntimeException(s"Unknown channel: $chn")
     }
+    // Determine the last window we can close.
+    if ((defineWindow(vectorClock.min) - 1) >= 0) {
+      val passedWindow = defineWindow(vectorClock.min) - 1
+      //                logger.info(s"[window:$windowCount | partition:$partition] Passed window: $passedWindow")
+      if (windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
+        windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
+        //                  logger.info(s"[window:$windowCount | partition:$partition] Closing window: $passedWindow")
+
+        val outputState = OutputState(partition, passedWindow, windowMap(passedWindow)._1.value)
+        // Emit the current window's GCounter value.
+        outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
+      }
+    }
 
     // Broadcast the current local state.
     val stateToBroadcast = WindowState(partition, vectorClock, windowMap)
@@ -146,7 +148,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
     // windowDuration at 1000L results in ~90 bids per window.
     // windowDuration at 2000L results in ~180 bids per window.
     // It takes about 11,1 milliseconds to process 1 bid.
-    val windowDuration: Long = 3000L
+    val windowDuration: Long = 10_000L
     if (eventTime % windowDuration == 0) eventTime / windowDuration
     else (eventTime / windowDuration) + 1
   }
