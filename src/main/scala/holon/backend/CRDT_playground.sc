@@ -14,7 +14,9 @@ val addr2 = CRDT.address(2)
 Random.setSeed(42)
 
 // Window duration in milliseconds.
-val windowDuration = 1000
+val windowDuration = 10_000L
+
+val eventMap = scala.collection.mutable.Map.empty[Long, Long]
 
 // Returns window given an event time.
 def defineWindow(eventTime: Long): Long = {
@@ -23,6 +25,16 @@ def defineWindow(eventTime: Long): Long = {
   else
     (eventTime / windowDuration) + 1
 }
+
+for i <- 1 to 10_000 do
+  val event = Random.nextLong(50_000L)
+  val window = defineWindow(event)
+  if !eventMap.contains(window) then
+    eventMap(window) = 1
+  else
+    eventMap(window) = eventMap(window) + 1
+    
+println(s"Number of events per window: $eventMap")
 
 var testCRDT = GCounter.empty
 testCRDT = testCRDT.increment(addr1, 1)
