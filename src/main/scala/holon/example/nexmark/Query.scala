@@ -46,7 +46,7 @@ object Query {
     val job = Job(
       consumers = consumers,
       producers = producers,
-      // procFun = new RecordProcFun(partition),
+//       procFun = new RecordProcFun(partition),
       procFun = new WindowedRecordProcFun(partition),
     )
 
@@ -57,6 +57,9 @@ object Query {
   def runNexmarkProducer(end_time: Long) = {
     val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
     val iter = Nexmark.iterator()
+    val logger = Logger.apply("Producer")
+    Logger.setLevel("Producer", "INFO")
+    logger.info("Starting Nexmark Producer")
     while System.currentTimeMillis() < end_time do
       for i <- 0 until KAFKA_N_PARTITIONS do //
         // TODO: Add extra bit for work stealing
@@ -69,6 +72,7 @@ object Query {
   def runOutputConsumer() = {
     val logger = Logger.apply("Consumer")
     Logger.setLevel("Consumer", "INFO")
+    logger.info("Starting Output Consumer")
     val hashMap = scala.collection.mutable.Map.empty[Int, Long]
     val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
     while true do
@@ -77,9 +81,9 @@ object Query {
           Thread.sleep(CONSUMER_SLEEP_MS)
         case records =>
           records.foreach: r =>
-            val maxBidPrice = readBinary[(Long)](r._2)
             val partition = readBinary[Int](r._1)
-            logger.info(s"Latest Max Bid Found: $maxBidPrice from partition $partition")
+            val outputState = readBinary[OutputState](r._2)
+            logger.info(s"[OUTPUT TOPIC]: partition: $partition, window: ${outputState.window} closed with final aggregate: ${outputState.value}")
   }
 
   def setupKafka(): Unit = {
@@ -96,30 +100,35 @@ object Query {
   }
 
   def main(args: Array[String]): Unit = {
-    SafeRun(30_000) {
-      val logger = Logger.apply("Nexmark Query")
-      Logger.setLevel("Nexmark Query", "INFO")
-      logger.info("Starting Nexmark Query")
-
+    try {
       setupKafka()
+      SafeRun(15_000) {
+        val logger = Logger.apply("Nexmark Query")
+        Logger.setLevel("Nexmark Query", "INFO")
+        logger.info("Starting Nexmark Query")
 
-      // Set the end time for the producers (streams)
-      val endTime = System.currentTimeMillis() + 200_000
 
-      RunThread(runNexmarkProducer(endTime))
-      RunThread(runNexmarkProducer(endTime))
-      RunThread(runNexmarkProducer(endTime))
-      RunThread(runNexmarkProducer(endTime))
-      RunThread(runNexmarkProducer(endTime))
-      RunThread(runOutputConsumer())
+        // Set the end time for the producers (streams)
+        val endTime = System.currentTimeMillis() + 200_000
 
-      for (i <- 0 until KAFKA_N_PARTITIONS) {
-        val j = job(i)
-        val holon = Holon()
-        holon.submitOrUpdate(j)
+        //      RunThread(runNexmarkProducer(endTime))
+        //      RunThread(runNexmarkProducer(endTime))
+        //      RunThread(runNexmarkProducer(endTime))
+        //      RunThread(runNexmarkProducer(endTime))
+        RunThread(runNexmarkProducer(endTime))
+        RunThread(runOutputConsumer())
+
+        for (i <- 0 until KAFKA_N_PARTITIONS) {
+          val j = job(i)
+          val holon = Holon()
+          holon.submitOrUpdate(j)
+        }
+
+        Thread.sleep(15_000)
       }
-
-      Thread.sleep(30_000)
+    }
+    catch {
+      case e: Exception => e.printStackTrace()
     }
   }
 }
