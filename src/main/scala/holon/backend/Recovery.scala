@@ -15,6 +15,7 @@ class Recovery(nodeId: Int) {
     private var partitions: List[Int] = List.empty
     private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
+    private var procFunFactory: ProcFunFactory = null
     private var procFunctionPerPartition = scala.collection.mutable.Map.empty[Int, ProcFun]
     private val out = OutputCollectorImpl(producers)
     private val queue = new ConcurrentLinkedQueue[Job]()
@@ -36,6 +37,8 @@ class Recovery(nodeId: Int) {
         val basePartitions = job.partitions
 
         logger.info(s"Setting up job for node $nodeId")
+        
+        this.procFunFactory = job.procFunFactory
         // Setup producers
         this.producers.clear()
         job.producers.foreach: ref =>
@@ -91,7 +94,7 @@ class Recovery(nodeId: Int) {
         // Setup procFunctions
         this.partitions = partitionsOwned
         this.procFunctionPerPartition = scala.collection.mutable.Map(partitionsOwned.map { partition =>
-            partition -> new RecordProcFun(partition)
+            partition -> this.procFunFactory.create(partition)
         }: _*)
 
         // Recover from the last checkpoint for each partition and node
@@ -253,7 +256,7 @@ class Recovery(nodeId: Int) {
      */
     private def integrateNewPartitions(partitions: List[Int]): Unit = {
         for (partitionId <- partitions) {
-            procFunctionPerPartition += partitionId -> new RecordProcFun(partitionId)
+            procFunctionPerPartition += partitionId -> this.procFunFactory.create(partitionId)
             addNewNexmarkConsumer(partitionId)
 
             this.checkpointManager.recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId),

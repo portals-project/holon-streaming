@@ -45,6 +45,7 @@ object Query {
     val job = Job(
       consumers = consumers,
       producers = producers,
+      procFunFactory = new RecordProcFunFactory(),
       partitions = partitions,
     )
 

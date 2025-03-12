@@ -7,8 +7,6 @@ import holon.example.nexmark.Config.*
 import holon.example.CRDT.*
 import holon.example.Nexmark
 
-import java.util.Base64
-
 class RecordProcFun(partition: Int) extends ProcFun {
     private var bidsCRDT = GCounter.empty
     private val partitionId = partition
@@ -69,14 +67,3 @@ class RecordProcFun(partition: Int) extends ProcFun {
     }
 
 }
-
-
-def main(args: Array[String]): Unit = {
-    val procFunction = new RecordProcFun(0)
-    //val snap = procFunction.snapshot(Base64.getDecoder.decode("kqFCxH2SxHgKFgoQCgQKABAAFQAAAAAdAAAAABICDJAKFgoQCgQKABAAFQEAAAAdAAAAABICDJQKFgoQCgQKABAAFQEAAAAdAAAAABICKXEKFgoQCgQKABAAFQIAAAAdAAAAABICKXoKFgoQCgQKABAAFQMAAAAdAAAAABICJh6hRg=="))
-
-    procFunction.restore(Base64.getDecoder.decode("kqFCxH2SxHgKFgoQCgQKABAAFQAAAAAdAAAAABICDJAKFgoQCgQKABAAFQEAAAAdAAAAABICDJQKFgoQCgQKABAAFQEAAAAdAAAAABICKXEKFgoQCgQKABAAFQIAAAAdAAAAABICKXoKFgoQCgQKABAAFQMAAAAdAAAAABICJh6hRg=="))
-
-
-}
-
