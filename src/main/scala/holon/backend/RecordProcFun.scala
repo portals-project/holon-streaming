@@ -7,63 +7,75 @@ import holon.example.nexmark.Config.*
 import holon.example.CRDT.*
 import holon.example.Nexmark
 
+/**
+ * This ProcFun implementation processes incoming bid events from the Nexmark stream.
+ * It maintains a GCounter to count the number of bids received.
+ */
 class RecordProcFun(partition: Int) extends ProcFun {
+    // Local GCounter for counting the number of bids received.
     private var bidsCRDT = GCounter.empty
-    private val partitionId = partition
+    // Address for the GCounter.
     private val addr = address(partition)
+
+    // Emit frequency.
+    private val emitInterval = 2000
+    private var lastEmitTime = System.currentTimeMillis()
+
     private val logger = Logger.apply("RecordProcFunction")
-
     Logger.setLevel("RecordProcFunction", "INFO")
-
     logger.info("Starting RecordProcFunction")
 
     override def process(
-        outputFunction: (Int, Byte, LogProducerRecords) => Unit,
-        chn: Byte,
-        recs: LogConsumerRecords,
-    ): Unit = {
-        // process inputs
+                          outputFunction: (Byte, LogProducerRecords) => Unit,
+                          chn: Byte,
+                          recs: LogConsumerRecords,
+                        ): Unit = {
+        // process inputs.
+        // Every n seconds, emit the CRDT state to the output channel.
+        if (System.currentTimeMillis() - lastEmitTime > emitInterval) {
+            logger.debug(s"Emitting CRDT state to output channel")
+            outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+            lastEmitTime = System.currentTimeMillis()
+        }
         chn match {
             case CHN_NEXMARK =>
                 for (rec <- recs) {
                     val event = Nexmark.deserialize(rec._2).event
-                    event match
-                        case Nexmark.Events.Bid(_, _, _, _, _) =>
-                            bidsCRDT = bidsCRDT.increment(addr, 1)
-                            logger.debug(s"Received bid: $bidsCRDT")
-                        case _ => () // ignore
+                    event match {
+                        case bid: Nexmark.Events.Bid =>
+                            bidsCRDT = bidsCRDT.increment(addr, 1L)
+                        case _ =>
+                            logger.debug(s"Ignored non-bid event: $event")
+                    }
                 }
             case CHN_BROADCAST =>
                 for (rec <- recs) {
-                    crdtFromBinaryWithManifest(rec._2) match
-                        case (Nexmark.BIDS_MANIFEST, delta) =>
-                            bidsCRDT = bidsCRDT.mergeDelta(delta.asInstanceOf[GCounter])
-                            logger.debug(s"Received broadcast: $bidsCRDT")
-                        case _ => () // ignore
+                    crdtFromBinaryWithManifest(rec._2) match {
+                        case (Nexmark.BIDS_MANIFEST, state) =>
+                            bidsCRDT = bidsCRDT.merge(state.asInstanceOf[GCounter])
+                        case _ =>
+                            logger.debug(s"Ignored broadcast with unknown manifest or invalid data ${rec._2.mkString("Array(", ", ", ")")}")
+                    }
                 }
             case _ =>
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
-
-        // emit latest CRDT value
-        outputFunction(partitionId, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
-
-        // emit CRDT delta values
-        if bidsCRDT.delta.isDefined then
-            val delta = bidsCRDT.delta.get
-            logger.debug(s"Broadcasting delta: $delta")
-            outputFunction(partitionId, CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, delta))))
-            bidsCRDT = bidsCRDT.resetDelta
+        // Emit CRDT state (GCounter) to the broadcast channel.
+        outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
     }
-    
-    override def snapshot(): Array[Byte] = synchronized {
-        logger.info(s"Partition $partitionId Snapshotting CRDT: $bidsCRDT")
+
+    override def snapshot(): Array[Byte] = {
+        logger.debug("Taking snapshot")
         crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
     }
-    
-    override def restore(snapshot: Array[Byte]): Unit = {
-        bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
-        logger.info(s"Partition $partitionId Restored CRDT: $bidsCRDT")
-    }
 
+    override def restore(snapshot: Array[Byte]): Unit = {
+        logger.debug("Restoring from snapshot")
+        bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
+        logger.info(s"Partition $partition Restored CRDT: $bidsCRDT")
+    }
+  
+    override def defineWindow(eventTime: Long): Long = {
+        0L
+    }
 }

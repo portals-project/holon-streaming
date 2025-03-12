@@ -9,3 +9,4 @@
 metals.sbt
 project/project/
 target/
+.sc

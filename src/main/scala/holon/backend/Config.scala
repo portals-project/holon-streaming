@@ -6,7 +6,7 @@ object Config {
   final val KAFKA_TOPIC_NEXMARK = "nexmark"
   final val KAFKA_TOPIC_BROADCAST = "broadcast"
   final val KAFKA_TOPIC_OUTPUT = "output"
-  final val KAFKA_N_PARTITIONS = 8
+  final val KAFKA_N_PARTITIONS = 2 // default: 8
   final val PRODUCER_BATCH_SIZE = 1024
   final val PRODUCER_SLEEP_MS = 100
   final val CONSUMER_SLEEP_MS = 100

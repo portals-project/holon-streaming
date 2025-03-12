@@ -56,6 +56,9 @@ object Query {
   def runNexmarkProducer() = {
     val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
     val iter = Nexmark.iterator()
+    val logger = Logger.apply("Producer")
+    Logger.setLevel("Producer", "INFO")
+    logger.info("Starting Nexmark Producer")
     while true do
       for i <- 0 until KAFKA_N_PARTITIONS do
         val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
@@ -69,6 +72,8 @@ object Query {
   def runOutputConsumer() = {
     val logger = Logger.apply("Consumer")
     Logger.setLevel("Consumer", "INFO")
+    logger.info("Starting Output Consumer")
+    val hashMap = scala.collection.mutable.Map.empty[Int, Long]
     val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
     while true do
       output.poll() match
@@ -76,15 +81,22 @@ object Query {
           Thread.sleep(CONSUMER_SLEEP_MS)
         case records =>
           records.foreach: r =>
-            val bids = readBinary[(Long)](r._2)
-            logger.info(s"Bids: $bids")
+            val partition = readBinary[Int](r._1)
+            val outputState = readBinary[OutputState](r._2)
+            logger.info(s"[OUTPUT TOPIC]: partition: $partition, window: ${outputState.window} closed with final aggregate: ${outputState.value}")
   }
 
   def setupKafka(): Unit = {
+    val logger = Logger.apply("Kafka")
+    Logger.setLevel("Kafka", "INFO")
+    logger.info("Setting up Kafka")
+
     val system = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
     system.startStream(KAFKA_TOPIC_NEXMARK)
     system.startStream(KAFKA_TOPIC_BROADCAST)
     system.startStream(KAFKA_TOPIC_OUTPUT)
+
+    logger.info("Kafka setup complete")
   }
 
   def main(args: Array[String]): Unit = {
@@ -93,7 +105,6 @@ object Query {
       val logger = Logger.apply("Nexmark Query")
       Logger.setLevel("Nexmark Query", "INFO")
       logger.info("Starting Nexmark Query")
-
       setupKafka()
 
       RunThread(runNexmarkProducer())
