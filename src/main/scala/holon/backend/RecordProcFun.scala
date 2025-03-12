@@ -26,15 +26,15 @@ class RecordProcFun(partition: Int) extends ProcFun {
     logger.info("Starting RecordProcFunction")
 
     override def process(
-                          outputFunction: (Byte, LogProducerRecords) => Unit,
-                          chn: Byte,
-                          recs: LogConsumerRecords,
-                        ): Unit = {
+        outputFunction: (Int, Byte, LogProducerRecords) => Unit,
+        chn: Byte,
+        recs: LogConsumerRecords,
+    ): Unit = {
         // process inputs.
         // Every n seconds, emit the CRDT state to the output channel.
         if (System.currentTimeMillis() - lastEmitTime > emitInterval) {
             logger.debug(s"Emitting CRDT state to output channel")
-            outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+            outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
             lastEmitTime = System.currentTimeMillis()
         }
         chn match {
@@ -61,7 +61,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
         // Emit CRDT state (GCounter) to the broadcast channel.
-        outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
+        outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
     }
 
     override def snapshot(): Array[Byte] = {
@@ -74,7 +74,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
         bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
         logger.info(s"Partition $partition Restored CRDT: $bidsCRDT")
     }
-  
+
     override def defineWindow(eventTime: Long): Long = {
         0L
     }

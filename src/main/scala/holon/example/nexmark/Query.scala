@@ -73,7 +73,6 @@ object Query {
     val logger = Logger.apply("Consumer")
     Logger.setLevel("Consumer", "INFO")
     logger.info("Starting Output Consumer")
-    val hashMap = scala.collection.mutable.Map.empty[Int, Long]
     val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
     while true do
       output.poll() match
@@ -82,8 +81,9 @@ object Query {
         case records =>
           records.foreach: r =>
             val partition = readBinary[Int](r._1)
-            val outputState = readBinary[OutputState](r._2)
-            logger.info(s"[OUTPUT TOPIC]: partition: $partition, window: ${outputState.window} closed with final aggregate: ${outputState.value}")
+            logger.info(s"[OUTPUT TOPIC]: partition: $partition, received record: $r")
+//            val outputState = readBinary[OutputState](r._2)
+//            logger.info(s"[OUTPUT TOPIC]: partition: $partition, window: ${outputState.window} closed with final aggregate: ${outputState.value}")
   }
 
   def setupKafka(): Unit = {

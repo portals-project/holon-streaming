@@ -37,7 +37,7 @@ class Recovery(nodeId: Int) {
         val basePartitions = job.partitions
 
         logger.info(s"Setting up job for node $nodeId")
-        
+
         this.procFunFactory = job.procFunFactory
         // Setup producers
         this.producers.clear()
@@ -149,7 +149,7 @@ class Recovery(nodeId: Int) {
                                 message match {
                                     case CRDTUpdate(update, _) =>
                                         if (senderId != nodeId) {
-                                            logger.info(s"Node $nodeId received CRDT update from node $senderId")
+                                            logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                             failureDetector.setHeartbeat(senderId)
                                         }
                                         // Send broadcast to each processing function
