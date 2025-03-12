@@ -60,7 +60,6 @@ class RecordProcFun(partition: Int) extends ProcFun {
             case _ =>
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
-
         // Emit CRDT state (GCounter) to the broadcast channel.
         outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
     }
@@ -73,8 +72,9 @@ class RecordProcFun(partition: Int) extends ProcFun {
     override def restore(snapshot: Array[Byte]): Unit = {
         logger.debug("Restoring from snapshot")
         bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
+        logger.info(s"Partition $partitionId Restored CRDT: $bidsCRDT")
     }
-
+  
     override def defineWindow(eventTime: Long): Long = {
         0L
     }

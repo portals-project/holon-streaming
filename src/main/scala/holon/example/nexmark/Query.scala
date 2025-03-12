@@ -31,11 +31,10 @@ object Query {
     )
 
   // Job function creates a job object with the specified consumers and producers
-  def job(partition: Int): Job = {
-    val consumers = List(
-      consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition),
-      consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0),
-    )
+  def job(partitions: List[Int]): Job = {
+    val consumers = partitions.map { partition =>
+      consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition)
+    } :+ consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0)
 
     val producers = List(
       producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK),
@@ -48,6 +47,7 @@ object Query {
       producers = producers,
 //       procFun = new RecordProcFun(partition),
       procFun = new WindowedRecordProcFun(partition),
+      partitions = partitions,
     )
 
     job
@@ -60,11 +60,12 @@ object Query {
     val logger = Logger.apply("Producer")
     Logger.setLevel("Producer", "INFO")
     logger.info("Starting Nexmark Producer")
-    while System.currentTimeMillis() < end_time do
-      for i <- 0 until KAFKA_N_PARTITIONS do //
-        // TODO: Add extra bit for work stealing
+    while true do
+      for i <- 0 until KAFKA_N_PARTITIONS do
         val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
+        println(s"Sending batch (size ${batch.size})")
         producer.send(batch)
+
       producer.flush()
       Thread.sleep(PRODUCER_SLEEP_MS)
   }
@@ -100,35 +101,29 @@ object Query {
   }
 
   def main(args: Array[String]): Unit = {
-    try {
+    val RUNTIME = 25_000
+    SafeRun(RUNTIME) {
+      val logger = Logger.apply("Nexmark Query")
+      Logger.setLevel("Nexmark Query", "INFO")
+      logger.info("Starting Nexmark Query")
       setupKafka()
-      SafeRun(15_000) {
-        val logger = Logger.apply("Nexmark Query")
-        Logger.setLevel("Nexmark Query", "INFO")
-        logger.info("Starting Nexmark Query")
 
+      RunThread(runNexmarkProducer())
+      RunThread(runNexmarkProducer())
+      RunThread(runNexmarkProducer())
+      RunThread(runNexmarkProducer())
+      RunThread(runNexmarkProducer())
+      RunThread(runOutputConsumer())
 
-        // Set the end time for the producers (streams)
-        val endTime = System.currentTimeMillis() + 200_000
-
-        //      RunThread(runNexmarkProducer(endTime))
-        //      RunThread(runNexmarkProducer(endTime))
-        //      RunThread(runNexmarkProducer(endTime))
-        //      RunThread(runNexmarkProducer(endTime))
-        RunThread(runNexmarkProducer(endTime))
-        RunThread(runOutputConsumer())
-
-        for (i <- 0 until KAFKA_N_PARTITIONS) {
-          val j = job(i)
-          val holon = Holon()
-          holon.submitOrUpdate(j)
-        }
-
-        Thread.sleep(15_000)
+      for (i <- 0 until N_NODES) {
+        val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
+        System.out.println(s" Node: $i Partitions: $partitions")
+        val j = job(partitions)
+        val holon = Holon(i)
+        holon.submitOrUpdate(j)
       }
-    }
-    catch {
-      case e: Exception => e.printStackTrace()
+
+      Thread.sleep(RUNTIME)
     }
   }
 }

@@ -33,5 +33,5 @@ case class ProducerRef(
 case class Job(
     consumers: List[ConsumerRef],
     producers: List[ProducerRef],
-    procFun: ProcFun,
+    partitions: List[Int]
 )

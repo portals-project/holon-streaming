@@ -11,7 +11,8 @@ import org.apache.beam.sdk.values.*
 object Nexmark:
   final val AUCTIONS_MANIFEST = "A"
   final val BIDS_MANIFEST = "B"
-  final val PERSONS_MANIFEST = "C"
+  final val SNAPSHOT_MANIFEST = "C"
+  final val PERSONS_MANIFEST = "D"
 
   private val reader = summon[ReadWriter[Events.TimeStampedEvent]]
   private val writer = summon[ReadWriter[Events.TimeStampedEvent]]
@@ -20,6 +21,12 @@ object Nexmark:
 
   def iterator(): Iterator[Events.TimeStampedEvent] =
     val nexmarkConfig = NexmarkConfiguration.DEFAULT
+
+    // Set nexmark config parameters
+//    nexmarkConfig.hotAuctionRatio = 10
+//    nexmarkConfig.hotBiddersRatio = 10
+//    nexmarkConfig.hotSellersRatio = 10
+
     val config = new GeneratorConfig(nexmarkConfig, 0, 0, 0, 0)
     val generator = new Generator(config)
     new Iterator[Events.TimeStampedEvent]:

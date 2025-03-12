@@ -2,8 +2,8 @@ package holon.backend
 
 import holon.*
 
-class HolonImpl extends Holon {
-  private val recovery = Recovery()
+class HolonImpl(nodeId: Int) extends Holon {
+  private val recovery = Recovery(nodeId)
 
   def submitOrUpdate(job: Job): Unit = {
     recovery.submitOrUpdate(job)
