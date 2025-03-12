@@ -130,6 +130,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
         windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
         //                  logger.info(s"[window:$windowCount | partition:$partition] Closing window: $passedWindow")
 
+        // IDEA 1: Wait
         val outputState = OutputState(partition, passedWindow, windowMap(passedWindow)._1.value)
         // Emit the current window's GCounter value.
         outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
