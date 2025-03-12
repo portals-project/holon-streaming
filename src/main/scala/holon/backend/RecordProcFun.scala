@@ -1,6 +1,6 @@
 package holon.backend
 
-import org.apache.pekko.cluster.ddata.{GCounter}
+import org.apache.pekko.cluster.ddata.GCounter
 import upickle.default.*
 import holon.*
 import holon.example.nexmark.Config.*
@@ -72,7 +72,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     override def restore(snapshot: Array[Byte]): Unit = {
         logger.debug("Restoring from snapshot")
         bidsCRDT = crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]
-        logger.info(s"Partition $partitionId Restored CRDT: $bidsCRDT")
+        logger.info(s"Partition $partition Restored CRDT: $bidsCRDT")
     }
   
     override def defineWindow(eventTime: Long): Long = {

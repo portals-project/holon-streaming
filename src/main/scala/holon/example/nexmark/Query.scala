@@ -54,7 +54,7 @@ object Query {
   }
 
   /** Run the Nexmark producer */
-  def runNexmarkProducer(end_time: Long) = {
+  def runNexmarkProducer() = {
     val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
     val iter = Nexmark.iterator()
     val logger = Logger.apply("Producer")
