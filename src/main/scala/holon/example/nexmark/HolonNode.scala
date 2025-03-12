@@ -7,8 +7,12 @@ import holon.Utils.*
 object HolonNode {
 
     def main(args: Array[String]): Unit = {
+        Config.KAFKA_HOST = "kafka"
+        Config.KAFKA_PORT = 9093
+
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
+
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
 
         SafeRun(RUNTIME) {

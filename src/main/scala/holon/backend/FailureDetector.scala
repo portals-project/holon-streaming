@@ -10,6 +10,7 @@ class FailureDetector(currentNodeId: Int) {
     private val heartbeatMap = scala.collection.mutable.Map.empty[Int, Long]
     private var heartbeatCheckTime: Long = -1
     private val logger = Logger.apply("FailureDetector")
+    private var startCheckingForFailures = false
 
     Logger.setLevel("FailureDetector", "INFO")
 
@@ -22,6 +23,14 @@ class FailureDetector(currentNodeId: Int) {
         heartbeatMap.put(nodeId, System.currentTimeMillis())
     }
 
+    def setHeartbeat(nodeId: Int, timestamp: Long): Unit = {
+        heartbeatMap.put(nodeId, timestamp)
+    }
+
+    def setStartCheckingForFailures(): Unit = {
+        startCheckingForFailures = true
+    }
+
     /**
      * Check for failed nodes by comparing the current time with the last heartbeat.
      *
@@ -29,7 +38,7 @@ class FailureDetector(currentNodeId: Int) {
      */
     def checkNodeFailures(): List[Int] = {
         val t = System.currentTimeMillis()
-        if heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > HEARTBEAT_INTERVAL then {
+        if startCheckingForFailures && heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > HEARTBEAT_INTERVAL then {
             logger.debug(s"Checking for failed nodes $heartbeatMap")
             heartbeatCheckTime = System.currentTimeMillis()
 

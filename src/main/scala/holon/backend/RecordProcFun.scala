@@ -60,12 +60,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
     
     override def snapshot(): Array[Byte] = synchronized {
         logger.info(s"Partition $partitionId Snapshotting CRDT: $bidsCRDT")
-        val snap = crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
-        logger.info(s"Partition $partitionId Snapshot: ${snap}")
-        logger.info(s"Partition $partitionId snapshot decoded ${crdtFromBinaryWithManifest(snap)._2.asInstanceOf[GCounter]}")
-
-
-        snap
+        crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT)
     }
     
     override def restore(snapshot: Array[Byte]): Unit = {

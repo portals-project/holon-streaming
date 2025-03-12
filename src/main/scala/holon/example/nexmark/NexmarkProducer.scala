@@ -1,7 +1,6 @@
 package holon.example.nexmark
 
 import holon.*
-import holon.Utils.*
 import holon.backend.*
 import holon.example.Nexmark
 import holon.example.nexmark.Config.*

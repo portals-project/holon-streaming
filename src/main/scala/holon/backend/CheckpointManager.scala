@@ -23,19 +23,42 @@ class CheckpointManager {
      * Checks if its time to create a checkpoint.
      * If so, creates a checkpoint for each partition.
      */
-    def createCheckpointIfRequired(procFunctionPerPartition: Map[Int, ProcFun],
+    def createCheckpointIfRequired(nodeId: Int, procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
         consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
 
         val t = System.currentTimeMillis()
         if (t - checkpointTime > CHECKPOINT_INTERVAL) {
+            // Save snapshot for all partitions
             procFunctionPerPartition.foreach((partitionId, procFun) => {
                 val snapshot = procFun.snapshot()
-                safeSnapshot(getSnapshotName(partitionId), partitionId, snapshot, consumerPerPartition)
+                safePartitionSnapshot(partitionId, snapshot, consumerPerPartition(partitionId)._2)
                 logger.debug(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
             })
 
+            // Save broadcast channel offset for node
+            val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
+            val broadcastOffset = broadcastConsumer.offsets().head
+            logger.debug(s"Node $nodeId saving broadcast channel offset: $broadcastOffset")
+            GCSClient.uploadStringToBucket(bucketName, getNodeSnapshotName(nodeId), broadcastOffset._2.toString)
+
+
             checkpointTime = System.currentTimeMillis()
         }
+    }
+
+//    def createCheckpointForPartition(partitionId: Int, procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
+//        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+//
+//        val procFun = procFunctionPerPartition(partitionId)
+//        val snapshot = procFun.snapshot()
+//        safeSnapshot(getPartitionSnapshotName(partitionId), partitionId, snapshot, consumerPerPartition)
+//        logger.debug(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
+//    }
+
+    def createCheckpointForPartition(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
+        val snapshot = procFun.snapshot()
+        safePartitionSnapshot(partitionId, snapshot, consumer)
+        logger.debug(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
     }
 
     /**
@@ -44,48 +67,95 @@ class CheckpointManager {
      * Format: {channel: [partition,offset]}snapshot
      * E.g. {0:[1,1110];1:[0,4]}snapshot
      */
-    private def safeSnapshot(snapshotName: String, partitionId: Int, snapshot: Array[Byte],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+//    private def safeSnapshot(snapshotName: String, partitionId: Int, snapshot: Array[Byte],
+//        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+//
+//        val (partitionChn, partitionConsumer) = consumerPerPartition(partitionId)
+//        val partitionOffset = partitionConsumer.offsets().head
+//        logger.debug(s"Partition $partitionId offset: $partitionOffset")
+//
+//        val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
+//        val broadcastOffset = broadcastConsumer.offsets().head
+//
+//        val base64EncodedSnapshot = Base64.getEncoder.encodeToString(snapshot)
+//        val content = s"{$partitionChn:[$partitionId,${partitionOffset._2}];$broadcastChn:[0,${broadcastOffset._2}]}$base64EncodedSnapshot"
+//
+//        // Get GCSUploader object
+//        GCSClient.uploadStringToBucket(bucketName, snapshotName, content)
+//    }
 
-        val (partitionChn, partitionConsumer) = consumerPerPartition(partitionId)
-        val partitionOffset = partitionConsumer.offsets().head
+    /**
+     * Safe partition snapshot of current state to Google Cloud Storage
+     * Saves offset for partition consumer & current state
+     * Format: "offset:snapshot"
+     */
+    private def safePartitionSnapshot(partitionId: Int, snapshot: Array[Byte], consumer: LogConsumer): Unit = {
+        val partitionOffset = consumer.offsets().head
         logger.debug(s"Partition $partitionId offset: $partitionOffset")
 
-        val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
-        val broadcastOffset = broadcastConsumer.offsets().head
-
         val base64EncodedSnapshot = Base64.getEncoder.encodeToString(snapshot)
-        val content = s"{$partitionChn:[$partitionId,${partitionOffset._2}];$broadcastChn:[0,${broadcastOffset._2}]}$base64EncodedSnapshot"
+        val content = s"${partitionOffset._2}:$base64EncodedSnapshot"
 
-        // Get GCSUploader object
-        GCSClient.uploadStringToBucket(bucketName, snapshotName, content)
+        GCSClient.uploadStringToBucket(bucketName, getPartitionSnapshotName(partitionId), content)
     }
 
-
-    def recoverCheckpoint(partitionId: Int, restoreBroadcastChannel: Boolean,
-        procFunctionPerPartition: Map[Int, ProcFun],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
-
-        if (GCSClient.checkIfFileExists(bucketName, getSnapshotName(partitionId))) {
+    def recoverCheckpointForPartition(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
+        if (GCSClient.checkIfFileExists(bucketName, getPartitionSnapshotName(partitionId))) {
             logger.debug(s"Restoring snapshot for partition $partitionId")
-            restoreSnapshot(partitionId, restoreBroadcastChannel, procFunctionPerPartition, consumerPerPartition)
+            restorePartitionSnapshot(partitionId, procFun, consumer)
         }
+    }
+
+    /**
+     * Recover checkpoint for all partitions and reset broadcast channel offset for node.
+     */
+    def recoverCheckpoint(nodeId: Int, partitionIds: List[Int],
+        procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
+        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]) : Unit = {
+
+        // Restore snapshot for all partitions
+        partitionIds.foreach(partitionId => {
+            if (GCSClient.checkIfFileExists(bucketName, getPartitionSnapshotName(partitionId))) {
+                logger.debug(s"Restoring snapshot for partition $partitionId")
+                restorePartitionSnapshot(partitionId, procFunctionPerPartition(partitionId), consumerPerPartition(partitionId)._2)
+            }
+        })
+
+        // Restore broadcast channel offset for node
+        if (GCSClient.checkIfFileExists(bucketName, getNodeSnapshotName(nodeId))) {
+            val offset = GCSClient.downloadStringFromBucket(bucketName, getNodeSnapshotName(nodeId))
+            logger.debug(s"Restoring broadcast channel offset for node $nodeId: $offset")
+            val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
+            broadcastConsumer.seek(0, offset.toLong)
+        }
+
     }
 
     /**
      * Restore snapshot for all partitions.
      */
-    def recoverCheckpointForAllPartitions(partitionIds: List[Int], restoreBroadcastChannel: Boolean,
-        procFunctionPerPartition: Map[Int, ProcFun],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+//    def recoverCheckpointForAllPartitions(partitionIds: List[Int], restoreBroadcastChannel: Boolean,
+//        procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
+//        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+//
+//        partitionIds.foreach(partitionId => {
+//            if (GCSClient.checkIfFileExists(bucketName, getPartitionSnapshotName(partitionId))) {
+//                logger.debug(s"Restoring snapshot for partition $partitionId")
+//                restoreSnapshot(partitionId, restoreBroadcastChannel, procFunctionPerPartition, consumerPerPartition)
+//
+//            }
+//        })
+//    }
 
-        partitionIds.foreach(partitionId => {
-            if (GCSClient.checkIfFileExists(bucketName, getSnapshotName(partitionId))) {
-                logger.debug(s"Restoring snapshot for partition $partitionId")
-                restoreSnapshot(partitionId, restoreBroadcastChannel, procFunctionPerPartition, consumerPerPartition)
+    private def restorePartitionSnapshot(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
+        val fileContent = GCSClient.downloadStringFromBucket(bucketName, getPartitionSnapshotName(partitionId))
+        // Split the content on :
+        val Array(offset: String, snapshotString: String) = fileContent.split(":")
 
-            }
-        })
+        procFun.restore(Base64.getDecoder.decode(snapshotString))
+        consumer.seek(partitionId, offset.toLong)
+
+        logger.debug(s"Restored snapshot for partition $partitionId: $fileContent")
     }
 
     /**
@@ -93,10 +163,10 @@ class CheckpointManager {
      * Set offset for both partition and broadcast consumer.
      */
     private def restoreSnapshot(partitionId: Int, restoreBroadcastChannel: Boolean,
-        procFunctionPerPartition: Map[Int, ProcFun],
+        procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
         consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
 
-        val snapshotName = getSnapshotName(partitionId)
+        val snapshotName = getPartitionSnapshotName(partitionId)
         val snapshotString = GCSClient.downloadStringFromBucket(bucketName, snapshotName)
 
         // Get string after closing }
@@ -127,8 +197,12 @@ class CheckpointManager {
             broadcastConsumer.seek(offsetsPerChannel(broadcastChn)(0), offsetsPerChannel(broadcastChn)(1))
     }
 
-    private def getSnapshotName(partitionId: Int): String = {
+    private def getPartitionSnapshotName(partitionId: Int): String = {
         "partition" + partitionId
+    }
+
+    private def getNodeSnapshotName(nodeId: Int): String = {
+        "node" + nodeId
     }
 
 }

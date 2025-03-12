@@ -2,9 +2,9 @@ package holon.backend
 
 import holon.*
 import holon.Utils.*
-import holon.backend.GCSClient.bucketName
 import holon.example.nexmark.Config.*
-import upickle.default.*
+import upickle.default.{readBinary, writeBinary}
+
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class Recovery(nodeId: Int) {
@@ -15,10 +15,11 @@ class Recovery(nodeId: Int) {
     private var partitions: List[Int] = List.empty
     private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
-    private var procFunctionPerPartition: Map[Int, ProcFun] = Map.empty
+    private var procFunctionPerPartition = scala.collection.mutable.Map.empty[Int, ProcFun]
     private val out = OutputCollectorImpl(producers)
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
+    private var failedNodes = List.empty[Int]
     private val checkpointManager = CheckpointManager()
     private val logger = Logger.apply("Recovery")
 
@@ -31,55 +32,70 @@ class Recovery(nodeId: Int) {
     }
 
     private def setup(job: Job): Unit = {
-        val partitions = job.partitions
+        // Partitions node should probably hold based on its id
+        val basePartitions = job.partitions
 
         logger.info(s"Setting up job for node $nodeId")
-        // Setup consumers
-        this.consumerPerPartition.clear()
-        job.consumers.foreach: ref =>
-            val consumer = KafkaLogConsumer.fromRef(ref)
-            logger.debug(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
-            val partition = if (ref.chn == CHN_NEXMARK) consumer.partition else BROADCAST_PARTITION_ID
-            this.consumerPerPartition.put(partition, (ref.chn, consumer))
-
-        logger.debug(s"Consumers: $consumerPerPartition")
-
-
-        for partitionId <- partitions do
-            // Check partition ownership
-            val (ownerNodeId, versionNr) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
-
-            // If partition is not owned by any node, set ownership to current node
-            if ownerNodeId == -1 then
-                FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
-            else if ownerNodeId != nodeId then
-            // Ask for ownership of partition
-
-
-                logger.info(s"Node $nodeId is not responsible for partition $partitionId")
-            else
-                logger.info(s"Node $nodeId is already responsible for partition $partitionId")
-
         // Setup producers
         this.producers.clear()
         job.producers.foreach: ref =>
             val producer = KafkaLogProducer.fromRef(ref)
             this.producers.put(ref.chn, producer)
 
+        val partitionsByOwnerToRequest = scala.collection.mutable.Map.empty[Int, List[Int]]
+        for (partitionId <- basePartitions) {
+            // Check partition ownership
+            val (ownerNodeId, versionNr) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
+
+            // If partition is not owned by any node, set ownership to current node
+            if ownerNodeId == -1 then
+                FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
+
+            else if ownerNodeId != nodeId then
+            // Add partition to request list
+                if partitionsByOwnerToRequest.contains(ownerNodeId) then
+                    partitionsByOwnerToRequest(ownerNodeId) = partitionsByOwnerToRequest(ownerNodeId) :+ partitionId
+                else
+                    partitionsByOwnerToRequest(ownerNodeId) = List(partitionId)
+        }
+
+        // Get all partitions owned by current node
+        val partitionsOwned = FirestoreClient.queryPartitionsByNodeId(FirestoreClient.OWNERSHIP_COLLECTION_NAME, nodeId).map(_._1).toList
+        logger.info(s"Node $nodeId is responsible for partitions: $partitionsOwned")
+
+        // Request partition ownership from other nodes
+        for (ownerNodeId <- partitionsByOwnerToRequest.keys) {
+            val partitions = partitionsByOwnerToRequest(ownerNodeId)
+            logger.info(s"Node $nodeId is requesting ownership of partitions $partitions from node $ownerNodeId")
+            requestPartitionOwnership(ownerNodeId, partitions)
+        }
+
+        // Setup consumers from job
+        this.consumerPerPartition.clear()
+        job.consumers.foreach: ref =>
+            if (ref.chn != CHN_NEXMARK || partitionsOwned.contains(ref.partitions.head)) {
+                val consumer = KafkaLogConsumer.fromRef(ref)
+                logger.debug(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
+                val partition = if (ref.chn == CHN_NEXMARK) consumer.partition else BROADCAST_PARTITION_ID
+                this.consumerPerPartition.put(partition, (ref.chn, consumer))
+            }
+
+        // Setup consumers for other owned partitions
+        for partitionId <- partitionsOwned do
+            if !this.consumerPerPartition.contains(partitionId) then
+                addNewNexmarkConsumer(partitionId)
+
+        logger.info(s"Consumers: $consumerPerPartition")
+
+
         // Setup procFunctions
-        this.partitions = job.partitions
-        this.procFunctionPerPartition = job.partitions.map { partition =>
+        this.partitions = partitionsOwned
+        this.procFunctionPerPartition = scala.collection.mutable.Map(partitionsOwned.map { partition =>
             partition -> new RecordProcFun(partition)
-        }.toMap
+        }: _*)
 
-        // Set partition ownership
-        this.partitions.foreach(partitionId => {
-            FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
-        })
-
-        // Recover from the last checkpoint for each partition
-        this.checkpointManager.recoverCheckpointForAllPartitions(this.partitions, true,
-                                                                 this.procFunctionPerPartition, this.consumerPerPartition)
+        // Recover from the last checkpoint for each partition and node
+        this.checkpointManager.recoverCheckpoint(NODE_ID, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
     }
 
     private def run(): Unit = {
@@ -94,11 +110,13 @@ class Recovery(nodeId: Int) {
                 checkJobQueue()
 
             // Create checkpoint if its time for it
-            this.checkpointManager.createCheckpointIfRequired(procFunctionPerPartition, consumerPerPartition)
+            this.checkpointManager.createCheckpointIfRequired(NODE_ID, procFunctionPerPartition, consumerPerPartition)
 
 
             // Check for failed nodes & handle failures
-            handleFailedNodes(failureDetector.checkNodeFailures());
+            val currentFailedNodes = failureDetector.checkNodeFailures()
+            handleFailedNodes(currentFailedNodes.diff(failedNodes))
+            this.failedNodes = currentFailedNodes
 
             runStep()
     }
@@ -110,38 +128,61 @@ class Recovery(nodeId: Int) {
 
     private inline def runStep(): Unit = {
         // 1. Poll, process each consumer
-        for ((partitionId, (chn, consumer)) <- consumerPerPartition) {
-            val records = consumer.poll()
-            logger.debug(s"Node $nodeId is polling partition $partitionId from channel $chn: Consumer: $consumer - Records nonEmpty: ${records.nonEmpty}")
+        for ((partitionId, (chn, consumer)) <- this.consumerPerPartition) {
+            try {
 
-            if records.nonEmpty then {
-                chn match {
-                    case CHN_BROADCAST =>
-                        for (rec <- records) {
-                            // Track heartbeats from other nodes
-                            val (key, value) = rec
-                            val (receivedNodeId, recValue) = readBinary[(Int, Array[Byte])](value)
-                            logger.debug(s"($nodeId) Received broadcast from $receivedNodeId")
+                val records = consumer.poll()
+                logger.debug(s"Node $nodeId is polling partition $partitionId from channel $chn: Consumer: $consumer - Records nonEmpty: ${records.nonEmpty}")
 
-                            if (receivedNodeId != nodeId) failureDetector.setHeartbeat(receivedNodeId)
+                if records.nonEmpty then {
+                    chn match {
+                        case CHN_BROADCAST =>
+                            for (rec <- records) {
+                                // Track heartbeats from other nodes
+                                val (key, value) = rec
+                                val message = readBinary[BroadcastMessage](value)
 
-                            // Send broadcast to each processing function
-                            this.procFunctionPerPartition.foreach((_, procFun) =>
-                                procFun.process(outputFunction, chn, Iterable.single((key, recValue)))
-                            )
-                        }
-                    case _ =>
-                        // Send message for partition to specific processing function
-                        val procFun = this.procFunctionPerPartition(partitionId)
-                        if (procFun != null) {
-                            logger.info(s"Node $nodeId is processing records for partition $partitionId")
-                            procFun.process(outputFunction, chn, records)
-                        }
+                                val senderId = message.senderId
+                                message match {
+                                    case CRDTUpdate(update, _) =>
+                                        if (senderId != nodeId) {
+                                            logger.info(s"Node $nodeId received CRDT update from node $senderId")
+                                            failureDetector.setHeartbeat(senderId)
+                                        }
+                                        // Send broadcast to each processing function
+                                        this.procFunctionPerPartition.foreach((_, procFun) =>
+                                                                                  procFun.process(outputFunction, chn, Iterable.single((key, update)))
+                                                                              )
+                                    case OwnershipRequest(receiverId, partitions, senderId) =>
+                                        if receiverId == NODE_ID then
+                                            logger.info(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
+                                            handoverOwnership(senderId, partitions)
+
+                                        // TODO delete: for now give node more time to recover
+                                        if (senderId != nodeId) failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)
+
+                                    case OwnershipRequestAccepted(receiverId, partitions, senderId) =>
+                                        if receiverId == NODE_ID then
+                                            logger.info(s"(Node $NODE_ID) Received ownership confirmation from node $senderId for partitions $partitions")
+                                            integrateNewPartitions(partitions)
+                                }
+                            }
+                        case _ =>
+                            // Send message for partition to specific processing function
+                            val procFun = this.procFunctionPerPartition(partitionId)
+                            if (procFun != null) {
+                                logger.info(s"Node $nodeId is processing records for partition $partitionId")
+                                procFun.process(outputFunction, chn, records)
+                            }
+                    }
+                } else {
+                    val kafkaConsumer = consumer.asInstanceOf[KafkaLogConsumer]
+                    val partition = kafkaConsumer.partition
+                    logger.debug(s"Node $nodeId - partition $partition received no records from channel $chn")
                 }
-            } else {
-                val kafkaConsumer = consumer.asInstanceOf[KafkaLogConsumer]
-                val partition = kafkaConsumer.partition
-                logger.debug(s"Node $nodeId - partition $partition received no records from channel $chn")
+            } catch {
+                case e: IllegalStateException =>
+                    logger.error(s"Error processing consumer for partition $partitionId", e)
             }
         }
 
@@ -155,11 +196,11 @@ class Recovery(nodeId: Int) {
     def outputFunction(partitionId: Int, chn: Byte, recs: LogProducerRecords): Unit = {
         chn match {
             case Config.CHN_BROADCAST =>
-                if nodeId == 0 then return // Skip broadcasting from node 0
-
                 // Add id of current node to the broadcast message for heartbeat tracking
                 val recordsWithNodeId = recs.map { case (key, value) =>
-                    (key, writeBinary((nodeId, value)))
+                    val message = CRDTUpdate(value, NODE_ID)
+                    val serializedMessage = writeBinary(message)
+                    (key, serializedMessage)
                 }
                 out.collect(chn, recordsWithNodeId)
             case Config.CHN_OUTPUT =>
@@ -173,6 +214,7 @@ class Recovery(nodeId: Int) {
                         logger.info(s"Node $nodeId partition $partitionId commits: $bids")
 
                     out.collect(chn, recs)
+                    this.failureDetector.setStartCheckingForFailures()
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
                 }
@@ -200,24 +242,38 @@ class Recovery(nodeId: Int) {
                     FirestoreClient.setPartitionOwnership(partitionId, nodeId, versionNr + 1)
                     logger.info(s"Node $nodeId is new owner of partition $partitionId")
 
-                // Create procFunction, consumer & restore snapshot for each partition
-                for ((partitionId, versionNr) <- partitions) {
-                    procFunctionPerPartition += partitionId -> new RecordProcFun(partitionId)
-                    val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
-                        chn = CHN_NEXMARK,
-                        host = KAFKA_HOST,
-                        port = KAFKA_PORT,
-                        topic = KAFKA_TOPIC_NEXMARK,
-                        partitions = List(partitionId),
-                        ))
-                    this.consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
-
-                    this.checkpointManager.recoverCheckpoint(partitionId, false,
-                                                             procFunctionPerPartition, consumerPerPartition)
-                }
+                integrateNewPartitions(partitions.map(_._1))
             } else {
                 logger.info(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
             }
+    }
+
+    /**
+     * Integrate new partitions into the system. Create processing function, consumer & restore snapshot.
+     */
+    private def integrateNewPartitions(partitions: List[Int]): Unit = {
+        for (partitionId <- partitions) {
+            procFunctionPerPartition += partitionId -> new RecordProcFun(partitionId)
+            addNewNexmarkConsumer(partitionId)
+
+            this.checkpointManager.recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId),
+                                                                 consumerPerPartition(partitionId)._2)
+        }
+    }
+
+    /**
+     * Add new Nexmark consumer for the partition.
+     */
+    private def addNewNexmarkConsumer(partitionId: Int): Unit = {
+        val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
+            chn = CHN_NEXMARK,
+            host = KAFKA_HOST,
+            port = KAFKA_PORT,
+            topic = KAFKA_TOPIC_NEXMARK,
+            partitions = List(partitionId),
+            ))
+        logger.info(s"Node $nodeId - Adding new consumer for partition $partitionId: $inputConsumer")
+        this.consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
     }
 
     /**
@@ -231,6 +287,55 @@ class Recovery(nodeId: Int) {
             owner = (failedNode + 1) % N_NODES
 
         owner == nodeId
+    }
+
+    /**
+     * Request partition ownership from the current owner node.
+     */
+    private def requestPartitionOwnership(ownerNodeId: Int, partitions: List[Int]): Unit = {
+        // Create the OwnershipRequest message
+        val message = OwnershipRequest(ownerNodeId, partitions, NODE_ID)
+
+        // Serialize the message
+        val serializedMessage = writeBinary(message)
+
+        // Send the serialized message
+        val records = List((writeBinary(0), serializedMessage))
+        out.collect(Config.CHN_BROADCAST, records)
+
+        logger.info(s"Requesting ownership of partitions $partitions from node $ownerNodeId")
+    }
+
+    /**
+     * Handover ownership of partitions to a new owner.
+     * Checkpoint current state, set new owner & close consumer.
+     * Send ownership confirmation to new owner.
+     */
+    private def handoverOwnership(newOwnerId: Int, partitions: List[Int]): Unit = {
+        if partitions.nonEmpty then
+            // Checkpoint current state, set new owner & close consumer
+            var  transferredPartitions = List.empty[Int]
+            for partitionId <- partitions do
+                if (this.procFunctionPerPartition.keySet.contains(partitionId)) {
+
+                    val (chn, consumer) = this.consumerPerPartition(partitionId)
+                    val procFun = this.procFunctionPerPartition(partitionId)
+                    this.checkpointManager.createCheckpointForPartition(partitionId, procFun, consumer)
+                    FirestoreClient.setPartitionOwnership(partitionId, newOwnerId, 0)
+
+                    consumer.close()
+                    this.consumerPerPartition.remove(partitionId)
+                    this.procFunctionPerPartition.remove(partitionId)
+                    transferredPartitions = transferredPartitions :+ partitionId
+                }
+
+            logger.info(s"Partition $transferredPartitions ownership handed over to node $newOwnerId")
+
+            // Send ownership confirmation to new owner
+            val message = OwnershipRequestAccepted(newOwnerId, transferredPartitions, NODE_ID)
+            val serializedMessage = writeBinary(message)
+            val records = List((writeBinary(0), serializedMessage))
+            out.collect(Config.CHN_BROADCAST, records)
     }
 
 }
