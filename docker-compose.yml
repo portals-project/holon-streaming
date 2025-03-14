@@ -77,7 +77,7 @@ services:
       - init-kafka
     environment:
       NODE_ID: "0"
-      RUNTIME: "180000"
+      RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
   holon-node-1:
@@ -88,5 +88,5 @@ services:
       - init-kafka
     environment:
       NODE_ID: "1"
-      RUNTIME: "180000"
+      RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"

@@ -4,7 +4,7 @@ import holon.*
 import holon.example.CRDT.*
 import holon.example.nexmark.Config.*
 import holon.example.{CRDT, Nexmark}
-import org.apache.pekko.cluster.ddata.{GCounter, PNCounter, SelfUniqueAddress}
+import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 import upickle.default.{readwriter, macroRW, ReadWriter, writeBinary, readBinary}
 
 // TODO: Examine the custom ReadWriter.
@@ -59,7 +59,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
   private val windowMap = scala.collection.mutable.Map.empty[Long, (GCounter, Boolean)]
 
   override def process(
-                        outputFunction: (Byte, LogProducerRecords) => Unit,
+                        outputFunction: (Int, Byte, LogProducerRecords) => Unit,
                         chn: Byte,
                         recs: LogConsumerRecords
                       ): Unit = {
@@ -96,7 +96,6 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
           for (rec <- recs) {
             // Deserialize the received state using upickle.
             val receivedState = readBinary[WindowState](rec._2)
-            val receivedPartition = receivedState.partition
             val receivedVectorClock = receivedState.vectorClock
             val receivedWindowMap = receivedState.windowMap
 
@@ -133,14 +132,14 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
         // IDEA 1: Wait
         val outputState = OutputState(partition, passedWindow, windowMap(passedWindow)._1.value)
         // Emit the current window's GCounter value.
-        outputFunction(CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
+        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
       }
     }
 
     // Broadcast the current local state.
     val stateToBroadcast = WindowState(partition, vectorClock, windowMap)
     // TODO: Why is the partition hardcoded to 0?
-    outputFunction(CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(stateToBroadcast))))
+    outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(stateToBroadcast))))
 
 //    logger.info(s"[window:$windowCount | partition:$partition] Broadcasting state")
   }

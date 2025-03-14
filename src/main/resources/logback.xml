@@ -1,5 +1,6 @@
 <configuration>
     <logger name="io.grpc.netty.shaded.io.netty" level="WARN"/>
+    <logger name="org.apache.kafka" level="WARN"/>
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>

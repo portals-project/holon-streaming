@@ -18,8 +18,12 @@ class RecordProcFun(partition: Int) extends ProcFun {
     private val addr = address(partition)
 
     // Emit frequency.
-    private val emitInterval = 2000
+    private val emitInterval = 10_000
     private var lastEmitTime = System.currentTimeMillis()
+
+    // Only broadcast every 30 messages.
+    private var messageCount = 30
+
 
     private val logger = Logger.apply("RecordProcFunction")
     Logger.setLevel("RecordProcFunction", "INFO")
@@ -34,7 +38,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
         // Every n seconds, emit the CRDT state to the output channel.
         if (System.currentTimeMillis() - lastEmitTime > emitInterval) {
             logger.debug(s"Emitting CRDT state to output channel")
-            outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(bidsCRDT.value))))
+            outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(bidsCRDT.value))))
             lastEmitTime = System.currentTimeMillis()
         }
         chn match {
@@ -45,7 +49,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
                         case bid: Nexmark.Events.Bid =>
                             bidsCRDT = bidsCRDT.increment(addr, 1L)
                         case _ =>
-                            logger.debug(s"Ignored non-bid event: $event")
+                            //logger.debug(s"Ignored non-bid event: $event")
                     }
                 }
             case CHN_BROADCAST =>
@@ -61,7 +65,15 @@ class RecordProcFun(partition: Int) extends ProcFun {
                 throw new RuntimeException(s"Unknown channel: $chn")
         }
         // Emit CRDT state (GCounter) to the broadcast channel.
-        outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(partition), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
+
+        // TODO find better solution
+        messageCount += 1
+        if (messageCount >= 30) {
+            logger.debug(s"Partition $partition emitting CRDT state to broadcast channel")
+            outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), crdtToBinaryWithManifest(Nexmark.BIDS_MANIFEST, bidsCRDT))))
+            messageCount = 0
+        }
+
     }
 
     override def snapshot(): Array[Byte] = {

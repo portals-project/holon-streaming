@@ -14,11 +14,6 @@ class FailureDetector(currentNodeId: Int) {
 
     Logger.setLevel("FailureDetector", "INFO")
 
-    // Initialize the heartbeat map
-    for i <- 0 until N_NODES do
-        if i != currentNodeId then
-            heartbeatMap.put(i, System.currentTimeMillis())
-
     def setHeartbeat(nodeId: Int): Unit = {
         heartbeatMap.put(nodeId, System.currentTimeMillis())
     }
@@ -28,7 +23,14 @@ class FailureDetector(currentNodeId: Int) {
     }
 
     def setStartCheckingForFailures(): Unit = {
-        startCheckingForFailures = true
+        if !startCheckingForFailures then
+            logger.info("Starting to check for failed nodes")
+            startCheckingForFailures = true
+
+            // Initialize the heartbeat map
+            for i <- 0 until N_NODES do
+                if i != currentNodeId then
+                    heartbeatMap.put(i, System.currentTimeMillis())
     }
 
     /**
