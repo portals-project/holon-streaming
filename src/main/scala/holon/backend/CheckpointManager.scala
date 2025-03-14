@@ -117,7 +117,7 @@ class CheckpointManager {
         procFun.restore(Base64.getDecoder.decode(snapshotString))
         consumer.seek(partitionId, offset.toLong)
 
-        logger.info(s"Restored snapshot for partition $partitionId.")
+        logger.debug(s"Restored snapshot for partition $partitionId.")
     }
 
     private def getPartitionSnapshotName(partitionId: Int): String = {
