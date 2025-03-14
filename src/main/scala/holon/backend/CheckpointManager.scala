@@ -1,6 +1,7 @@
 package holon.backend
 
 import holon.*
+import holon.example.nexmark.Config.*
 import holon.backend.GCSClient.bucketName
 import holon.example.CRDT.crdtFromBinaryWithManifest
 import org.apache.pekko.cluster.ddata.GCounter
@@ -10,14 +11,12 @@ import java.util.Base64
 
 class CheckpointManager {
 
-    private val CHECKPOINT_INTERVAL = 5_000L
     private val BROADCAST_PARTITION_ID = -1
 
     private var checkpointTime = System.currentTimeMillis()
     private val logger = Logger.apply("CheckpointManager")
 
     Logger.setLevel("CheckpointManager", "INFO")
-
 
     /**
      * Checks if its time to create a checkpoint.
@@ -32,7 +31,7 @@ class CheckpointManager {
             procFunctionPerPartition.foreach((partitionId, procFun) => {
                 val snapshot = procFun.snapshot()
                 safePartitionSnapshot(partitionId, snapshot, consumerPerPartition(partitionId)._2)
-                logger.debug(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
+                logger.info(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
             })
 
             // Save broadcast channel offset for node
@@ -52,7 +51,7 @@ class CheckpointManager {
     def createCheckpointForPartition(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
         val snapshot = procFun.snapshot()
         safePartitionSnapshot(partitionId, snapshot, consumer)
-        logger.debug(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
+        logger.info(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
     }
 
     /**
@@ -118,7 +117,7 @@ class CheckpointManager {
         procFun.restore(Base64.getDecoder.decode(snapshotString))
         consumer.seek(partitionId, offset.toLong)
 
-        logger.debug(s"Restored snapshot for partition $partitionId: $fileContent")
+        logger.info(s"Restored snapshot for partition $partitionId.")
     }
 
     private def getPartitionSnapshotName(partitionId: Int): String = {

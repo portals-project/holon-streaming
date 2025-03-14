@@ -36,7 +36,7 @@ class Recovery(nodeId: Int) {
         // Partitions node should probably hold based on its id
         val basePartitions = job.partitions
 
-        logger.info(s"Setting up job for node $nodeId")
+        logger.debug(s"Setting up job $job for node $nodeId")
 
         this.procFunFactory = job.procFunFactory
         // Setup producers
@@ -88,7 +88,7 @@ class Recovery(nodeId: Int) {
             if !this.consumerPerPartition.contains(partitionId) then
                 addNewNexmarkConsumer(partitionId)
 
-        logger.info(s"Consumers: $consumerPerPartition")
+        logger.debug(s"Consumers: $consumerPerPartition")
 
 
         // Setup procFunctions
@@ -118,7 +118,7 @@ class Recovery(nodeId: Int) {
 
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
-            handleFailedNodes(currentFailedNodes.diff(failedNodes))
+            handleFailedNodes(failedNodes.diff(currentFailedNodes))
             this.failedNodes = currentFailedNodes
 
             runStep()
@@ -174,7 +174,7 @@ class Recovery(nodeId: Int) {
                             // Send message for partition to specific processing function
                             val procFun = this.procFunctionPerPartition(partitionId)
                             if (procFun != null) {
-                                logger.info(s"Node $nodeId is processing records for partition $partitionId")
+                                logger.debug(s"Node $nodeId is processing records for partition $partitionId")
                                 procFun.process(outputFunction, chn, records)
                             }
                     }
@@ -198,7 +198,7 @@ class Recovery(nodeId: Int) {
      */
     def outputFunction(partitionId: Int, chn: Byte, recs: LogProducerRecords): Unit = {
         chn match {
-            case Config.CHN_BROADCAST =>
+            case CHN_BROADCAST =>
                 // Add id of current node to the broadcast message for heartbeat tracking
                 val recordsWithNodeId = recs.map { case (key, value) =>
                     val message = CRDTUpdate(value, NODE_ID)
@@ -206,7 +206,7 @@ class Recovery(nodeId: Int) {
                     (key, serializedMessage)
                 }
                 out.collect(chn, recordsWithNodeId)
-            case Config.CHN_OUTPUT =>
+            case CHN_OUTPUT =>
                 // Handle output for CHN_OUTPUT
 
                 // Check if node is responsible for partition
@@ -220,6 +220,8 @@ class Recovery(nodeId: Int) {
                     this.failureDetector.setStartCheckingForFailures()
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
+                    requestPartitionOwnership(ownerNodeId, List(partitionId))
+                    removeConsumerAndProcFun(partitionId)
                 }
             case _ =>
                 logger.warn(s"Unknown channel: $chn")
@@ -247,7 +249,7 @@ class Recovery(nodeId: Int) {
 
                 integrateNewPartitions(partitions.map(_._1))
             } else {
-                logger.info(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
+                logger.debug(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
             }
     }
 
@@ -275,7 +277,7 @@ class Recovery(nodeId: Int) {
             topic = KAFKA_TOPIC_NEXMARK,
             partitions = List(partitionId),
             ))
-        logger.info(s"Node $nodeId - Adding new consumer for partition $partitionId: $inputConsumer")
+        logger.debug(s"Node $nodeId - Adding new consumer for partition $partitionId: $inputConsumer")
         this.consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
     }
 
@@ -304,7 +306,7 @@ class Recovery(nodeId: Int) {
 
         // Send the serialized message
         val records = List((writeBinary(0), serializedMessage))
-        out.collect(Config.CHN_BROADCAST, records)
+        out.collect(CHN_BROADCAST, records)
 
         logger.info(s"Requesting ownership of partitions $partitions from node $ownerNodeId")
     }
@@ -326,9 +328,7 @@ class Recovery(nodeId: Int) {
                     this.checkpointManager.createCheckpointForPartition(partitionId, procFun, consumer)
                     FirestoreClient.setPartitionOwnership(partitionId, newOwnerId, 0)
 
-                    consumer.close()
-                    this.consumerPerPartition.remove(partitionId)
-                    this.procFunctionPerPartition.remove(partitionId)
+                    removeConsumerAndProcFun(partitionId)
                     transferredPartitions = transferredPartitions :+ partitionId
                 }
 
@@ -338,7 +338,14 @@ class Recovery(nodeId: Int) {
             val message = OwnershipRequestAccepted(newOwnerId, transferredPartitions, NODE_ID)
             val serializedMessage = writeBinary(message)
             val records = List((writeBinary(0), serializedMessage))
-            out.collect(Config.CHN_BROADCAST, records)
+            out.collect(CHN_BROADCAST, records)
+    }
+
+    private def removeConsumerAndProcFun(partitionId: Int): Unit = {
+        val (_chn, consumer) = this.consumerPerPartition(partitionId)
+        consumer.close()
+        this.consumerPerPartition.remove(partitionId)
+        this.procFunctionPerPartition.remove(partitionId)
     }
 
 }
