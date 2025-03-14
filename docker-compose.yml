@@ -45,6 +45,7 @@ services:
       echo -e 'Creating kafka topics'
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic nexmark --replication-factor 1 --partitions 4
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic broadcast --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic control --replication-factor 1 --partitions 1
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic output --replication-factor 1 --partitions 1
       
       echo -e 'Successfully created the following topics:'

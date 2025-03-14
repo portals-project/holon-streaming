@@ -11,8 +11,6 @@ import java.util.Base64
 
 class CheckpointManager {
 
-    private val BROADCAST_PARTITION_ID = -1
-
     private var checkpointTime = System.currentTimeMillis()
     private val logger = Logger.apply("CheckpointManager")
 

@@ -3,6 +3,7 @@ package holon.example.nexmark
 object Config {
   final val KAFKA_TOPIC_NEXMARK = "nexmark"
   final val KAFKA_TOPIC_BROADCAST = "broadcast"
+  final val KAFKA_TOPIC_CONTROL = "control"
   final val KAFKA_TOPIC_OUTPUT = "output"
   final val N_NODES = 2
   final val PARTITIONS_PER_NODE = 2
@@ -14,7 +15,11 @@ object Config {
 
   final val CHN_NEXMARK = 0x00
   final val CHN_BROADCAST = 0x01
-  final val CHN_OUTPUT = 0x02
+  final val CHN_CONTROL = 0x02
+  final val CHN_OUTPUT = 0x03
+
+  final val BROADCAST_PARTITION_ID = -1
+  final val CONTROL_PARTITION_ID = -2
 
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092

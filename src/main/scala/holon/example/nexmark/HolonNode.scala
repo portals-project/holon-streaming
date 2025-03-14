@@ -29,13 +29,19 @@ object HolonNode {
         val kafka_host = kafkaBootstrapServer.split(":").head
         val kafka_port = kafkaBootstrapServer.split(":").last.toInt
 
-        val consumers = partitions.map { partition =>
+        val nexmarkConsumers = partitions.map { partition =>
             consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition, kafka_host, kafka_port)
-        } :+ consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0, kafka_host, kafka_port)
+        }
+        val internalConsumers = List(
+            consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0, kafka_host, kafka_port),
+            consumerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, 0, kafka_host, kafka_port)
+            )
+        val consumers = nexmarkConsumers ++ internalConsumers
 
         val producers = List(
             producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, kafka_host, kafka_port),
             producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, kafka_host, kafka_port),
+            producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, kafka_host, kafka_port),
             producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT, kafka_host, kafka_port),
             )
 
