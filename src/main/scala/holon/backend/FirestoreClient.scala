@@ -56,7 +56,7 @@ object FirestoreClient {
         val javaMap = data.asJava
         val apiFuture = docRef.set(javaMap)
         apiFuture.get() // Wait for the write to complete
-        logger.info(s"Partition ownership set for partition: $partitionId, node: $nodeId, version: $versionNr")
+        logger.debug(s"Partition ownership set for partition: $partitionId, node: $nodeId, version: $versionNr")
     }
 
     /**

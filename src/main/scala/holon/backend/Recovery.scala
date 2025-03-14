@@ -118,7 +118,7 @@ class Recovery(nodeId: Int) {
 
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
-            handleFailedNodes(failedNodes.diff(currentFailedNodes))
+            handleFailedNodes(currentFailedNodes.diff(failedNodes))
             this.failedNodes = currentFailedNodes
 
             runStep()
@@ -185,7 +185,11 @@ class Recovery(nodeId: Int) {
                 }
             } catch {
                 case e: IllegalStateException =>
-                    logger.error(s"Error processing consumer for partition $partitionId", e)
+                    if (e.getMessage.contains("This consumer has already been closed.")) {
+                        logger.warn(s"Consumer for partition $partitionId is closed. Removing consumer and processing function")
+                    } else {
+                        logger.error(s"Error processing consumer for partition $partitionId", e)
+                    }
             }
         }
 
@@ -239,7 +243,7 @@ class Recovery(nodeId: Int) {
         for failedNode <- failedNodes do
             // Check if current node needs to take over partitions from failed node
             if (checkFailureRedistributionResponsibility(failedNode, failedNodes)) {
-                logger.warn(s"Node $nodeId is responsible for redistribution of partitions from failed node $failedNode")
+                logger.debug(s"Node $nodeId is responsible for redistribution of partitions from failed node $failedNode")
                 val partitions = FirestoreClient.queryPartitionsByNodeId(FirestoreClient.OWNERSHIP_COLLECTION_NAME, failedNode)
 
                 // Set new partition ownership for each partition
