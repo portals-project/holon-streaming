@@ -45,7 +45,8 @@ object Query {
     val job = Job(
       consumers = consumers,
       producers = producers,
-      procFunFactory = new RecordProcFunFactory(),
+//      procFunFactory = new RecordProcFunFactory(),
+      procFunFactory = new WindowedRecordProcFunFactory(),
       partitions = partitions,
     )
 
@@ -81,9 +82,8 @@ object Query {
         case records =>
           records.foreach: r =>
             val partition = readBinary[Int](r._1)
-            logger.info(s"[OUTPUT TOPIC]: partition: $partition, received record: $r")
-//            val outputState = readBinary[OutputState](r._2)
-//            logger.info(s"[OUTPUT TOPIC]: partition: $partition, window: ${outputState.window} closed with final aggregate: ${outputState.value}")
+            val crdtValue = readBinary[BigInt](r._2)
+//            logger.info(s"[OUTPUT]: partition: $partition closed a window with final aggregate: $crdtValue")
   }
 
   def setupKafka(): Unit = {
