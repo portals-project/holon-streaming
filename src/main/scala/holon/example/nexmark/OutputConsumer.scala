@@ -22,7 +22,7 @@ object OutputConsumer {
                     Thread.sleep(CONSUMER_SLEEP_MS)
                 case records =>
                     records.foreach: r =>
-                        val bids = readBinary[(Long)](r._2)
+                        val bids = readBinary[(BigInt)](r._2)
                         logger.info(s"Bids: $bids")
     }
 
