@@ -31,7 +31,7 @@ class CheckpointManager {
             procFunctionPerPartition.foreach((partitionId, procFun) => {
                 val snapshot = procFun.snapshot()
                 safePartitionSnapshot(partitionId, snapshot, consumerPerPartition(partitionId)._2)
-                logger.info(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
+                logger.info(s"Checkpoint created for partition $partitionId")
             })
 
             // Save broadcast channel offset for node
@@ -51,7 +51,7 @@ class CheckpointManager {
     def createCheckpointForPartition(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
         val snapshot = procFun.snapshot()
         safePartitionSnapshot(partitionId, snapshot, consumer)
-        logger.info(s"Checkpoint created for partition $partitionId: ${crdtFromBinaryWithManifest(snapshot)._2.asInstanceOf[GCounter]}")
+        logger.info(s"Checkpoint created for partition $partitionId")
     }
 
     /**
