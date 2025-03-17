@@ -63,7 +63,7 @@ object Query {
     while true do
       for i <- 0 until KAFKA_N_PARTITIONS do
         val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
-        println(s"Sending batch (size ${batch.size})")
+//        println(s"Sending batch (size ${batch.size})")
         producer.send(batch)
 
       producer.flush()
@@ -83,7 +83,7 @@ object Query {
           records.foreach: r =>
             val partition = readBinary[Int](r._1)
             val crdtValue = readBinary[BigInt](r._2)
-//            logger.info(s"[OUTPUT]: partition: $partition closed a window with final aggregate: $crdtValue")
+            logger.info(s"[OUTPUT]: partition: $partition closed a window with final aggregate: $crdtValue")
   }
 
   def setupKafka(): Unit = {
