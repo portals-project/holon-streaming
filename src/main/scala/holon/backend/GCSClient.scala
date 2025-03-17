@@ -9,14 +9,16 @@ import java.io.FileInputStream
 
 object GCSClient {
 
-    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", "/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json")
+    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json")
     val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService
     val logger = Logger.apply("GCSClient")
     Logger.setLevel("GCSClient", "INFO")
     
 
-    val bucketName: String = "failure-recovery-dev"
+//    val bucketName: String = "failure-recovery-dev"
+    val bucketName: String = "windowed-aggregations-dev"
+
 
     /**
      * Uploads string to Google Cloud Storage bucket
