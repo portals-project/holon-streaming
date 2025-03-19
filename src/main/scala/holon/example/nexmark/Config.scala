@@ -10,7 +10,7 @@ object Config {
   final val KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
   final val CHECKPOINT_INTERVAL = 10_000L
   final val PRODUCER_BATCH_SIZE = 1024
-  final val PRODUCER_SLEEP_MS = 500
+  final val PRODUCER_SLEEP_MS = 100
   final val CONSUMER_SLEEP_MS = 100
 
   final val CHN_NEXMARK = 0x00

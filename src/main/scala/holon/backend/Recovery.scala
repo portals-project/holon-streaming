@@ -21,6 +21,7 @@ class Recovery(nodeId: Int) {
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
     private val checkpointManager = CheckpointManager()
+    private val lagManager = LagManager()
     private val logger = Logger.apply("Recovery")
 
     Logger.setLevel("Recovery", "INFO")
@@ -113,7 +114,7 @@ class Recovery(nodeId: Int) {
         while true do
             val t = System.currentTimeMillis()
 
-            // check the job queue every 1_000 milliseconds
+            // Check the job queue & re-calculate lag every 1_000 milliseconds
             if (t - time) > 1_000 then
                 time = t
                 checkJobQueue()
@@ -121,6 +122,8 @@ class Recovery(nodeId: Int) {
             // Create checkpoint if its time for it
             this.checkpointManager.createCheckpointIfRequired(NODE_ID, procFunctionPerPartition, consumerPerPartition)
 
+            // Re-calculate lag if its time for it
+            lagManager.calculateCurrentLagIfRequired(consumerPerPartition)
 
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
@@ -181,12 +184,13 @@ class Recovery(nodeId: Int) {
                                     val (key, value) = rec
                                     val message = readBinary[BroadcastMessage](value)
 
-                                    val senderId = message.senderId
                                     message match {
-                                        case CRDTUpdate(update, _) =>
+                                        case CRDTUpdate(update, senderId, lag) =>
                                             if (senderId != nodeId) {
                                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                                 failureDetector.setHeartbeat(senderId)
+                                                lagManager.updateLag(senderId, lag)
+
                                             }
                                             // Send broadcast to each processing function
                                             this.procFunctionPerPartition.foreach((_, procFun) =>
@@ -229,8 +233,9 @@ class Recovery(nodeId: Int) {
         chn match {
             case CHN_BROADCAST =>
                 // Add id of current node to the broadcast message for heartbeat tracking
+                val currentLag = lagManager.getCurrentLag
                 val recordsWithNodeId = recs.map { case (key, value) =>
-                    val message = CRDTUpdate(value, NODE_ID)
+                    val message = CRDTUpdate(value, NODE_ID, currentLag)
                     val serializedMessage = writeBinary(message)
                     (key, serializedMessage)
                 }

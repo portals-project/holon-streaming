@@ -35,6 +35,9 @@ class KafkaLogConsumer(
     override def seek(partition: Int, offset: Long): Unit =
         cons.seek(new TopicPartition(topic, partition), offset)
 
+    override def lag(): Long =
+        cons.currentLag(new TopicPartition(topic, partition)).orElse(0L)
+
     override def offsets(): Iterable[(Int, Long)] =
         cons.assignment().asScala.map { tp =>
             (tp.partition(), cons.position(tp))
