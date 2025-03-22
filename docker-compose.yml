@@ -60,6 +60,7 @@ services:
       - init-kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      PRODUCER_SLEEP_TIME_MS: "500"
 
   output-consumer:
     build:
@@ -80,6 +81,7 @@ services:
       NODE_ID: "0"
       RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      SLEEP_BETWEEN_POLLS: "0"
 
   holon-node-1:
     build:
@@ -91,3 +93,4 @@ services:
       NODE_ID: "1"
       RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      SLEEP_BETWEEN_POLLS: "100"

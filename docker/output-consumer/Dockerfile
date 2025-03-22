@@ -8,6 +8,9 @@ WORKDIR /app
 COPY build.sbt /app/
 COPY project /app/project
 
+# Download dependencies
+RUN sbt update
+
 # Copy the source code
 COPY src /app/src
 
