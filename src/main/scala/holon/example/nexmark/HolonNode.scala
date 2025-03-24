@@ -50,7 +50,8 @@ object HolonNode {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            procFunFactory = new RecordProcFunFactory(),
+//            procFunFactory = new RecordProcFunFactory(),
+            procFunFactory = new WindowedRecordProcFunFactory(),
             partitions = partitions,
             )
 
