@@ -16,8 +16,14 @@ object OwnershipRequest {
     implicit val rw: ReadWriter[OwnershipRequest] = macroRW
 }
 
-case class OwnershipRequestAccepted(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+case class OwnershipRequestConfirmation(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
 
-object OwnershipRequestAccepted {
-    implicit val rw: ReadWriter[OwnershipRequestAccepted] = macroRW
+object OwnershipRequestConfirmation {
+    implicit val rw: ReadWriter[OwnershipRequestConfirmation] = macroRW
+}
+
+case class OwnershipRequestDenial(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+
+object OwnershipRequestDenial {
+    implicit val rw: ReadWriter[OwnershipRequestDenial] = macroRW
 }

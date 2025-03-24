@@ -12,6 +12,8 @@ object HolonNode {
 
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
+        val sleepBetweenPolls = sys.env.getOrElse("SLEEP_BETWEEN_POLLS", "0").toLong
+        Config.SLEEP_BETWEEN_POLLS = sleepBetweenPolls
 
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
 

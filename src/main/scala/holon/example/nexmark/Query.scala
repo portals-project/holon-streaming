@@ -106,7 +106,7 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 35_000
+        val RUNTIME = 45_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")

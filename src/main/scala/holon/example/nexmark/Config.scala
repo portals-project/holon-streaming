@@ -21,6 +21,9 @@ object Config {
   final val BROADCAST_PARTITION_ID = -1
   final val CONTROL_PARTITION_ID = -2
 
+  final val WORK_STEALING_THRESHOLD = 10   // Determines how many (empty) polls a node should perform before it starts work stealing.
+  var SLEEP_BETWEEN_POLLS = 0L
+
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 }
