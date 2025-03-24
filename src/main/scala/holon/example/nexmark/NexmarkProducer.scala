@@ -8,6 +8,7 @@ import upickle.default.*
 
 object NexmarkProducer {
     def main(args: Array[String]): Unit = {
+        val PRODUCER_SLEEP_TIME_MS = sys.env.getOrElse("PRODUCER_SLEEP_TIME_MS", "100").toInt
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
@@ -22,7 +23,7 @@ object NexmarkProducer {
                 producer.send(batch)
 
             producer.flush()
-            Thread.sleep(PRODUCER_SLEEP_MS)
+            Thread.sleep(PRODUCER_SLEEP_TIME_MS)
     }
 }
 

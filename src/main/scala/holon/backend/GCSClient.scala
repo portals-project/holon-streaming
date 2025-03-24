@@ -5,11 +5,12 @@ import com.google.cloud.storage.{BlobId, BlobInfo}
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.StorageOptions
 import java.io.FileInputStream
+import holon.example.nexmark.Config.*
 
 
 object GCSClient {
 
-    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json")
+    val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", GC_CREDENTIALS_FILE_PATH)
     val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService
     val logger = Logger.apply("GCSClient")

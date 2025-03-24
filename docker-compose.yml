@@ -45,6 +45,7 @@ services:
       echo -e 'Creating kafka topics'
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic nexmark --replication-factor 1 --partitions 4
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic broadcast --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic control --replication-factor 1 --partitions 1
       kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic output --replication-factor 1 --partitions 1
       
       echo -e 'Successfully created the following topics:'
@@ -59,6 +60,7 @@ services:
       - init-kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      PRODUCER_SLEEP_TIME_MS: "500"
 
   output-consumer:
     build:
@@ -79,6 +81,7 @@ services:
       NODE_ID: "0"
       RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      SLEEP_BETWEEN_POLLS: "0"
 
   holon-node-1:
     build:
@@ -90,3 +93,4 @@ services:
       NODE_ID: "1"
       RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      SLEEP_BETWEEN_POLLS: "100"

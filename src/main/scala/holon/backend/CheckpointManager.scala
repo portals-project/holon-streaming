@@ -11,8 +11,6 @@ import java.util.Base64
 
 class CheckpointManager {
 
-    private val BROADCAST_PARTITION_ID = -1
-
     private var checkpointTime = System.currentTimeMillis()
     private val logger = Logger.apply("CheckpointManager")
 
@@ -34,11 +32,15 @@ class CheckpointManager {
                 logger.info(s"Checkpoint created for partition $partitionId")
             })
 
-            // Save broadcast channel offset for node
+            // Save broadcast & control channel offset for node.
             val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
+            val (controlChn, controlConsumer) = consumerPerPartition(CONTROL_PARTITION_ID)
             val broadcastOffset = broadcastConsumer.offsets().head
-            logger.debug(s"Node $nodeId saving broadcast channel offset: $broadcastOffset")
-            GCSClient.uploadStringToBucket(bucketName, getNodeSnapshotName(nodeId), broadcastOffset._2.toString)
+            val controlOffset = controlConsumer.offsets().head
+
+            logger.debug(s"Node $nodeId saving broadcast & control channel offset: $broadcastOffset : $controlOffset")
+            val offset = createNodeOffsetString(broadcastOffset._2, controlOffset._2)
+            GCSClient.uploadStringToBucket(bucketName, getNodeSnapshotName(nodeId), offset)
 
 
             checkpointTime = System.currentTimeMillis()
@@ -85,12 +87,15 @@ class CheckpointManager {
             }
         })
 
-        // Restore broadcast channel offset for node
+        // Restore broadcast & control channel offset for node
         if (GCSClient.checkIfFileExists(bucketName, getNodeSnapshotName(nodeId))) {
             val offset = GCSClient.downloadStringFromBucket(bucketName, getNodeSnapshotName(nodeId))
-            logger.debug(s"Restoring broadcast channel offset for node $nodeId: $offset")
-            val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
-            broadcastConsumer.seek(0, offset.toLong)
+            logger.debug(s"Restoring broadcast & consumer channel offset for node $nodeId: $offset")
+            val Array(broadcastOffset, controlOffset) = offset.split(":")
+            val (_, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
+            val (_, controlConsumer) = consumerPerPartition(CONTROL_PARTITION_ID)
+            broadcastConsumer.seek(0, broadcastOffset.toLong)
+            controlConsumer.seek(0, controlOffset.toLong)
         }
 
     }
@@ -126,6 +131,10 @@ class CheckpointManager {
 
     private def getNodeSnapshotName(nodeId: Int): String = {
         "node" + nodeId
+    }
+
+    private def createNodeOffsetString(broadcastOffset: Long, controlOffset: Long): String = {
+        broadcastOffset.toString + ":" + controlOffset.toString
     }
 
 }
