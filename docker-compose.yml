@@ -93,4 +93,4 @@ services:
       NODE_ID: "1"
       RUNTIME: "300000"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
-      SLEEP_BETWEEN_POLLS: "100"
+      SLEEP_BETWEEN_POLLS: "0"

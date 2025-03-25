@@ -3,7 +3,7 @@ package holon.backend
 import holon.*
 import holon.example.nexmark.Config.*
 
-class LagManager {
+object LagManager {
 
     // Keeps track of the current lag for this node across all partitions
     private val LAG_CALCULATION_INTERVAL = 1_000
@@ -58,7 +58,7 @@ class LagManager {
         if (t - lagCalculationTime > LAG_CALCULATION_INTERVAL) {
             lagCalculationTime = t
             calculateCurrentLag(consumerPerPartition)
-            logger.info(s"Current lag: $currentLag and lag per node: $lagPerNode")
+            logger.debug(s"Current lag: $currentLag and lag per node: $lagPerNode")
         }
     }
 

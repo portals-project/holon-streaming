@@ -22,8 +22,8 @@ object OutputConsumer {
                     Thread.sleep(CONSUMER_SLEEP_MS)
                 case records =>
                     records.foreach: r =>
-                        val bids = readBinary[(BigInt)](r._2)
-                        logger.info(s"Bids: $bids")
+                        val crdtValue = readBinary[BigInt](r._2)
+                        logger.info(s"[OUTPUT]: Closed a window with final aggregate: $crdtValue")
     }
 
 }

@@ -21,7 +21,6 @@ class Recovery(nodeId: Int) {
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
     private val checkpointManager = CheckpointManager()
-    private val lagManager = LagManager()
     private var pollsWithoutRecords = 0
     private var waitingForWorkStealConfirmationFrom = List.empty[Int]
     private val logger = Logger.apply("Recovery")
@@ -74,7 +73,7 @@ class Recovery(nodeId: Int) {
             }
 
             this.checkpointManager.createCheckpointIfRequired(NODE_ID, procFunctionPerPartition, consumerPerPartition)
-            lagManager.calculateCurrentLagIfRequired(consumerPerPartition)
+            LagManager.calculateCurrentLagIfRequired(consumerPerPartition)
 
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
@@ -131,14 +130,14 @@ class Recovery(nodeId: Int) {
                                         waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
 
                                     // Reset lag for this node after receiving confirmation
-                                    lagManager.updateLag(senderId, 0)
+                                    LagManager.updateLag(senderId, 0)
 
                                     integrateNewPartitions(partitions)
                                 }
                             case OwnershipRequestDenial(receiverId, partitions, senderId) =>
                                 if (receiverId == NODE_ID) {
                                     logger.info(s"(Node $NODE_ID) Received ownership denial from node $senderId for partitions $partitions")
-                                    lagManager.updateLag(senderId, 0)
+                                    LagManager.updateLag(senderId, 0)
                                     if waitingForWorkStealConfirmationFrom.contains(senderId) then
                                         waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
                                 }
@@ -195,7 +194,7 @@ class Recovery(nodeId: Int) {
                             if (senderId != nodeId) {
                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                 failureDetector.setHeartbeat(senderId)
-                                lagManager.updateLag(senderId, lag)
+                                LagManager.updateLag(senderId, lag)
                             }
                             this.procFunctionPerPartition.foreach((_, procFun) =>
                                                                       procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update)))
@@ -220,7 +219,7 @@ class Recovery(nodeId: Int) {
         chn match {
             case CHN_BROADCAST =>
                 // Add id of current node to the broadcast message for heartbeat tracking
-                val currentLag = lagManager.getCurrentLag
+                val currentLag = LagManager.getCurrentLag
                 val recordsWithNodeId = recs.map { case (key, value) =>
                     val message = CRDTUpdate(value, NODE_ID, currentLag)
                     val serializedMessage = writeBinary(message)
@@ -231,12 +230,8 @@ class Recovery(nodeId: Int) {
                 // Check if node is responsible for partition
                 val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
                 if ownerNodeId == nodeId then {
-                    recs.foreach: r =>
-                        val bids = readBinary[(Long)](r._2)
-                        logger.info(s"Node $nodeId partition $partitionId commits: $bids")
-
+                    logger.debug(s"Node $nodeId partition $partitionId commits: ${recs.size}")
                     out.collect(chn, recs)
-                    this.failureDetector.setStartCheckingForFailures()
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
                     //requestPartitionOwnership(ownerNodeId, List(partitionId))
@@ -246,6 +241,7 @@ class Recovery(nodeId: Int) {
                 logger.warn(s"Unknown channel: $chn")
                 logger.info(s"$chn: $recs")
         }
+        this.failureDetector.setStartCheckingForFailures()
     }
 
     /**
@@ -319,8 +315,8 @@ class Recovery(nodeId: Int) {
     }
 
     private def attemptWorkSteal(): Unit = {
-        if (lagManager.getCurrentLag == 0 && waitingForWorkStealConfirmationFrom.isEmpty) {
-            val victimNode = lagManager.getNodeWithMaxLag
+        if (LagManager.getCurrentLag == 0 && waitingForWorkStealConfirmationFrom.isEmpty) {
+            val victimNode = LagManager.getNodeWithMaxLag
             if (victimNode.isDefined && victimNode.get._2 > 0) {
                 logger.info(s"Node $nodeId is attempting work steal from node $victimNode")
                 waitingForWorkStealConfirmationFrom = List(victimNode.get._1)
@@ -425,7 +421,7 @@ class Recovery(nodeId: Int) {
     private def handoverOwnership(newOwnerId: Int, partitions: List[Int]): Unit = {
         var partitionsToHandover = partitions
         if (partitionsToHandover.isEmpty) {
-            val partitionIdAndLag = lagManager.getPartitionWithMaxLag(consumerPerPartition)
+            val partitionIdAndLag = LagManager.getPartitionWithMaxLag(consumerPerPartition)
             if (partitionIdAndLag.isEmpty || partitionIdAndLag.get._2 <= 0) {
                 logger.info(s"Node $nodeId cannot hand over any partitions to node $newOwnerId. No partitions with lag")
                 sendOwnershipHandoverDenial(newOwnerId, partitions)
