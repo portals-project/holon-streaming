@@ -1,5 +1,6 @@
 package holon.backend
 
+import org.apache.pekko.cluster.ddata.LWWMap
 import upickle.default.{ReadWriter, macroRW}
 
 sealed trait ControlMessage {
@@ -10,20 +11,32 @@ object ControlMessage {
     implicit val rw: ReadWriter[ControlMessage] = macroRW
 }
 
-case class OwnershipRequest(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+case class OwnershipState(ownershipMap: LWWMap[Int, OwnershipEntry], senderId: Int) extends ControlMessage
 
-object OwnershipRequest {
-    implicit val rw: ReadWriter[OwnershipRequest] = macroRW
+object OwnershipState {
+    implicit val rw: ReadWriter[OwnershipState] = macroRW
 }
 
-case class OwnershipRequestConfirmation(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+case class OwnershipStateRequest(senderId: Int) extends ControlMessage
 
-object OwnershipRequestConfirmation {
-    implicit val rw: ReadWriter[OwnershipRequestConfirmation] = macroRW
+object OwnershipStateRequest {
+    implicit val rw: ReadWriter[OwnershipStateRequest] = macroRW
 }
 
-case class OwnershipRequestDenial(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+case class OwnershipTransferRequest(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
 
-object OwnershipRequestDenial {
-    implicit val rw: ReadWriter[OwnershipRequestDenial] = macroRW
+object OwnershipTransferRequest {
+    implicit val rw: ReadWriter[OwnershipTransferRequest] = macroRW
+}
+
+case class OwnershipTransferConfirmation(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+
+object OwnershipTransferConfirmation {
+    implicit val rw: ReadWriter[OwnershipTransferConfirmation] = macroRW
+}
+
+case class OwnershipTransferDenial(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
+
+object OwnershipTransferDenial {
+    implicit val rw: ReadWriter[OwnershipTransferDenial] = macroRW
 }

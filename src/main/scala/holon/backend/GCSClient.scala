@@ -17,8 +17,8 @@ object GCSClient {
     Logger.setLevel("GCSClient", "INFO")
     
 
-//    val bucketName: String = "failure-recovery-dev"
-    val bucketName: String = "windowed-aggregations-dev"
+    val bucketName: String = "failure-recovery-dev"
+//    val bucketName: String = "windowed-aggregations-dev"
 
 
     /**
