@@ -75,7 +75,7 @@ class CheckpointManager {
     /**
      * Recover checkpoint for all partitions and reset broadcast channel offset for node.
      */
-    def recoverCheckpoint(nodeId: Int, partitionIds: List[Int],
+    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int],
         procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
         consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]) : Unit = {
 
@@ -86,9 +86,15 @@ class CheckpointManager {
                 restorePartitionSnapshot(partitionId, procFunctionPerPartition(partitionId), consumerPerPartition(partitionId)._2)
             }
         })
+    }
 
-        // Restore broadcast & control channel offset for node
-        if (GCSClient.checkIfFileExists(bucketName, getNodeSnapshotName(nodeId))) {
+    /**
+     * Restore broadcast & control channel offset for node
+     * @return true if node file exisits
+     */
+    def recoverNodeOffset(nodeId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Boolean = {
+        val nodeFileExists = GCSClient.checkIfFileExists(bucketName, getNodeSnapshotName(nodeId))
+        if (nodeFileExists) {
             val offset = GCSClient.downloadStringFromBucket(bucketName, getNodeSnapshotName(nodeId))
             logger.debug(s"Restoring broadcast & consumer channel offset for node $nodeId: $offset")
             val Array(broadcastOffset, controlOffset) = offset.split(":")
@@ -97,7 +103,7 @@ class CheckpointManager {
             broadcastConsumer.seek(0, broadcastOffset.toLong)
             controlConsumer.seek(0, controlOffset.toLong)
         }
-
+        nodeFileExists
     }
 
     /**
