@@ -3,8 +3,6 @@ package holon.backend
 import holon.*
 import holon.example.nexmark.Config.*
 import holon.backend.GCSClient.bucketName
-import holon.example.CRDT.crdtFromBinaryWithManifest
-import org.apache.pekko.cluster.ddata.GCounter
 import holon.{LogConsumer, ProcFun}
 
 import java.util.Base64

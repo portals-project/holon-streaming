@@ -1,7 +1,7 @@
 package holon.backend
 
 import holon.example.CRDT.address
-import org.apache.pekko.cluster.ddata.{GCounter, LWWMap}
+import org.apache.pekko.cluster.ddata.LWWMap
 import upickle.default.{ReadWriter, macroRW, readwriter}
 
 sealed trait ControlMessage {

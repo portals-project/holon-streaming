@@ -37,11 +37,11 @@ class Recovery(nodeId: Int) {
         val basePartitions = job.partitions
         logger.debug(s"Setting up job $job for node $nodeId")
 
+        // Setup procFunFactory, consumers and producers
         this.procFunFactory = job.procFunFactory
-        ConsumerProducerSetup.setupProducers(job.producers, this.producers)
-
         consumerPerPartition.clear()
         val (controlChannelConsumer, _) = ConsumerProducerSetup.setupInternalConsumers(job.consumers, consumerPerPartition)
+        ConsumerProducerSetup.setupProducers(job.producers, this.producers)
 
         // Set initial ownership of partitions
         ownershipManager.initializePartitionOwnership(basePartitions)
@@ -68,11 +68,8 @@ class Recovery(nodeId: Int) {
 
         val partitionsOwned = ownershipManager.getPartitionsOwnedByNode(nodeId)
         logger.info(s"Node $nodeId is responsible for partitions: $partitionsOwned")
-
         ConsumerProducerSetup.setupPartitionConsumers(job.consumers, partitionsOwned, consumerPerPartition)
-        logger.debug(s"Consumers: $consumerPerPartition")
         setupProcFunctions(partitionsOwned)
-
         // Recover from the last checkpoint for each partition and node
         this.checkpointManager.recoverPartitionCheckpoints(nodeId, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
     }
@@ -86,7 +83,7 @@ class Recovery(nodeId: Int) {
             if ((t - time) > 1_000) {
                 time = t
                 checkJobQueue()
-                logger.info(s"Node $nodeId ownership: ${ownershipManager.getOwnershipMap}")
+                logger.debug(s"Node $nodeId ownership: ${ownershipManager.getOwnershipMap}")
             }
 
             this.checkpointManager.createCheckpointIfRequired(nodeId, procFunctionPerPartition, consumerPerPartition)
@@ -349,7 +346,7 @@ class Recovery(nodeId: Int) {
 
         for failedNode <- failedNodes do
             // Check if current node needs to take over partitions from failed node
-            if (checkFailureRedistributionResponsibility(failedNode, failedNodes)) {
+            if (this.ownershipManager.checkOwnershipResponsibilityAfterFailure(failedNode, failedNodes)) {
                 logger.debug(s"Node $nodeId is responsible for redistribution of partitions from failed node $failedNode")
                 val partitions = ownershipManager.getPartitionsOwnedByNode(failedNode)
 
@@ -378,19 +375,6 @@ class Recovery(nodeId: Int) {
             this.checkpointManager.recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId),
                                                                  consumerPerPartition(partitionId)._2)
         }
-    }
-
-    /**
-     * Check if the current node is responsible for taking over the partitions of the failed node.
-     */
-    private def checkFailureRedistributionResponsibility(failedNode: Int, failedNodes: List[Int]): Boolean = {
-        // Get new owner for the partitions
-        var owner = failedNode
-        while failedNodes.contains(failedNode) && owner != nodeId do
-        // If the failed node is also the current node, then the current node is responsible for redistribution
-            owner = (failedNode + 1) % N_NODES
-
-        owner == nodeId
     }
 
     /**

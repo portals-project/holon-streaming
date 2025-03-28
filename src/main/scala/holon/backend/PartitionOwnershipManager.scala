@@ -2,6 +2,7 @@ package holon.backend
 
 import holon.*
 import holon.example.CRDT.address
+import holon.example.nexmark.Config.N_NODES
 import org.apache.pekko.cluster.ddata.LWWRegister.Clock
 import org.apache.pekko.cluster.ddata.{LWWMap, SelfUniqueAddress}
 
@@ -59,6 +60,19 @@ class PartitionOwnershipManager(nodeId: Int) {
 
     def getOwnershipMap: LWWMap[Int, OwnershipEntry] = {
         partitionToNodeId
+    }
+
+    /**
+     * Check if the current node is responsible for taking over the partitions of the failed node.
+     */
+    def checkOwnershipResponsibilityAfterFailure(failedNode: Int, failedNodes: List[Int]): Boolean = {
+        var owner = failedNode
+        while failedNodes.contains(owner) do
+            // TODO add test for this to be sure!
+            // If the failed node is also the current node, then the current node is responsible for redistribution
+            owner = (owner + 1) % N_NODES
+
+        owner == nodeId
     }
 
 }
