@@ -93,16 +93,15 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
               val window: Long = defineWindow(eventTimestamp)
 
               // Create or increment the window and partition map.
-              if (!windowMap.contains(window)) {
+              if (!windowMap.contains(window))
                 windowMap(window) = (GCounter.empty, false)
                 for i <- 0 until KAFKA_N_PARTITIONS do
                   if !partitionMap.contains(window) then
                     partitionMap(window) = scala.collection.mutable.Map.empty[Int, (Boolean, BigInt)]
                   if !partitionMap(window).contains(i) then
                     partitionMap(window)(i) = (false, BigInt(0))
-              } else {
+              else
                 windowMap(window) = (windowMap(window)._1.increment(addr, 1L), false)
-              }
             case other =>
               logger.debug(s"Ignored non-bid event: $other")
           }
@@ -187,7 +186,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
 
         if (values.distinct.length == 1 && values.length == KAFKA_N_PARTITIONS && values.head != BigInt(0)) {
           logger.debug(s"partition: $partition, window: $k final aggregate: ${windowMap(k)._1.value}")
-          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(windowMap(k)._1.value))))
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(windowMap(k)._1.value))))
           emittedWindows += k
         }
       }
@@ -214,9 +213,9 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
-    logger.debug("Restoring from snapshot")
+    logger.info("Restoring from snapshot")
     val restoredMap = readBinary[scala.collection.mutable.Map[Long, (GCounter, Boolean)]](snapshot)
-    logger.debug(s"Restored window map: $restoredMap")
+    logger.info(s"Restored window map: $restoredMap")
 
     windowMap.clear()
     windowMap ++= restoredMap.toMap

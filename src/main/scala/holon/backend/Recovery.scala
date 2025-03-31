@@ -230,7 +230,9 @@ class Recovery(nodeId: Int) {
                 // Check if node is responsible for partition
                 val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
                 if ownerNodeId == nodeId then {
-                    logger.debug(s"Node $nodeId partition $partitionId commits: ${recs.size}")
+                    recs.foreach: r =>
+                        val bids = readBinary[(BigInt)](r._2)
+                        logger.info(s"Node $nodeId partition $partitionId commits: $bids")
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
