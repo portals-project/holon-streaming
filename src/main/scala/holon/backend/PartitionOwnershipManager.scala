@@ -1,20 +1,10 @@
 package holon.backend
 
 import holon.*
-import holon.example.CRDT.address
 import holon.example.nexmark.Config.N_NODES
-import org.apache.pekko.cluster.ddata.LWWRegister.Clock
-import org.apache.pekko.cluster.ddata.{LWWMap, SelfUniqueAddress}
-
-val ownershipClock: Clock[OwnershipEntry] = new Clock[OwnershipEntry] {
-    override def apply(currentTimestamp: Long, value: OwnershipEntry): Long =
-        value.version
-}
 
 class PartitionOwnershipManager(nodeId: Int) {
-
-    val addr: SelfUniqueAddress = address(nodeId)
-    var partitionToNodeId: LWWMap[Int, OwnershipEntry] = LWWMap.empty[Int, OwnershipEntry]
+    var partitionToNodeId: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
     var controlChannelConsumer: Option[LogConsumer] = None
     private val logger = Logger.apply("PartitionOwnershipManager")
 
@@ -28,7 +18,7 @@ class PartitionOwnershipManager(nodeId: Int) {
         for (partition <- partitions) {
             // Initialize with 0 so it does not overwrite existing ownership (in the case that node failed an rejoined)
             val ownershipEntry = OwnershipEntry(nodeId, 0)
-            partitionToNodeId = partitionToNodeId.put(addr, partition, ownershipEntry, ownershipClock)
+            partitionToNodeId.put(partition, ownershipEntry)
         }
     }
 
@@ -39,7 +29,7 @@ class PartitionOwnershipManager(nodeId: Int) {
     def setPartitionOwnership(partition: Int, newOwnerId: Int): Unit = {
         val controlChannelOffset = controlChannelConsumer.get.offsets().head._2
         val ownershipEntry = OwnershipEntry(newOwnerId, controlChannelOffset)
-        partitionToNodeId = partitionToNodeId.put(addr, partition, ownershipEntry, ownershipClock)
+        partitionToNodeId.put(partition, ownershipEntry)
     }
 
     def getPartitionOwner(partition: Int): Int = {
@@ -50,15 +40,33 @@ class PartitionOwnershipManager(nodeId: Int) {
     }
 
     def getPartitionsOwnedByNode(nodeId: Int): List[Int] = {
-        partitionToNodeId.entries.filter(_._2.nodeId == nodeId).map(_._1).toList
+        //partitionToNodeId.entries.filter(_._2.nodeId == nodeId).map(_._1).toList
+        partitionToNodeId.filter(_._2.nodeId == nodeId).keys.toList
     }
 
-    def mergeOwnershipMap(other: LWWMap[Int, OwnershipEntry]): Unit = {
-        partitionToNodeId = partitionToNodeId.merge(other)
+    /**
+     * Merge the ownership map of the failed node with the current ownership map.
+     * If the version of the ownership entry is higher than the current ownership entry, then update the ownership entry.
+     * If the version is the same, then keep the ownership entry with the lower node id.
+     * Otherwise, keep the current ownership entry.
+     */
+    def mergeOwnershipMap(other: scala.collection.mutable.Map[Int, OwnershipEntry]): Unit = {
+        for ((partition, ownershipEntry) <- other) {
+            partitionToNodeId.get(partition) match {
+                case Some(currentOwnershipEntry) =>
+                    if (ownershipEntry.version > currentOwnershipEntry.version) {
+                        partitionToNodeId.put(partition, ownershipEntry)
+                    } else if (ownershipEntry.version == currentOwnershipEntry.version && ownershipEntry.nodeId < currentOwnershipEntry.nodeId) {
+                        partitionToNodeId.put(partition, ownershipEntry)
+                    }
+                case None =>
+                    partitionToNodeId.put(partition, ownershipEntry)
+            }
+        }
         logger.info(s"Merged ownership map: $partitionToNodeId")
     }
 
-    def getOwnershipMap: LWWMap[Int, OwnershipEntry] = {
+    def getOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = {
         partitionToNodeId
     }
 
