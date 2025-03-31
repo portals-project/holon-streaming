@@ -63,7 +63,7 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
   // To keep track of the partition state for each window, contains:
   // (Boolean, BigInt) where the boolean indicates if the partition has closed the window.
   // The BigInt is the aggregate value for the window.
-  private val partitionMap = scala.collection.mutable.Map.empty[Long, scala.collection.mutable.Map[Int, (Boolean, BigInt)]]
+  private val partitionMap = scala.collection.mutable.Map.empty[Long, scala.collection.mutable.Map[Int, Boolean]]
 
   // Map to keep track of all windows that have been emitted.
   private val emittedWindows = scala.collection.mutable.Set.empty[Long]
@@ -86,9 +86,6 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
               // TODO: Understand what dateTime represents in Nexmark context
               val eventTimestamp: Long = bid.dateTime
 
-              // Update our own element in the vector clock.
-              vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
-
               // Determine the window for this event.
               val window: Long = defineWindow(eventTimestamp)
 
@@ -97,11 +94,14 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
                 windowMap(window) = (GCounter.empty, false)
                 for i <- 0 until KAFKA_N_PARTITIONS do
                   if !partitionMap.contains(window) then
-                    partitionMap(window) = scala.collection.mutable.Map.empty[Int, (Boolean, BigInt)]
+                    partitionMap(window) = scala.collection.mutable.Map.empty[Int, Boolean]
                   if !partitionMap(window).contains(i) then
-                    partitionMap(window)(i) = (false, BigInt(0))
+                    partitionMap(window)(i) = false
               else
                 windowMap(window) = (windowMap(window)._1.increment(addr, 1L), false)
+
+              // Update our own element in the vector clock.
+              vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
             case other =>
               logger.debug(s"Ignored non-bid event: $other")
           }
@@ -110,32 +110,30 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
         // Merge state received from other nodes.
         for (rec <- recs) {
           val receivedState = readBinary[WindowState](rec._2)
+          // Deconstruct the received state.
           val receivedPartition = receivedState.partition
           val receivedVectorClock = receivedState.vectorClock
           val receivedWindowMap = receivedState.windowMap
 
           // Merge the window map depending on the type of message received.
-          if (receivedPartition != -1) {
-            for ((k, v) <- receivedWindowMap) {
-              if (windowMap.contains(k)){
-                windowMap(k) = (windowMap(k)._1.merge(v._1), windowMap(k)._2)
-                if (v._2) {
-                  if (!partitionMap.contains(k))
-                    partitionMap(k) = scala.collection.mutable.Map(receivedPartition -> (v._2, v._1.value))
-                  else
-                    partitionMap(k)(receivedPartition) = (v._2, v._1.value)
-                    logger.debug(s"partition: $partition, window: $k partition map: ${partitionMap}")
-                }
+          for ((windowKey, receivedAggregate) <- receivedWindowMap) {
+            if (windowMap.contains(windowKey)) {
+              windowMap(windowKey) = (windowMap(windowKey)._1.merge(receivedAggregate._1), windowMap(windowKey)._2)
+              if (receivedAggregate._2) {
+                if (!partitionMap.contains(windowKey))
+                  partitionMap(windowKey) = scala.collection.mutable.Map(receivedPartition -> receivedAggregate._2)
+                else
+                  partitionMap(windowKey)(receivedPartition) = receivedAggregate._2
+                  logger.debug(s"partition: $partition, window: $windowKey partition map: ${partitionMap}")
               }
-              else
-                windowMap(k) = v
-                partitionMap(k) = scala.collection.mutable.Map(receivedPartition -> (v._2, v._1.value))
+            } else {
+              windowMap(windowKey) = receivedAggregate
+              partitionMap(windowKey) = scala.collection.mutable.Map(receivedPartition -> receivedAggregate._2)
             }
           }
+
           // Merge vector clocks element-wise.
-          for (i <- 0 until KAFKA_N_PARTITIONS) {
-            vectorClock(i) = math.max(vectorClock(i), receivedVectorClock(i))
-          }
+          vectorClock(receivedPartition) = math.max(vectorClock(receivedPartition), receivedVectorClock(receivedPartition))
         }
         // See if we can emit the final aggregate for any window.
         emitWindow(outputFunction)
@@ -165,29 +163,24 @@ class WindowedRecordProcFun(partition: Int) extends ProcFun {
       val stateToBroadcast = WindowState(partition, vectorClock, windowMap)
       outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(stateToBroadcast))))
       messageCount = 0
-
-    // Broadcast only the vector clock more frequently.
-    if messageCount % 10 == 0 then
-      val vectorClockState = WindowState(-1, vectorClock, scala.collection.mutable.Map.empty[Long, (GCounter, Boolean)])
-      outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(vectorClockState))))
   }
 
   private def emitWindow(outputFunction: (Int, Byte, LogProducerRecords) => Unit): Unit = {
     // Emit the final aggregate
     // TODO: Find a better way to time the emission of the final aggregate to make sure crdts have converged.
-    for ((k, v) <- windowMap) {
+    for ((windowKey, windowAggregate) <- windowMap) {
       // Only emit the final aggregate when all these conditions are met.
       // 1. Each partition has closed the window.
       // 2. The window has not been emitted before.
       // 3. All the partitions have the same aggregate value (not zero).
-      if (v._2 && !emittedWindows.contains(k) && partitionMap.contains(k)) {
-        val values = partitionMap(k).values.map(_._2).toList
-        logger.debug(s"partition: $partition, window: $k, values: $values")
+      if (windowAggregate._2 && !emittedWindows.contains(windowKey) && partitionMap.contains(windowKey)) {
+        val values = partitionMap(windowKey).values.toList
+        logger.debug(s"partition: $partition, window: $windowKey, values: $values")
 
-        if (values.distinct.length == 1 && values.length == KAFKA_N_PARTITIONS && values.head != BigInt(0)) {
-          logger.debug(s"partition: $partition, window: $k final aggregate: ${windowMap(k)._1.value}")
-          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(windowMap(k)._1.value))))
-          emittedWindows += k
+        if (values.length == KAFKA_N_PARTITIONS && values.distinct.size == 1 && values.head) {
+          logger.debug(s"partition: $partition, window: $windowKey final aggregate: ${windowMap(windowKey)._1.value}")
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(windowMap(windowKey)._1.value))))
+          emittedWindows += windowKey
         }
       }
     }
