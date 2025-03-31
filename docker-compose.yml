@@ -1,3 +1,12 @@
+x-shared-holon-env: &shared-holon-env
+  N_NODES: "3"
+  PARTITIONS_PER_NODE: "2"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+
+x-base-node-env: &base-node-env
+  RUNTIME: "300000"
+  SLEEP_BETWEEN_POLLS: "0"
+
 services:
   kafka:
     image: bitnami/kafka:3.7.0
@@ -29,21 +38,11 @@ services:
     image: confluentinc/cp-kafka:6.1.1
     depends_on:
       - kafka
-    entrypoint: [ '/bin/sh', '-c' ]
-    command: |
-      "
-      # blocks until kafka is reachable
-      kafka-topics --bootstrap-server kafka:9093 --list
-      
-      echo -e 'Creating kafka topics'
-      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic nexmark --replication-factor 1 --partitions 4
-      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic broadcast --replication-factor 1 --partitions 1
-      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic control --replication-factor 1 --partitions 1
-      kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic output --replication-factor 1 --partitions 1
-      
-      echo -e 'Successfully created the following topics:'
-      kafka-topics --bootstrap-server kafka:9093 --list
-      "
+    environment:
+      <<: *shared-holon-env
+    volumes:
+      - ./init-kafka.sh:/init-kafka.sh
+    entrypoint: [ "/bin/sh", "-c", "sh /init-kafka.sh" ]
 
   nexmark-producer-0:
     build:
@@ -52,7 +51,7 @@ services:
     depends_on:
       - init-kafka
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      <<: *shared-holon-env
       PRODUCER_SLEEP_TIME_MS: "500"
 
   output-consumer:
@@ -71,10 +70,8 @@ services:
     depends_on:
       - init-kafka
     environment:
+      <<: [*base-node-env, *shared-holon-env]
       NODE_ID: "0"
-      RUNTIME: "300000"
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
-      SLEEP_BETWEEN_POLLS: "0"
 
   holon-node-1:
     build:
@@ -83,7 +80,15 @@ services:
     depends_on:
       - init-kafka
     environment:
+      <<: [*base-node-env, *shared-holon-env]
       NODE_ID: "1"
-      RUNTIME: "300000"
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
-      SLEEP_BETWEEN_POLLS: "0"
+
+  holon-node-2:
+    build:
+      context: .
+      dockerfile: docker/holon-node/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: [*base-node-env, *shared-holon-env]
+      NODE_ID: "2"
