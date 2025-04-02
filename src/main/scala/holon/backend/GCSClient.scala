@@ -10,15 +10,12 @@ import holon.example.nexmark.Config.*
 
 object GCSClient {
 
+    val bucketName = sys.env.getOrElse("GCS_BUCKET_NAME", GCS_BUCKET_NAME)
     val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", GC_CREDENTIALS_FILE_PATH)
     val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService
     val logger = Logger.apply("GCSClient")
     Logger.setLevel("GCSClient", "INFO")
-    
-
-    val bucketName: String = "failure-recovery-dev"
-//    val bucketName: String = "windowed-aggregations-dev"
 
 
     /**

@@ -2,6 +2,7 @@ package holon.backend
 
 import holon.*
 import holon.Utils.*
+import holon.backend.checkpointmanager.CloudStorageCheckpointManager
 import holon.example.nexmark.Config.*
 import upickle.default.{readBinary, writeBinary}
 
@@ -18,7 +19,7 @@ class Recovery(nodeId: Int) {
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
-    private val checkpointManager = CheckpointManager()
+    private val checkpointManager = if (USE_GCS_CHECKPOINTS) CloudStorageCheckpointManager() else CloudStorageCheckpointManager()
     private var pollsWithoutRecords = 0
     private var waitingForWorkStealConfirmationFrom = List.empty[Int]
     private val ownershipManager = PartitionOwnershipManager(nodeId)
@@ -245,6 +246,13 @@ class Recovery(nodeId: Int) {
                                                                       procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update)))
                                                                   )
                         }
+                        case NodeCheckpoint(senderId, partitionSnapshots) =>
+                            // Node Checkpoints are only send when checkpoints are not saved to cloud storage
+                            if (senderId != nodeId) {
+                                logger.debug(s"Node $nodeId received node checkpoint from node $senderId")
+                                failureDetector.setHeartbeat(senderId)
+                                // TODO: Implement node checkpoint recovery
+                            }
                     }
                 }
             case _ =>
@@ -410,7 +418,7 @@ class Recovery(nodeId: Int) {
             if (this.procFunctionPerPartition.keySet.contains(partitionId)) {
                 val (chn, consumer) = this.consumerPerPartition(partitionId)
                 val procFun = this.procFunctionPerPartition(partitionId)
-                this.checkpointManager.createCheckpointForPartition(partitionId, procFun, consumer)
+                this.checkpointManager.createCheckpointForPartition(nodeId, partitionId, procFun, consumer)
                 ownershipManager.setPartitionOwnership(partitionId, newOwnerId)
 
                 removeConsumerAndProcFun(partitionId)

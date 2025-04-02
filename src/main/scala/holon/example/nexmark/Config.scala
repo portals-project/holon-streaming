@@ -21,6 +21,8 @@ object Config {
   final val BROADCAST_PARTITION_ID = -1
   final val CONTROL_PARTITION_ID = -2
 
+  final val USE_GCS_CHECKPOINTS = false
+  final val GCS_BUCKET_NAME = "failure-recovery-dev" // "windowed-aggregations-dev"
   final val GC_CREDENTIALS_FILE_PATH = "/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json"
 
   final val WORK_STEALING_THRESHOLD = 10   // Determines how many (empty) polls a node should perform before it starts work stealing.
