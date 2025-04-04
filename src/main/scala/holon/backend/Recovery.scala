@@ -156,8 +156,7 @@ class Recovery(nodeId: Int) {
                                 if (senderId != nodeId) {
                                     logger.debug(s"Node $nodeId received checkpoint from node $senderId")
                                     failureDetector.setHeartbeat(senderId)
-                                    // TODO: Implement node checkpoint recovery
-                                    checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
+                                    this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.info(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
@@ -166,6 +165,7 @@ class Recovery(nodeId: Int) {
                                 failureDetector.setHeartbeat(senderId)
                             case OwnershipStateRequest(senderId) =>
                                 logger.info(s"($nodeId) Received ownership state request from node $senderId")
+                                this.checkpointManager.sendCheckpointMessage(senderId)
                                 val ownershipMap = ownershipManager.getOwnershipMap
                                 sendControlMessage(OwnershipState(ownershipMap, nodeId))
                             case OwnershipTransferRequest(receiverId, partitions, senderId) =>
@@ -428,6 +428,8 @@ class Recovery(nodeId: Int) {
             }
         }
 
+        // Send new checkpoint state
+        this.checkpointManager.sendCheckpointMessage(senderId)
         // Notify other nodes about updated ownership
         sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
         logger.info(s"Partition $transferredPartitions ownership handed over to node $newOwnerId")

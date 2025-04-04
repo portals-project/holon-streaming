@@ -18,6 +18,7 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
     Logger.setLevel("DecentralizedCheckpointManager", "INFO")
 
     protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit = {
+        this.partitionSnapshots ++= partitionSnapshots
         partitionSnapshots.foreach((partitionId, snapshotContent) => {
             saveLocalFile(partitionSnapshotPath(partitionId), snapshotContentFormat(snapshotContent))
         })
@@ -114,6 +115,10 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
 
     private def localFileExists(filePath: String): Boolean = {
         Files.exists(Paths.get(filePath))
+    }
+
+    def sendCheckpointMessage(nodeId: Int): Unit = {
+        sendCheckpointMessage(nodeId, partitionSnapshots.toMap)
     }
 
     private def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {

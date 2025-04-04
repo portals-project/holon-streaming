@@ -25,6 +25,10 @@ class CloudStorageCheckpointManager extends CheckpointManager {
         // Ignore snapshots from other nodes
     }
 
+    def sendCheckpointMessage(nodeId: Int): Unit = {
+        // Ignore sending checkpoint messages
+    }
+
     /**
      * Recover checkpoint for all partitions and reset broadcast channel offset for node.
      */

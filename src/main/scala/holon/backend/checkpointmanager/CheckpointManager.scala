@@ -115,6 +115,8 @@ abstract class CheckpointManager {
 
     /** HELPERS */
 
+    def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit
+
     private def createNodeOffsetString(broadcastOffset: Long, controlOffset: Long): String = {
         broadcastOffset.toString + ":" + controlOffset.toString
     }
