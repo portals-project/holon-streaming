@@ -58,8 +58,9 @@ object ConsumerProducerSetup {
 
     /**
      * Add new Nexmark consumer for the partition.
+     * @return The new consumer.
      */
-    def addNewNexmarkConsumer(partitionId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+    def addNewNexmarkConsumer(partitionId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): LogConsumer = {
         val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
             chn = CHN_NEXMARK,
             host = KAFKA_HOST,
@@ -69,6 +70,7 @@ object ConsumerProducerSetup {
             ))
         logger.debug(s"Adding new consumer for partition $partitionId: $inputConsumer")
         consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
+        inputConsumer
     }
 
 }

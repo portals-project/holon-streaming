@@ -1,5 +1,6 @@
 package holon.backend
 
+import holon.backend.messages.OwnershipEntry
 import org.scalatest.funsuite.AnyFunSuite
 import holon.example.nexmark.Config
 

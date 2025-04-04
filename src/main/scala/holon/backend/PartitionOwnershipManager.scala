@@ -1,6 +1,7 @@
 package holon.backend
 
 import holon.*
+import holon.backend.messages.OwnershipEntry
 import holon.example.nexmark.Config.N_NODES
 
 class PartitionOwnershipManager(nodeId: Int) {

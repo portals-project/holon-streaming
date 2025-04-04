@@ -2,7 +2,8 @@ package holon.backend
 
 import holon.*
 import holon.Utils.*
-import holon.backend.checkpointmanager.CloudStorageCheckpointManager
+import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
+import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferConfirmation, OwnershipTransferDenial, OwnershipTransferRequest}
 import holon.example.nexmark.Config.*
 import upickle.default.{readBinary, writeBinary}
 
@@ -19,7 +20,7 @@ class Recovery(nodeId: Int) {
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
-    private val checkpointManager = if (USE_GCS_CHECKPOINTS) CloudStorageCheckpointManager() else CloudStorageCheckpointManager()
+    private val checkpointManager = if (USE_GCS_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
     private var pollsWithoutRecords = 0
     private var waitingForWorkStealConfirmationFrom = List.empty[Int]
     private val ownershipManager = PartitionOwnershipManager(nodeId)
@@ -150,6 +151,14 @@ class Recovery(nodeId: Int) {
                         failureDetector.setHeartbeat(message.senderId)
 
                         message match {
+                            case Checkpoint(senderId, partitionSnapshots) =>
+                                // Node Checkpoints are only send when checkpoints are not saved to cloud storage
+                                if (senderId != nodeId) {
+                                    logger.debug(s"Node $nodeId received checkpoint from node $senderId")
+                                    failureDetector.setHeartbeat(senderId)
+                                    // TODO: Implement node checkpoint recovery
+                                    checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
+                                }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.info(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
                                 ownershipManager.mergeOwnershipMap(ownershipMap)
@@ -246,13 +255,6 @@ class Recovery(nodeId: Int) {
                                                                       procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update)))
                                                                   )
                         }
-                        case NodeCheckpoint(senderId, partitionSnapshots) =>
-                            // Node Checkpoints are only send when checkpoints are not saved to cloud storage
-                            if (senderId != nodeId) {
-                                logger.debug(s"Node $nodeId received node checkpoint from node $senderId")
-                                failureDetector.setHeartbeat(senderId)
-                                // TODO: Implement node checkpoint recovery
-                            }
                     }
                 }
             case _ =>
@@ -377,11 +379,11 @@ class Recovery(nodeId: Int) {
      */
     private def integrateNewPartitions(partitions: List[Int]): Unit = {
         for (partitionId <- partitions) {
-            procFunctionPerPartition += partitionId -> this.procFunFactory.create(partitionId)
-            ConsumerProducerSetup.addNewNexmarkConsumer(partitionId, consumerPerPartition)
+            val procFun = this.procFunFactory.create(partitionId)
+            procFunctionPerPartition += partitionId -> procFun
+            val consumer = ConsumerProducerSetup.addNewNexmarkConsumer(partitionId, consumerPerPartition)
 
-            this.checkpointManager.recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId),
-                                                                 consumerPerPartition(partitionId)._2)
+            this.checkpointManager.recoverCheckpointForPartition(partitionId, procFun, consumer)
         }
     }
 

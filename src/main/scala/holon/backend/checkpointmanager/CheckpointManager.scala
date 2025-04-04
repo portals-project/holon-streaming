@@ -24,12 +24,13 @@ abstract class CheckpointManager {
         val t = System.currentTimeMillis()
         if (t - checkpointTime > CHECKPOINT_INTERVAL) {
             // Save snapshot for all partitions
-            val partitionSnapshots = scala.collection.mutable.Map[Int, String]()
+            val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
             procFunctionPerPartition.foreach((partitionId, procFun) => {
-                val snapshotContent = createPartitionCheckpointContent(procFun, consumerPerPartition(partitionId)._2)
-                partitionSnapshots.put(partitionId, snapshotContent)
+                val consumerOffset = consumerPerPartition(partitionId)._2.offsets().head._2
+                val snapshotContent = createPartitionCheckpointContent(procFun)
+                partitionSnapshots.put(partitionId, (consumerOffset,snapshotContent))
             })
-            safePartitionSnapshots(nodeId, partitionSnapshots)
+            savePartitionSnapshots(nodeId, partitionSnapshots)
             logger.info(s"Checkpoint created for partitions ${partitionSnapshots.keySet}")
 
             // Save broadcast & control channel offset for node.
@@ -38,7 +39,7 @@ abstract class CheckpointManager {
             val broadcastOffset = broadcastConsumer.offsets().head
             val controlOffset = controlConsumer.offsets().head
 
-            safeNodeCheckpoint(nodeId, createNodeOffsetString(broadcastOffset._2, controlOffset._2))
+            saveNodeCheckpoint(nodeId, createNodeOffsetString(broadcastOffset._2, controlOffset._2))
             logger.debug(s"Node $nodeId saved broadcast & control channel offset: $broadcastOffset : $controlOffset")
 
             checkpointTime = System.currentTimeMillis()
@@ -49,26 +50,29 @@ abstract class CheckpointManager {
      * Create checkpoint for a specific partition
      */
     def createCheckpointForPartition(nodeId: Int, partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
-        val checkpointContent = createPartitionCheckpointContent(procFun, consumer)
-        val partitionSnapshots = scala.collection.mutable.Map[Int, String]()
-        partitionSnapshots.put(partitionId, checkpointContent)
-        safePartitionSnapshots(nodeId, partitionSnapshots)
+        val consumerOffset = consumer.offsets().head._2
+        val checkpointContent = createPartitionCheckpointContent(procFun)
+        val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
+        partitionSnapshots.put(partitionId, (consumerOffset, checkpointContent))
+        savePartitionSnapshots(nodeId, partitionSnapshots)
         logger.info(s"Checkpoint created for partition $partitionId")
     }
 
     /**
-     * Create checkpoint content for a partition
-     * Format: "consumerOffset:snapshot"
+     * Save snapshots received from other nodes
      */
-    private def createPartitionCheckpointContent(procFun: ProcFun, consumer: LogConsumer) : String = {
-        val partitionOffset = consumer.offsets().head
-        val base64EncodedSnapshot = Base64.getEncoder.encodeToString(procFun.snapshot())
-        s"${partitionOffset._2}:$base64EncodedSnapshot"
+    def saveSnapshotsFromOtherNodes(partitionSnapshots: Map[Int, (Long, String)]): Unit
+
+    /**
+     * Create encoded snapshot string
+     */
+    private def createPartitionCheckpointContent(procFun: ProcFun) : String = {
+        Base64.getEncoder.encodeToString(procFun.snapshot())
     }
 
-    protected def safePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, String]): Unit
+    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit
 
-    protected def safeNodeCheckpoint(nodeId: Int, nodeOffsets: String): Unit
+    protected def saveNodeCheckpoint(nodeId: Int, nodeOffsets: String): Unit
 
     /** CHECKPOINT RECOVERY */
 
@@ -80,9 +84,8 @@ abstract class CheckpointManager {
      * Restore partition snapshot for processing function and consumer
      * Format: "offset:snapshot"
      */
-    protected def restorePartitionSnapshot(partitionId: Int, snapshotContent: String, procFun: ProcFun, consumer: LogConsumer): Unit = {
-        val Array(offset: String, snapshotString: String) = snapshotContent.split(":")
-        procFun.restore(Base64.getDecoder.decode(snapshotString))
+    protected def restorePartitionSnapshot(partitionId: Int, offset: Long, snapshot: String, procFun: ProcFun, consumer: LogConsumer): Unit = {
+        procFun.restore(Base64.getDecoder.decode(snapshot))
         consumer.seek(partitionId, offset.toLong)
         logger.debug(s"Restored snapshot for partition $partitionId.")
     }

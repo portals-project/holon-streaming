@@ -1,4 +1,4 @@
-package holon.backend
+package holon.backend.messages
 
 import upickle.default.{ReadWriter, macroRW}
 
@@ -8,6 +8,12 @@ sealed trait ControlMessage {
 
 object ControlMessage {
     implicit val rw: ReadWriter[ControlMessage] = macroRW
+}
+
+case class Checkpoint(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]) extends ControlMessage
+
+object Checkpoint {
+    implicit val rw: ReadWriter[Checkpoint] = macroRW
 }
 
 case class OwnershipState(ownershipMap: scala.collection.mutable.Map[Int, OwnershipEntry], senderId: Int) extends ControlMessage

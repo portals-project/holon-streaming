@@ -1,4 +1,4 @@
-package holon.backend
+package holon.backend.messages
 
 import upickle.default.{ReadWriter, macroRW}
 
@@ -14,10 +14,4 @@ case class CRDTUpdate(update: Array[Byte], senderId: Int, lag: Long) extends Bro
 
 object CRDTUpdate {
     implicit val rw: ReadWriter[CRDTUpdate] = macroRW
-}
-
-case class NodeCheckpoint(senderId: Int, partitionSnapshots: Map[Int, String]) extends BroadcastMessage
-
-object NodeCheckpoint {
-    implicit val rw: ReadWriter[NodeCheckpoint] = macroRW
 }

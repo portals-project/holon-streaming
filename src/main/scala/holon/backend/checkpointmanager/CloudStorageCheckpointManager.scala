@@ -2,8 +2,6 @@ package holon.backend.checkpointmanager
 
 import holon.backend.GCSClient
 import holon.backend.GCSClient.bucketName
-import holon.backend.checkpointmanager.CheckpointManager
-import holon.example.nexmark.Config.*
 import holon.*
 
 class CloudStorageCheckpointManager extends CheckpointManager {
@@ -12,14 +10,19 @@ class CloudStorageCheckpointManager extends CheckpointManager {
     Logger.setLevel("CloudStorageCheckpointManager", "INFO")
 
 
-    protected def safePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, String]): Unit = {
-        partitionSnapshots.foreach((partitionId, snapshot) => {
-            GCSClient.uploadStringToBucket(bucketName, getPartitionSnapshotName(partitionId), snapshot)
+    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit = {
+        partitionSnapshots.foreach((partitionId, snapshotContent) => {
+            val (offset, snapshot) = snapshotContent
+            GCSClient.uploadStringToBucket(bucketName, getPartitionSnapshotName(partitionId), s"$offset:$snapshot")
         })
     }
 
-    protected def safeNodeCheckpoint(nodeId: Int, nodeOffsets: String): Unit = {
+    protected def saveNodeCheckpoint(nodeId: Int, nodeOffsets: String): Unit = {
         GCSClient.uploadStringToBucket(bucketName, getNodeSnapshotName(nodeId), nodeOffsets)
+    }
+
+    def saveSnapshotsFromOtherNodes(partitionSnapshots: Map[Int, (Long, String)]): Unit = {
+        // Ignore snapshots from other nodes
     }
 
     /**
@@ -48,7 +51,8 @@ class CloudStorageCheckpointManager extends CheckpointManager {
     def recoverCheckpointForPartition(partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
         if (GCSClient.checkIfFileExists(bucketName, getPartitionSnapshotName(partitionId))) {
             val fileContent = GCSClient.downloadStringFromBucket(bucketName, getPartitionSnapshotName(partitionId))
-            restorePartitionSnapshot(partitionId, fileContent, procFun, consumer)
+            val Array(offset: String, snapshotString: String) = fileContent.split(":")
+            restorePartitionSnapshot(partitionId, offset.toLong, snapshotString, procFun, consumer)
         }
     }
 
