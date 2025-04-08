@@ -49,7 +49,8 @@ object LagManager {
                     maxLag = lag
                 }
             }
-            return Some(maxPartitionId, maxLag)
+
+            Some(maxPartitionId, maxLag)
         }
     }
 

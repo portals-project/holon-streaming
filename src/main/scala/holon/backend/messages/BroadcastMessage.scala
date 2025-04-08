@@ -1,4 +1,4 @@
-package holon.backend
+package holon.backend.messages
 
 import upickle.default.{ReadWriter, macroRW}
 
