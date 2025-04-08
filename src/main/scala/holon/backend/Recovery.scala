@@ -231,8 +231,13 @@ class Recovery(nodeId: Int) {
                 val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
                 if ownerNodeId == nodeId then {
                     recs.foreach: r =>
-                        val bids = readBinary[(BigInt)](r._2)
-                        logger.info(s"Node $nodeId partition $partitionId commits: $bids")
+                        val outputState = readBinary[OutputState](r._2)
+                        // Deconstruct the output state
+                        // val partition = outputState.partition
+                        // val windowId = outputState.window
+                        val crdtValue = outputState.value
+
+                        logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
@@ -472,7 +477,9 @@ class Recovery(nodeId: Int) {
     }
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
+        logger.info(s"Node $nodeId is removing consumer and processing function for partition $partitionId")
         val (_chn, consumer) = this.consumerPerPartition(partitionId)
+        logger.info(s"Node $nodeId is closing consumer for partition $partitionId wih channel $_chn and consumer $consumer")
         consumer.close()
         this.consumerPerPartition.remove(partitionId)
         this.procFunctionPerPartition.remove(partitionId)

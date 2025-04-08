@@ -50,7 +50,8 @@ object Query {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            //      procFunFactory = new RecordProcFunFactory(),
+            // procFunFactory = new RecordProcFunFactory(),
+//             procFunFactory = new CentralProcFunFactory(),
             procFunFactory = new WindowedRecordProcFunFactory(),
             partitions = partitions,
             )
@@ -86,8 +87,13 @@ object Query {
                     Thread.sleep(CONSUMER_SLEEP_MS)
                 case records =>
                     records.foreach: r =>
-                        val crdtValue = readBinary[BigInt](r._2)
-                        logger.info(s"[OUTPUT]:Closed a window with final aggregate: $crdtValue")
+                        val outputState = readBinary[OutputState](r._2)
+                        // Deconstruct the output state
+                        val partition = outputState.partition
+                        val windowId = outputState.window
+                        val crdtValue = outputState.value
+                        
+                        logger.info(s"[OUTPUT]: partition: $partition closed window: $windowId with final value: $crdtValue")
     }
 
     def setupKafka(): Unit = {
@@ -112,10 +118,10 @@ object Query {
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
 
