@@ -40,12 +40,6 @@ object OwnershipTransferRequest {
     implicit val rw: ReadWriter[OwnershipTransferRequest] = macroRW
 }
 
-case class OwnershipTransferConfirmation(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
-
-object OwnershipTransferConfirmation {
-    implicit val rw: ReadWriter[OwnershipTransferConfirmation] = macroRW
-}
-
 case class OwnershipTransferDenial(receiverId: Int, partitions: List[Int], senderId: Int) extends ControlMessage
 
 object OwnershipTransferDenial {

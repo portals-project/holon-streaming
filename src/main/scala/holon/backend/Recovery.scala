@@ -3,7 +3,7 @@ package holon.backend
 import holon.*
 import holon.Utils.*
 import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
-import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferConfirmation, OwnershipTransferDenial, OwnershipTransferRequest}
+import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferDenial, OwnershipTransferRequest}
 import holon.example.nexmark.Config.*
 import upickle.default.{readBinary, writeBinary}
 
@@ -20,9 +20,9 @@ class Recovery(nodeId: Int) {
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
-    private val checkpointManager = if (USE_GCS_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
+    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
     private var pollsWithoutRecords = 0
-    private var waitingForWorkStealConfirmationFrom = List.empty[Int]
+    private var waitingForWorkStealConfirmationFrom = List.empty[Int] // TODO: likely delete
     private val ownershipManager = PartitionOwnershipManager(nodeId)
     private val logger = Logger.apply("Recovery")
 
@@ -160,12 +160,17 @@ class Recovery(nodeId: Int) {
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.info(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
+                                if waitingForWorkStealConfirmationFrom.contains(senderId) then
+                                    waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
+
+                                val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
+                                integrateNewPartitions(newPartitions)
                                 ownershipManager.mergeOwnershipMap(ownershipMap)
                                 receivedOwnershipState = true
                                 failureDetector.setHeartbeat(senderId)
                             case OwnershipStateRequest(senderId) =>
                                 logger.info(s"($nodeId) Received ownership state request from node $senderId")
-                                this.checkpointManager.sendCheckpointMessage(senderId)
+                                this.checkpointManager.sendCheckpointMessage(nodeId)
                                 val ownershipMap = ownershipManager.getOwnershipMap
                                 sendControlMessage(OwnershipState(ownershipMap, nodeId))
                             case OwnershipTransferRequest(receiverId, partitions, senderId) =>
@@ -175,17 +180,6 @@ class Recovery(nodeId: Int) {
 
                                     // TODO delete: for now give node more time to recover
                                     failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)
-                                }
-                            case OwnershipTransferConfirmation(receiverId, partitions, senderId) =>
-                                if (receiverId == nodeId) {
-                                    logger.info(s"(Node $nodeId) Received ownership confirmation from node $senderId for partitions $partitions")
-                                    if waitingForWorkStealConfirmationFrom.contains(senderId) then
-                                        waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
-
-                                    // Reset lag for this node after receiving confirmation
-                                    LagManager.updateLag(senderId, 0)
-                                    integrateNewPartitions(partitions)
-                                    failureDetector.setHeartbeat(senderId)
                                 }
                             case OwnershipTransferDenial(receiverId, partitions, senderId) =>
                                 if (receiverId == nodeId) {
@@ -429,15 +423,11 @@ class Recovery(nodeId: Int) {
         }
 
         // Send new checkpoint state
-        this.checkpointManager.sendCheckpointMessage(senderId)
+        this.checkpointManager.sendCheckpointMessage(nodeId)
         // Notify other nodes about updated ownership
         sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
         logger.info(s"Partition $transferredPartitions ownership handed over to node $newOwnerId")
         logger.info(s"Node $nodeId handed over ownership: ${ownershipManager.getOwnershipMap}")
-
-        // Send ownership confirmation to new owner
-        // TODO we probably do not need this message anymore: just check if there are new partitions in Ownership state assigned to you
-        sendControlMessage(OwnershipTransferConfirmation(newOwnerId, transferredPartitions, nodeId))
     }
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {

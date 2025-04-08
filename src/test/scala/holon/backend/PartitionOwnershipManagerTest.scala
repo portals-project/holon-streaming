@@ -68,4 +68,32 @@ class PartitionOwnershipManagerTest extends AnyFunSuite {
         assert(ownershipManager.getOwnershipMap(0).nodeId == 0)
         assert(ownershipManager.getOwnershipMap(1).nodeId == 0)
     }
+
+    test("PartitionOwnershipManager: should get correct new owned partitions") {
+        val ownershipManager = PartitionOwnershipManager(0)
+
+        ownershipManager.initializePartitionOwnership(List(0, 1))
+
+        val map2: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
+        map2.put(2, OwnershipEntry(1, 0))
+        map2.put(3, OwnershipEntry(1, 0))
+
+        ownershipManager.mergeOwnershipMap(map2)
+
+        val map3: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
+        map3.put(2, OwnershipEntry(0, 4)) // New ownership entry for partition 2 with higher version
+        map3.put(3, OwnershipEntry(1, 4))
+        map3.put(4, OwnershipEntry(0, 4)) // Completely new partition 4
+
+        val newOwnedPartitions = ownershipManager.getNewOwnedPartitions(map3)
+        assert(newOwnedPartitions.size == 2)
+        assert(newOwnedPartitions.contains(2))
+        assert(newOwnedPartitions.contains(4))
+        ownershipManager.mergeOwnershipMap(map3)
+
+        val map4: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
+        map4.put(3, OwnershipEntry(0, 4)) // New ownership entry for partition 3 with lower/equal verstion --> no update
+        val newOwnedPartitions2 = ownershipManager.getNewOwnedPartitions(map4)
+        assert(newOwnedPartitions2.size == 0)
+    }
 }

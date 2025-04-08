@@ -67,6 +67,28 @@ class PartitionOwnershipManager(nodeId: Int) {
         logger.info(s"Merged ownership map: $partitionToNodeId")
     }
 
+    /**
+     * Get list of partitions that current node should take ownership of.
+     */
+    def getNewOwnedPartitions(newOwnershipCrdt: scala.collection.mutable.Map[Int, OwnershipEntry]): List[Int] = {
+        val newOwnedPartitions = scala.collection.mutable.ListBuffer[Int]()
+        for ((partition, ownershipEntry) <- newOwnershipCrdt) {
+            if (ownershipEntry.nodeId == nodeId) {
+                partitionToNodeId.get(partition) match {
+                    case Some(currentOwnershipEntry) =>
+                        // Partition is currently owned by another node
+                        if (currentOwnershipEntry.nodeId != nodeId && currentOwnershipEntry.version < ownershipEntry.version) {
+                            newOwnedPartitions += partition
+                        }
+                    case None =>
+                        // Partition is not owned by any node yet
+                        newOwnedPartitions += partition
+                }
+            }
+        }
+        newOwnedPartitions.toList
+    }
+
     def getOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = {
         partitionToNodeId
     }
@@ -77,8 +99,8 @@ class PartitionOwnershipManager(nodeId: Int) {
     def checkOwnershipResponsibilityAfterFailure(failedNode: Int, failedNodes: List[Int]): Boolean = {
         var owner = failedNode
         while failedNodes.contains(owner) do
-            // TODO add test for this to be sure!
-            // If the failed node is also the current node, then the current node is responsible for redistribution
+        // TODO add test for this to be sure!
+        // If the failed node is also the current node, then the current node is responsible for redistribution
             owner = (owner + 1) % N_NODES
 
         owner == nodeId
