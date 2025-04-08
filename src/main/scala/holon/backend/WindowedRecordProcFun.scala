@@ -1,5 +1,4 @@
 package holon.backend
-
 import holon.*
 import holon.crdt.CRDTWrapper
 import holon.example.CRDT.address
@@ -56,8 +55,11 @@ extends ProcFun {
   // Map to keep track of all windows that have been emitted.
   private val emittedWindows = mutable.Set.empty[Long]
 
-  // Broadcast every 500 milliseconds
+  // Broadcast every broadcastInterval milliseconds
   private val broadcastInterval: Long = 200L
+
+  // Garbage collection interval
+  private val gcInterval: Long = 1000L
 
   override def process(
                         outputFunction: (Int, Byte, LogProducerRecords) => Unit,
@@ -104,7 +106,7 @@ extends ProcFun {
 
           // Merge the window map depending on the type of message received.
           for ((windowKey, receivedAggregate) <- receivedWindowMap) {
-            if (windowMap.contains(windowKey)) {
+            if (windowMap.contains(windowKey) && !emittedWindows.contains(windowKey)) {
               val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
               windowMap(windowKey) = (merged, windowMap(windowKey)._2)
             } else {
@@ -142,6 +144,12 @@ extends ProcFun {
       outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
     }
 
+    // Garbage collect every gcInterval milliseconds
+    if (System.currentTimeMillis() % gcInterval < 10) {
+      logger.debug(s"Garbage collecting windows for partition: $partition")
+      garbageCollect()
+    }
+
     // See if we can emit windows
     emitWindow(outputFunction)
   }
@@ -158,6 +166,28 @@ extends ProcFun {
           val outputState = OutputState(partition, windowKey, crdt.value(windowAggregate._1))
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
           emittedWindows += windowKey
+      }
+    }
+  }
+
+
+  private def garbageCollect(): Unit = {
+    // Skip if vector clock contains zero
+    if vectorClock.forall(_ == 0L) then return
+    // Get current global window
+    val currentLocalWin = defineWindow(vectorClock.min)
+    if (currentLocalWin > 2) {
+      // Remove all windows that are old enough
+      val windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 5).toList
+
+      // Skip if there are no windows to remove
+      if windowsToRemove.isEmpty then return
+        
+      for (windowKey <- windowsToRemove) {
+        if (windowMap.contains(windowKey)) {
+          logger.info(s"partition: $partition, garbage collecting window: $windowKey")
+          windowMap -= windowKey
+        }
       }
     }
   }
