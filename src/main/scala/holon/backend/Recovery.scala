@@ -235,7 +235,7 @@ class Recovery(nodeId: Int) {
                         // Deconstruct the output state
                         // val partition = outputState.partition
                         // val windowId = outputState.window
-                        val crdtValue = outputState.value
+                        val crdtValue = outputState.bidCount
 
                         logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
                     out.collect(chn, recs)
