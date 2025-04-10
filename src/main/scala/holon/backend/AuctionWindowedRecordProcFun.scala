@@ -58,8 +58,8 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   private val emittedWindows = mutable.Set.empty[Long]
 
   // Broadcast and garbage collection intervals.
-  private val broadcastInterval: Long = 200L
-  private val gcInterval: Long = 1000L
+  private val broadcastInterval: Long = 100L
+  private val gcInterval: Long = 500L
 
   override def process(
                         outputFunction: (Int, Byte, LogProducerRecords) => Unit,
@@ -76,18 +76,18 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
             case bid: Nexmark.Events.Bid =>
               // Get the event timestamp.
               val eventTimestamp: Long = bid.dateTime
-              // Determine the window for the event.
+
               val window: Long = defineWindow(eventTimestamp)
-              // Extract the auction ID from the bid (ensure bid.auctionId is available).
+
               val auctionId: Long = bid.auction
-              // Create a new window if one does not exist.
+
               if (!windowMap.contains(window)) {
                 windowMap(window) = (crdt.empty, false)
               }
               // Increment the bid count for this auction.
               val updated = crdt.increment(windowMap(window)._1, addr, 1L, auctionId.toString)
               windowMap(window) = (updated, false)
-              // Update our vector clock.
+
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
             case other =>
@@ -102,6 +102,7 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
           val receivedPartition = receivedState.partition
           val receivedVectorClock = receivedState.vectorClock
           val receivedWindowMap = receivedState.windowMap
+          logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
 
           // For each window in the received state, merge with our own state.
           for ((windowKey, receivedAggregate) <- receivedWindowMap) {
@@ -129,16 +130,20 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
       if (windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
         // Mark the window as ready (closed) for emission.
         windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
+
+        logger.debug(s"Broadcasting window state for partition: $partition")
+        // Only send the map of the passed window, including the key and the value.
+        val windowState = WindowState(partition, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
+        outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
+
         logger.debug(s"partition: $partition, closed window: $passedWindow")
       }
     }
 
     // Broadcast state at defined intervals.
-    if (System.currentTimeMillis() % broadcastInterval < 10) {
-      logger.debug(s"Broadcasting window state for partition: $partition")
-      val windowState = WindowState(partition, vectorClock.clone(), windowMap.clone())
-      outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
-    }
+//    if (System.currentTimeMillis() % broadcastInterval < 10) {
+//
+//    }
 
     // Garbage collect old windows at defined intervals.
     if (System.currentTimeMillis() % gcInterval < 10) {
@@ -153,10 +158,8 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   private def emitWindow(outputFunction: (Int, Byte, LogProducerRecords) => Unit): Unit = {
     for ((windowKey, windowAggregate) <- windowMap) {
       // Emit the window if the CRDT state has been marked closed, hasn't yet been emitted,
-      // and the oldest element in the vector clock is greater than the window key (ensuring convergence).
+      // and the oldest element in the vector clock is greater than the window key.
       if (windowAggregate._2 && !emittedWindows.contains(windowKey) && defineWindow(vectorClock.min) > windowKey) {
-        // Convert the CRDT state to a Map[String, BigInt] (auction id -> bid count).
-        // It is assumed that crdt.value returns a Map[String, BigInt] when using the map-based CRDT.
         val auctionBidMap: Map[String, BigInt] = crdt.value(windowAggregate._1, "crdt-map")
         if (auctionBidMap.nonEmpty) {
           // Select the auction with the maximum bid count.
@@ -173,11 +176,12 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
     if vectorClock.forall(_ == 0L) then return
     val currentLocalWin = defineWindow(vectorClock.min)
     if (currentLocalWin > 2) {
-      val windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 5).toList
+      var windowsToRemove: List[Long] = Nil
+      windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 5).toList
       if (windowsToRemove.nonEmpty) {
+        logger.info(s"partition: $partition, garbage collecting ${windowsToRemove.size} windows")
         for (windowKey <- windowsToRemove) {
           if (windowMap.contains(windowKey)) {
-            logger.info(s"partition: $partition, garbage collecting window: $windowKey")
             windowMap -= windowKey
           }
         }
@@ -193,14 +197,14 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   }
 
   override def snapshot(): Array[Byte] = {
-    logger.info("Taking snapshot")
-    writeBinary(windowMap.filter(!_._2._2).toMap)
+      logger.info("Taking snapshot")
+      writeBinary(windowMap.filter(!_._2._2).toMap)
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
     logger.info("Restoring from snapshot")
     val restoredMap = readBinary[mutable.Map[Long, (T, Boolean)]](snapshot)
-    logger.info(s"Restored window map: $restoredMap")
+//    logger.info(s"Restored window map: $restoredMap")
     windowMap.clear()
     windowMap ++= restoredMap.toMap
   }
