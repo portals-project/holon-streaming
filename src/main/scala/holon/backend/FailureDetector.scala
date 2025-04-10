@@ -38,7 +38,7 @@ class FailureDetector(currentNodeId: Int) {
      *
      * @return List of failed nodes. Empty list if no nodes have failed.
      */
-    def checkNodeFailures(): List[Int] = {
+    def checkNodeFailures(): Option[List[Int]] = {
         val t = System.currentTimeMillis()
         if startCheckingForFailures && heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > HEARTBEAT_INTERVAL then {
             logger.debug(s"Checking for failed nodes $heartbeatMap")
@@ -48,12 +48,12 @@ class FailureDetector(currentNodeId: Int) {
                 (t - lastHeartbeat) > HEARTBEAT_INTERVAL
             }.keys
 
-            return failedNodes.toList
+            return Some(failedNodes.toList)
         } else if heartbeatCheckTime < 0 then {
             heartbeatCheckTime = System.currentTimeMillis()
         }
 
-        List.empty
+        None
     }
 
 }

@@ -129,7 +129,6 @@ object Query {
 
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
-                System.out.println(s" Node: $i Partitions: $partitions")
                 val j = job(partitions)
                 val holon = Holon(i)
                 holon.submitOrUpdate(j)

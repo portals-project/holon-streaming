@@ -2,6 +2,8 @@ package holon.backend
 
 import holon.*
 import holon.Utils.*
+import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
+import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferDenial, OwnershipTransferRequest}
 import holon.example.nexmark.Config.*
 import upickle.default.{readBinary, writeBinary}
 
@@ -9,8 +11,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
 
 class Recovery(nodeId: Int) {
-
-    val NODE_ID: Int = nodeId
 
     private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
@@ -20,9 +20,10 @@ class Recovery(nodeId: Int) {
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
-    private val checkpointManager = CheckpointManager()
+    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
     private var pollsWithoutRecords = 0
-    private var waitingForWorkStealConfirmationFrom = List.empty[Int]
+    private var waitingForWorkStealConfirmationFrom = List.empty[Int] // TODO: likely delete
+    private val ownershipManager = PartitionOwnershipManager(nodeId)
     private val logger = Logger.apply("Recovery")
 
     Logger.setLevel("Recovery", "INFO")
@@ -38,27 +39,41 @@ class Recovery(nodeId: Int) {
         val basePartitions = job.partitions
         logger.debug(s"Setting up job $job for node $nodeId")
 
+        // Setup procFunFactory, consumers and producers
         this.procFunFactory = job.procFunFactory
-        setupProducers(job.producers)
+        consumerPerPartition.clear()
+        val (controlChannelConsumer, _) = ConsumerProducerSetup.setupInternalConsumers(job.consumers, consumerPerPartition)
+        ConsumerProducerSetup.setupProducers(job.producers, this.producers)
 
+        // Set initial ownership of partitions
+        ownershipManager.initializePartitionOwnership(basePartitions)
+        sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
 
-        // Request partition ownership from other nodes
-        val partitionsByOwnerToRequest = determinePartitionsToRequestOwnership(basePartitions)
-        for (ownerNodeId <- partitionsByOwnerToRequest.keys) {
-            val partitions = partitionsByOwnerToRequest(ownerNodeId)
-            logger.info(s"Node $nodeId is requesting ownership of partitions $partitions from node $ownerNodeId")
-            requestPartitionOwnership(ownerNodeId, partitions)
+        // Recover node state from persistent storage
+        val nodeRecoveryFileExists = this.checkpointManager.recoverNodeOffset(nodeId, consumerPerPartition)
+        ownershipManager.setControlChannelConsumer(controlChannelConsumer)
+
+        if (!nodeRecoveryFileExists) {
+            logger.info(s"Node $nodeId is starting fresh")
+        } else {
+            // Request partition ownership state from other nodes
+            sendControlMessage(OwnershipStateRequest(nodeId))
+            waitForOwnershipStateMessage()
+
+            val partitionsByOwnerToRequest = determinePartitionsToRequestOwnership(basePartitions)
+            for (ownerNodeId <- partitionsByOwnerToRequest.keys) {
+                val partitions = partitionsByOwnerToRequest(ownerNodeId)
+                logger.info(s"Node $nodeId is requesting ownership of partitions $partitions from node $ownerNodeId")
+                sendControlMessage(OwnershipTransferRequest(ownerNodeId, partitions, nodeId))
+            }
         }
 
-        val partitionsOwned = FirestoreClient.queryPartitionsByNodeId(FirestoreClient.OWNERSHIP_COLLECTION_NAME, nodeId).map(_._1).toList
+        val partitionsOwned = ownershipManager.getPartitionsOwnedByNode(nodeId)
         logger.info(s"Node $nodeId is responsible for partitions: $partitionsOwned")
-
-        setupConsumers(job.consumers, partitionsOwned)
-        logger.debug(s"Consumers: $consumerPerPartition")
+        ConsumerProducerSetup.setupPartitionConsumers(job.consumers, partitionsOwned, consumerPerPartition)
         setupProcFunctions(partitionsOwned)
-
         // Recover from the last checkpoint for each partition and node
-        this.checkpointManager.recoverCheckpoint(NODE_ID, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
+        this.checkpointManager.recoverPartitionCheckpoints(nodeId, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
     }
 
     private def run(): Unit = {
@@ -70,15 +85,18 @@ class Recovery(nodeId: Int) {
             if ((t - time) > 1_000) {
                 time = t
                 checkJobQueue()
+                logger.debug(s"Node $nodeId ownership: ${ownershipManager.getOwnershipMap}")
             }
 
-            this.checkpointManager.createCheckpointIfRequired(NODE_ID, procFunctionPerPartition, consumerPerPartition)
+            this.checkpointManager.createCheckpointIfRequired(nodeId, procFunctionPerPartition, consumerPerPartition)
             LagManager.calculateCurrentLagIfRequired(consumerPerPartition)
 
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
-            handleFailedNodes(currentFailedNodes.diff(failedNodes))
-            this.failedNodes = currentFailedNodes
+            if (currentFailedNodes.isDefined) {
+                handleFailedNodes(currentFailedNodes.get.diff(failedNodes))
+                this.failedNodes = currentFailedNodes.get
+            }
 
             runStep()
             Thread.sleep(SLEEP_BETWEEN_POLLS)
@@ -98,10 +116,28 @@ class Recovery(nodeId: Int) {
     }
 
     /**
+     * Wait for an OwnershipState message from another node.
+     * If no message is received within 2 seconds, return.
+     */
+    private def waitForOwnershipStateMessage(): Unit = {
+        val t = System.currentTimeMillis()
+        while (System.currentTimeMillis() - t < 2_000) {
+            val receivedOwnershipState = processControlChannel()
+            if (receivedOwnershipState) return
+
+                Thread.sleep(100)
+        }
+    }
+
+    /**
      * Process control channel messages.
      * Control messages have the highest priority. Process them until there are no more messages.
+     *
+     * @return true if an OwnershipState message was received, false otherwise
      */
-    private def processControlChannel(): Unit = {
+    private def processControlChannel(): Boolean = {
+        var receivedOwnershipState = false
+
         val (_, controlConsumer) = this.consumerPerPartition.getOrElse(CONTROL_PARTITION_ID, (0, null))
         if (controlConsumer != null) {
             var records = controlConsumer.poll()
@@ -115,31 +151,43 @@ class Recovery(nodeId: Int) {
                         failureDetector.setHeartbeat(message.senderId)
 
                         message match {
-                            case OwnershipRequest(receiverId, partitions, senderId) =>
-                                if (receiverId == NODE_ID) {
+                            case Checkpoint(senderId, partitionSnapshots) =>
+                                // Node Checkpoints are only send when checkpoints are not saved to cloud storage
+                                if (senderId != nodeId) {
+                                    logger.debug(s"Node $nodeId received checkpoint from node $senderId")
+                                    failureDetector.setHeartbeat(senderId)
+                                    this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
+                                }
+                            case OwnershipState(ownershipMap, senderId) =>
+                                logger.info(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
+                                if waitingForWorkStealConfirmationFrom.contains(senderId) then
+                                    waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
+
+                                val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
+                                integrateNewPartitions(newPartitions)
+                                ownershipManager.mergeOwnershipMap(ownershipMap)
+                                receivedOwnershipState = true
+                                failureDetector.setHeartbeat(senderId)
+                            case OwnershipStateRequest(senderId) =>
+                                logger.info(s"($nodeId) Received ownership state request from node $senderId")
+                                this.checkpointManager.sendCheckpointMessage(nodeId)
+                                val ownershipMap = ownershipManager.getOwnershipMap
+                                sendControlMessage(OwnershipState(ownershipMap, nodeId))
+                            case OwnershipTransferRequest(receiverId, partitions, senderId) =>
+                                if (receiverId == nodeId) {
                                     logger.info(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
                                     handoverOwnership(senderId, partitions)
 
                                     // TODO delete: for now give node more time to recover
-                                    if (senderId != nodeId) failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)
+                                    failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)
                                 }
-                            case OwnershipRequestConfirmation(receiverId, partitions, senderId) =>
-                                if (receiverId == NODE_ID) {
-                                    logger.info(s"(Node $NODE_ID) Received ownership confirmation from node $senderId for partitions $partitions")
-                                    if waitingForWorkStealConfirmationFrom.contains(senderId) then
-                                        waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
-
-                                    // Reset lag for this node after receiving confirmation
-                                    LagManager.updateLag(senderId, 0)
-
-                                    integrateNewPartitions(partitions)
-                                }
-                            case OwnershipRequestDenial(receiverId, partitions, senderId) =>
-                                if (receiverId == NODE_ID) {
-                                    logger.info(s"(Node $NODE_ID) Received ownership denial from node $senderId for partitions $partitions")
+                            case OwnershipTransferDenial(receiverId, partitions, senderId) =>
+                                if (receiverId == nodeId) {
+                                    logger.info(s"(Node $nodeId) Received ownership denial from node $senderId for partitions $partitions")
                                     LagManager.updateLag(senderId, 0)
                                     if waitingForWorkStealConfirmationFrom.contains(senderId) then
                                         waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
+                                    failureDetector.setHeartbeat(senderId)
                                 }
                         }
                     }
@@ -147,6 +195,7 @@ class Recovery(nodeId: Int) {
                 records = controlConsumer.poll()
             }
         }
+        receivedOwnershipState
     }
 
     /**
@@ -221,7 +270,7 @@ class Recovery(nodeId: Int) {
                 // Add id of current node to the broadcast message for heartbeat tracking
                 val currentLag = LagManager.getCurrentLag
                 val recordsWithNodeId = recs.map { case (key, value) =>
-                    val message = CRDTUpdate(value, NODE_ID, currentLag)
+                    val message = CRDTUpdate(value, nodeId, currentLag)
                     val serializedMessage = writeBinary(message)
                     (key, serializedMessage)
                 }
@@ -238,6 +287,7 @@ class Recovery(nodeId: Int) {
                         val crdtValue = outputState.bidCount
 
 //                        logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
+
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
@@ -249,45 +299,6 @@ class Recovery(nodeId: Int) {
                 logger.info(s"$chn: $recs")
         }
         this.failureDetector.setStartCheckingForFailures()
-    }
-
-    /**
-     * Setup producers from producer references.
-     */
-    private def setupProducers(producerRefs: List[ProducerRef]): Unit = {
-        this.producers.clear()
-        producerRefs.foreach { ref =>
-            val producer = KafkaLogProducer.fromRef(ref)
-            this.producers.put(ref.chn, producer)
-        }
-    }
-
-    /**
-     * Setup consumers from consumer references and other partitions that are owned.
-     */
-    private def setupConsumers(consumerRefs: List[ConsumerRef], partitionsOwned: List[Int]): Unit = {
-        this.consumerPerPartition.clear()
-        consumerRefs.foreach { ref =>
-            if (ref.chn != CHN_NEXMARK || partitionsOwned.contains(ref.partitions.head)) {
-                val consumer = KafkaLogConsumer.fromRef(ref)
-                logger.debug(s"Node $nodeId - Setting up consumer: $consumer for partition ${consumer.partition}")
-                val partition = ref.chn match {
-                    case CHN_NEXMARK => consumer.partition
-                    case CHN_BROADCAST => BROADCAST_PARTITION_ID
-                    case CHN_CONTROL => CONTROL_PARTITION_ID
-                    case _ => throw new IllegalArgumentException(s"Unknown channel: ${ref.chn}")
-                }
-
-                this.consumerPerPartition.put(partition, (ref.chn, consumer))
-            }
-        }
-
-        // Setup consumers for other owned partitions
-        for (partitionId <- partitionsOwned) {
-            if (!this.consumerPerPartition.contains(partitionId)) {
-                addNewNexmarkConsumer(partitionId)
-            }
-        }
     }
 
     /**
@@ -307,17 +318,19 @@ class Recovery(nodeId: Int) {
      */
     private def determinePartitionsToRequestOwnership(basePartitions: List[Int]): scala.collection.mutable.Map[Int, List[Int]] = {
         val partitionsByOwnerToRequest = scala.collection.mutable.Map.empty[Int, List[Int]]
+        var updateOwnershipState = false
         for (partitionId <- basePartitions) {
-            // Check partition ownership
-            val (ownerNodeId, versionNr) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
+            val ownerNodeId = ownershipManager.getPartitionOwner(partitionId)
 
             // If partition is not owned by any node, set ownership to current node
             if (ownerNodeId == -1) {
-                FirestoreClient.setPartitionOwnership(partitionId, nodeId, 0)
+                updateOwnershipState = true
+                ownershipManager.setPartitionOwnership(partitionId)
             } else if (ownerNodeId != nodeId) {
                 partitionsByOwnerToRequest(ownerNodeId) = partitionsByOwnerToRequest.getOrElse(ownerNodeId, List.empty) :+ partitionId
             }
         }
+        if (updateOwnershipState) sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
         partitionsByOwnerToRequest
     }
 
@@ -328,7 +341,7 @@ class Recovery(nodeId: Int) {
                 logger.info(s"Node $nodeId is attempting work steal from node $victimNode")
                 waitingForWorkStealConfirmationFrom = List(victimNode.get._1)
                 // Send in empty partition list to request any partition
-                requestPartitionOwnership(victimNode.get._1, List())
+                sendControlMessage(OwnershipTransferRequest(victimNode.get._1, List(), nodeId))
             }
         }
     }
@@ -346,16 +359,19 @@ class Recovery(nodeId: Int) {
 
         for failedNode <- failedNodes do
             // Check if current node needs to take over partitions from failed node
-            if (checkFailureRedistributionResponsibility(failedNode, failedNodes)) {
+            if (this.ownershipManager.checkOwnershipResponsibilityAfterFailure(failedNode, failedNodes)) {
                 logger.debug(s"Node $nodeId is responsible for redistribution of partitions from failed node $failedNode")
-                val partitions = FirestoreClient.queryPartitionsByNodeId(FirestoreClient.OWNERSHIP_COLLECTION_NAME, failedNode)
+                val partitions = ownershipManager.getPartitionsOwnedByNode(failedNode)
 
                 // Set new partition ownership for each partition
-                for (partitionId, versionNr) <- partitions do
-                    FirestoreClient.setPartitionOwnership(partitionId, nodeId, versionNr + 1)
+                for (partitionId <- partitions) {
+                    ownershipManager.setPartitionOwnership(partitionId)
                     logger.info(s"Node $nodeId is new owner of partition $partitionId")
+                }
+                sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
+                logger.info(s"Node $nodeId takes over ownership: ${ownershipManager.getOwnershipMap}")
 
-                integrateNewPartitions(partitions.map(_._1))
+                integrateNewPartitions(partitions)
             } else {
                 logger.debug(s"Node $nodeId is not responsible for redistribution of partitions from failed node $failedNode")
             }
@@ -366,57 +382,12 @@ class Recovery(nodeId: Int) {
      */
     private def integrateNewPartitions(partitions: List[Int]): Unit = {
         for (partitionId <- partitions) {
-            procFunctionPerPartition += partitionId -> this.procFunFactory.create(partitionId)
-            addNewNexmarkConsumer(partitionId)
+            val procFun = this.procFunFactory.create(partitionId)
+            procFunctionPerPartition += partitionId -> procFun
+            val consumer = ConsumerProducerSetup.addNewNexmarkConsumer(partitionId, consumerPerPartition)
 
-            this.checkpointManager.recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId),
-                                                                 consumerPerPartition(partitionId)._2)
+            this.checkpointManager.recoverCheckpointForPartition(partitionId, procFun, consumer)
         }
-    }
-
-    /**
-     * Add new Nexmark consumer for the partition.
-     */
-    private def addNewNexmarkConsumer(partitionId: Int): Unit = {
-        val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
-            chn = CHN_NEXMARK,
-            host = KAFKA_HOST,
-            port = KAFKA_PORT,
-            topic = KAFKA_TOPIC_NEXMARK,
-            partitions = List(partitionId),
-            ))
-        logger.debug(s"Node $nodeId - Adding new consumer for partition $partitionId: $inputConsumer")
-        this.consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
-    }
-
-    /**
-     * Check if the current node is responsible for taking over the partitions of the failed node.
-     */
-    private def checkFailureRedistributionResponsibility(failedNode: Int, failedNodes: List[Int]): Boolean = {
-        // Get new owner for the partitions
-        var owner = failedNode
-        while failedNodes.contains(failedNode) && owner != nodeId do
-        // If the failed node is also the current node, then the current node is responsible for redistribution
-            owner = (failedNode + 1) % N_NODES
-
-        owner == nodeId
-    }
-
-    /**
-     * Request partition ownership from the current owner node.
-     * Partition list can be empty to request any partition.
-     */
-    private def requestPartitionOwnership(ownerNodeId: Int, partitions: List[Int]): Unit = {
-        // Create the OwnershipRequest message
-        val message = OwnershipRequest(ownerNodeId, partitions, NODE_ID)
-
-        // Serialize the message
-        val serializedMessage = writeBinary(message)
-
-        // Send the serialized message
-        val records = List((writeBinary(0), serializedMessage))
-        out.collect(CHN_CONTROL, records)
-        logger.info(s"Requesting ownership of partitions $partitions from node $ownerNodeId")
     }
 
     /**
@@ -431,7 +402,7 @@ class Recovery(nodeId: Int) {
             val partitionIdAndLag = LagManager.getPartitionWithMaxLag(consumerPerPartition)
             if (partitionIdAndLag.isEmpty || partitionIdAndLag.get._2 <= 0) {
                 logger.info(s"Node $nodeId cannot hand over any partitions to node $newOwnerId. No partitions with lag")
-                sendOwnershipHandoverDenial(newOwnerId, partitions)
+                sendControlMessage(OwnershipTransferDenial(newOwnerId, partitions, nodeId))
                 return
             }
             logger.info(s"Node $nodeId is handing over partition $partitionIdAndLag to node $newOwnerId. It has the largest lag")
@@ -442,38 +413,30 @@ class Recovery(nodeId: Int) {
         val ownedPartitions = this.procFunctionPerPartition.keySet.toList
         if (partitionsToHandover.size == ownedPartitions.size) {
             logger.info(s"Node $nodeId cannot hand over all partitions to node $newOwnerId. At least one partition must remain")
-            sendOwnershipHandoverDenial(newOwnerId, partitions)
+            sendControlMessage(OwnershipTransferDenial(newOwnerId, partitions, nodeId))
             return
         }
 
         // Checkpoint current state, set new owner & close consumer
         var transferredPartitions = List.empty[Int]
-        for partitionId <- partitionsToHandover do
+        for (partitionId <- partitionsToHandover) {
             if (this.procFunctionPerPartition.keySet.contains(partitionId)) {
-
                 val (chn, consumer) = this.consumerPerPartition(partitionId)
                 val procFun = this.procFunctionPerPartition(partitionId)
-                this.checkpointManager.createCheckpointForPartition(partitionId, procFun, consumer)
-                FirestoreClient.setPartitionOwnership(partitionId, newOwnerId, 0)
+                this.checkpointManager.createCheckpointForPartition(nodeId, partitionId, procFun, consumer)
+                ownershipManager.setPartitionOwnership(partitionId, newOwnerId)
 
                 removeConsumerAndProcFun(partitionId)
                 transferredPartitions = transferredPartitions :+ partitionId
             }
+        }
 
+        // Send new checkpoint state
+        this.checkpointManager.sendCheckpointMessage(nodeId)
+        // Notify other nodes about updated ownership
+        sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
         logger.info(s"Partition $transferredPartitions ownership handed over to node $newOwnerId")
-
-        // Send ownership confirmation to new owner
-        val message = OwnershipRequestConfirmation(newOwnerId, transferredPartitions, NODE_ID)
-        val serializedMessage = writeBinary(message)
-        val records = List((writeBinary(0), serializedMessage))
-        out.collect(CHN_CONTROL, records)
-    }
-
-    private def sendOwnershipHandoverDenial(newOwnerId: Int, transferredPartitions: List[Int]): Unit = {
-        val message = OwnershipRequestDenial(newOwnerId, transferredPartitions, NODE_ID)
-        val serializedMessage = writeBinary(message)
-        val records = List((writeBinary(0), serializedMessage))
-        out.collect(CHN_CONTROL, records)
+        logger.info(s"Node $nodeId handed over ownership: ${ownershipManager.getOwnershipMap}")
     }
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
@@ -483,6 +446,12 @@ class Recovery(nodeId: Int) {
         consumer.close()
         this.consumerPerPartition.remove(partitionId)
         this.procFunctionPerPartition.remove(partitionId)
+    }
+
+    private def sendControlMessage(message: ControlMessage): Unit = {
+        val serializedMessage = writeBinary(message)
+        val records = List((writeBinary(0), serializedMessage))
+        out.collect(CHN_CONTROL, records)
     }
 
 }

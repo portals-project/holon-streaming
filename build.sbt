@@ -35,7 +35,6 @@ lazy val root = project
     scalaVersion := scala3Version,
     resolvers += "confluent" at "https://packages.confluent.io/maven/", // needed for beam-sdks-java-nexmark
     libraryDependencies += "com.lihaoyi" %% "upickle" % upickleVersion,
-    libraryDependencies += "com.novocode" % "junit-interface" % junitInterfaceVersion % Test,
     libraryDependencies += "ch.qos.logback" % "logback-classic" % logbackversion,
     libraryDependencies += "io.github.embeddedkafka" %% "embedded-kafka" % embeddedKafkaVersion,
     libraryDependencies += "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
@@ -44,5 +43,6 @@ lazy val root = project
     libraryDependencies += "com.google.cloud" % "google-cloud-storage" % "2.28.0",
     libraryDependencies += "com.google.cloud" % "google-cloud-firestore" % "3.0.6",
     libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.11",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.17" % Test
     // libraryDependencies += "com.jspenger" %% "sporks3" % "0.1.0-SNAPSHOT",
   )

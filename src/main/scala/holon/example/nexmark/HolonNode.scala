@@ -10,6 +10,12 @@ object HolonNode {
         Config.KAFKA_HOST = "kafka"
         Config.KAFKA_PORT = 9093
 
+        val N_NODES = sys.env.getOrElse("N_NODES", "2").toInt
+        Config.N_NODES = N_NODES
+        val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
+        Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
+        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
+
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
         val sleepBetweenPolls = sys.env.getOrElse("SLEEP_BETWEEN_POLLS", "0").toLong
