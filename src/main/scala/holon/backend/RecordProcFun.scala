@@ -3,8 +3,11 @@ package holon.backend
 import upickle.default.{readBinary, writeBinary}
 import holon.*
 import holon.example.nexmark.Config.*
-import holon.example.Nexmark
+import holon.example.{CRDT, Nexmark}
 import holon.example.CRDT.address
+import holon.backend.DistributedCounter.Counter
+import org.apache.pekko.cluster.ddata.GCounter
+import upickle.legacy.{ReadWriter, readwriter}
 
 /**
  * A simplified message processing class that counts bid events using an immutable CRDT counter.
@@ -70,7 +73,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
             outputFunction(
                 partition,
                 CHN_BROADCAST,
-                Iterable.single((writeBinary(0), writeBinary(state.counter)))
+                Iterable.single((writeBinary(0), writeBinary(DistributedCounter.valueCounter(state.counter))))
             )
             messageCount = 0
         }

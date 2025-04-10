@@ -1,9 +1,10 @@
 package holon.backend
 
+import holon.example.CRDT
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 import upickle.default.*
 
-object DistributedCounter { // Our counter is now an Akka GCounter.
+object DistributedCounter {
   type Counter = GCounter
 
   def emptyCounter: Counter = GCounter.empty
@@ -23,3 +24,9 @@ case class RecordState(counter: DistributedCounter.Counter = DistributedCounter.
 object RecordState {
   implicit val rw: ReadWriter[RecordState] = macroRW
 }
+
+// Custom ReadWriter for GCounter remains unchanged.
+implicit val gcounterRW: ReadWriter[GCounter] = readwriter[Array[Byte]].bimap[GCounter](
+  gc => CRDT.crdtToBinaryWithManifest("GCounter", gc),
+  bytes => CRDT.crdtFromBinaryWithManifest(bytes)._2.asInstanceOf[GCounter]
+)
