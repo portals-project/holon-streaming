@@ -237,7 +237,7 @@ class Recovery(nodeId: Int) {
                         // val windowId = outputState.window
                         val crdtValue = outputState.bidCount
 
-                        logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
+//                        logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
