@@ -50,8 +50,10 @@ object Query {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            //      procFunFactory = new RecordProcFunFactory(),
-            procFunFactory = new WindowedRecordProcFunFactory(),
+            // procFunFactory = new RecordProcFunFactory(),
+            // procFunFactory = new CentralProcFunFactory(),
+            // procFunFactory = new WindowedRecordProcFunFactory(),
+            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
             partitions = partitions,
             )
 
@@ -86,8 +88,14 @@ object Query {
                     Thread.sleep(CONSUMER_SLEEP_MS)
                 case records =>
                     records.foreach: r =>
-                        val crdtValue = readBinary[BigInt](r._2)
-                        logger.info(s"[OUTPUT]:Closed a window with final aggregate: $crdtValue")
+                        val outputState = readBinary[OutputState](r._2)
+                        // Deconstruct the output state
+                        val partition = outputState.partition
+                        val windowId = outputState.window
+                        val auctionId = outputState.auctionId
+                        val crdtValue = outputState.bidCount
+                        
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
     }
 
     def setupKafka(): Unit = {
@@ -112,10 +120,10 @@ object Query {
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
 
