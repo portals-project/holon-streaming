@@ -51,8 +51,9 @@ object Query {
             consumers = consumers,
             producers = producers,
             // procFunFactory = new RecordProcFunFactory(),
-//             procFunFactory = new CentralProcFunFactory(),
-            procFunFactory = new WindowedRecordProcFunFactory(),
+            // procFunFactory = new CentralProcFunFactory(),
+            // procFunFactory = new WindowedRecordProcFunFactory(),
+            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
             partitions = partitions,
             )
 
@@ -91,9 +92,10 @@ object Query {
                         // Deconstruct the output state
                         val partition = outputState.partition
                         val windowId = outputState.window
-                        val crdtValue = outputState.value
+                        val auctionId = outputState.auctionId
+                        val crdtValue = outputState.bidCount
                         
-                        logger.info(s"[OUTPUT]: partition: $partition closed window: $windowId with final value: $crdtValue")
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
     }
 
     def setupKafka(): Unit = {
