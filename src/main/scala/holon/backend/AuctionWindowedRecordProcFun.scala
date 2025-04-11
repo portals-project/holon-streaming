@@ -204,7 +204,6 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   override def restore(snapshot: Array[Byte]): Unit = {
     logger.debug("Restoring from snapshot")
     val restoredMap = readBinary[mutable.Map[Long, (T, Boolean)]](snapshot)
-//    logger.info(s"Restored window map: $restoredMap")
     windowMap.clear()
     windowMap ++= restoredMap.toMap
   }

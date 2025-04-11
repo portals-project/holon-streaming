@@ -159,7 +159,7 @@ class Recovery(nodeId: Int) {
                                     this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
-                                logger.info(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
+                                logger.debug(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
                                 if waitingForWorkStealConfirmationFrom.contains(senderId) then
                                     waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
 
