@@ -277,7 +277,7 @@ class Recovery(nodeId: Int) {
                 out.collect(chn, recordsWithNodeId)
             case CHN_OUTPUT =>
                 // Check if node is responsible for partition
-                val (ownerNodeId, _) = FirestoreClient.queryNodeForPartition(FirestoreClient.OWNERSHIP_COLLECTION_NAME, partitionId)
+                val ownerNodeId = ownershipManager.getPartitionOwner(partitionId)
                 if ownerNodeId == nodeId then {
                     recs.foreach: r =>
                         val outputState = readBinary[OutputState](r._2)
