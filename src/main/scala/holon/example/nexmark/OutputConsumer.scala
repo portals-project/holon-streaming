@@ -22,9 +22,14 @@ object OutputConsumer {
                     Thread.sleep(CONSUMER_SLEEP_MS)
                 case records =>
                     records.foreach: r =>
-                        val partition = readBinary[Int](r._1)
-                        val crdtValue = readBinary[BigInt](r._2)
-                        logger.info(s"[OUTPUT]: partition: $partition closed a window with final aggregate: $crdtValue")
+                        val outputState = readBinary[OutputState](r._2)
+                        // Deconstruct the output state
+                        val partition = outputState.partition
+                        val windowId = outputState.window
+                        val auctionId = outputState.auctionId
+                        val crdtValue = outputState.bidCount
+
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
     }
 
 }

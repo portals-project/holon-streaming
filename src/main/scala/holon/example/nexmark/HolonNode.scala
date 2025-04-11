@@ -57,7 +57,8 @@ object HolonNode {
             consumers = consumers,
             producers = producers,
 //            procFunFactory = new RecordProcFunFactory(),
-            procFunFactory = new WindowedRecordProcFunFactory(),
+//            procFunFactory = new WindowedRecordProcFunFactory(),
+            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
             partitions = partitions,
             )
 
