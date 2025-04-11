@@ -1,8 +1,8 @@
 package holon.backend.checkpointmanager
 
-import holon.backend.GCSClient
-import holon.backend.GCSClient.bucketName
+import holon.backend.cloud.GCSClient.bucketName
 import holon.*
+import holon.backend.cloud.GCSClient
 
 class CloudStorageCheckpointManager extends CheckpointManager {
 
