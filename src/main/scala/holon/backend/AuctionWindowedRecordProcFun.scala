@@ -165,7 +165,7 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
           // Select the auction with the maximum bid count.
           val (maxAuctionId, maxCount) = auctionBidMap.maxBy(_._2)
           val outputState = OutputState(partition, windowKey, maxAuctionId, maxCount)
-          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(partition), writeBinary(outputState))))
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
           emittedWindows += windowKey
         }
       }
@@ -197,12 +197,12 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   }
 
   override def snapshot(): Array[Byte] = {
-      logger.info("Taking snapshot")
+      logger.debug("Taking snapshot")
       writeBinary(windowMap.filter(!_._2._2).toMap)
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
-    logger.info("Restoring from snapshot")
+    logger.debug("Restoring from snapshot")
     val restoredMap = readBinary[mutable.Map[Long, (T, Boolean)]](snapshot)
 //    logger.info(s"Restored window map: $restoredMap")
     windowMap.clear()
