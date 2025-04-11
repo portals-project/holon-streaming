@@ -12,18 +12,21 @@ import scala.collection.immutable.List
 
 class Recovery(nodeId: Int) {
 
-    private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
+    private val queue = new ConcurrentLinkedQueue[Job]()
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
+    private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
+    private val out = OutputCollectorImpl(producers)
     private var procFunFactory: ProcFunFactory = null
     private var procFunctionPerPartition = scala.collection.mutable.Map.empty[Int, ProcFun]
-    private val out = OutputCollectorImpl(producers)
-    private val queue = new ConcurrentLinkedQueue[Job]()
+
+    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
+    private val ownershipManager = PartitionOwnershipManager(nodeId)
+
     private val failureDetector = FailureDetector(nodeId)
     private var failedNodes = List.empty[Int]
-    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
+
     private var pollsWithoutRecords = 0
     private var waitingForWorkStealConfirmationFrom = List.empty[Int] // TODO: likely delete
-    private val ownershipManager = PartitionOwnershipManager(nodeId)
     private val logger = Logger.apply("Recovery")
 
     Logger.setLevel("Recovery", "INFO")
@@ -35,9 +38,8 @@ class Recovery(nodeId: Int) {
     }
 
     private def setup(job: Job): Unit = {
-        // Partitions node should probably hold based on its id
-        val basePartitions = job.partitions
         logger.debug(s"Setting up job $job for node $nodeId")
+        val basePartitions = job.partitions
 
         // Setup procFunFactory, consumers and producers
         this.procFunFactory = job.procFunFactory
@@ -85,7 +87,6 @@ class Recovery(nodeId: Int) {
             if ((t - time) > 1_000) {
                 time = t
                 checkJobQueue()
-                logger.debug(s"Node $nodeId ownership: ${ownershipManager.getOwnershipMap}")
             }
 
             this.checkpointManager.createCheckpointIfRequired(nodeId, procFunctionPerPartition, consumerPerPartition)
@@ -206,7 +207,6 @@ class Recovery(nodeId: Int) {
             if (chn != CHN_CONTROL) {
                 try {
                     val records = consumer.poll()
-                    logger.debug(s"Node $nodeId is polling partition $partitionId from channel $chn: Consumer: $consumer - Records nonEmpty: ${records.nonEmpty}")
 
                     if (records.nonEmpty) {
                         processRecords(chn, partitionId, records)
@@ -279,15 +279,6 @@ class Recovery(nodeId: Int) {
                 // Check if node is responsible for partition
                 val ownerNodeId = ownershipManager.getPartitionOwner(partitionId)
                 if ownerNodeId == nodeId then {
-                    recs.foreach: r =>
-                        val outputState = readBinary[OutputState](r._2)
-                        // Deconstruct the output state
-                        // val partition = outputState.partition
-                        // val windowId = outputState.window
-                        val crdtValue = outputState.bidCount
-
-//                        logger.info(s"Node $nodeId partition $partitionId commits: $crdtValue")
-
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
@@ -391,13 +382,13 @@ class Recovery(nodeId: Int) {
     }
 
     /**
-     * Handover ownership of partitions to a new owner.
-     * If the partition list is empty, hand over partition with largest lag.
-     * Checkpoint current state, set new owner & close consumer.
-     * Send ownership confirmation to new owner.
+     * Handle ownership transfer request from other nodes.
+     * If the partition list is empty, hand over the partition with largest lag. Else hand over the requested partitions.
+     * Deny ownership transfer if all owned partitions are requested or there are no partitions with lag.
      */
-    private def handoverOwnership(newOwnerId: Int, partitions: List[Int]): Unit = {
+    private def handleOwnershipTransferRequest(newOwnerId: Int, partitions: List[Int]): Unit = {
         var partitionsToHandover = partitions
+        // If the partition list is empty (in case of work stealing), hand over partition with largest lag.
         if (partitionsToHandover.isEmpty) {
             val partitionIdAndLag = LagManager.getPartitionWithMaxLag(consumerPerPartition)
             if (partitionIdAndLag.isEmpty || partitionIdAndLag.get._2 <= 0) {
@@ -405,7 +396,7 @@ class Recovery(nodeId: Int) {
                 sendControlMessage(OwnershipTransferDenial(newOwnerId, partitions, nodeId))
                 return
             }
-            logger.info(s"Node $nodeId is handing over partition $partitionIdAndLag to node $newOwnerId. It has the largest lag")
+            logger.info(s"Detected $partitionIdAndLag as partition with largest lag.")
             partitionsToHandover = List(partitionIdAndLag.get._1)
         }
 
@@ -417,9 +408,18 @@ class Recovery(nodeId: Int) {
             return
         }
 
+        handoverOwnership(newOwnerId, partitionsToHandover)
+    }
+
+    /**
+     * Handover ownership of partitions to a new owner.
+     * Checkpoint current state, set new owner & close consumer.
+     * Send ownership confirmation to new owner.
+     */
+    private def handoverOwnership(newOwnerId: Int, partitions: List[Int]): Unit = {
         // Checkpoint current state, set new owner & close consumer
         var transferredPartitions = List.empty[Int]
-        for (partitionId <- partitionsToHandover) {
+        for (partitionId <- partitions) {
             if (this.procFunctionPerPartition.keySet.contains(partitionId)) {
                 val (chn, consumer) = this.consumerPerPartition(partitionId)
                 val procFun = this.procFunctionPerPartition(partitionId)
@@ -442,7 +442,6 @@ class Recovery(nodeId: Int) {
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
         logger.info(s"Node $nodeId is removing consumer and processing function for partition $partitionId")
         val (_chn, consumer) = this.consumerPerPartition(partitionId)
-        logger.info(s"Node $nodeId is closing consumer for partition $partitionId wih channel $_chn and consumer $consumer")
         consumer.close()
         this.consumerPerPartition.remove(partitionId)
         this.procFunctionPerPartition.remove(partitionId)
