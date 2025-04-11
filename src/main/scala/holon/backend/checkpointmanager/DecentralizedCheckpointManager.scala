@@ -3,7 +3,7 @@ package holon.backend.checkpointmanager
 import holon.*
 import upickle.default.writeBinary
 import holon.backend.messages.Checkpoint
-import holon.example.nexmark.Config.CHN_CONTROL
+import Config.CHN_CONTROL
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
 

@@ -5,7 +5,7 @@ import com.google.cloud.storage.{BlobId, BlobInfo}
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.StorageOptions
 import java.io.FileInputStream
-import holon.example.nexmark.Config.*
+import Config.*
 
 
 object GCSClient {

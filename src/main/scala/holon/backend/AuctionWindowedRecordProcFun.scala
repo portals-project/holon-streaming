@@ -3,7 +3,7 @@ package holon.backend
 import holon._
 import holon.crdt.CRDTWrapper
 import holon.example.CRDT.address
-import holon.example.nexmark.Config._
+import Config._
 import holon.example.{CRDT, Nexmark}
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 import upickle.default._
@@ -68,7 +68,7 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
                       ): Unit = {
 
     chn match {
-      case CHN_NEXMARK =>
+      case CHN_INPUT =>
         // Process incoming events from the Nexmark stream.
         for (rec <- recs) {
           val event = Nexmark.deserialize(rec._2).event

@@ -2,7 +2,7 @@ package holon.backend
 
 import upickle.default.{readBinary, writeBinary}
 import holon.*
-import holon.example.nexmark.Config.*
+import Config.*
 import holon.example.{CRDT, Nexmark}
 import holon.example.CRDT.address
 import holon.backend.DistributedCounter.Counter
@@ -45,7 +45,7 @@ class RecordProcFun(partition: Int) extends ProcFun {
         }
 
         chn match {
-            case CHN_NEXMARK =>
+            case CHN_INPUT =>
                 // Process bid events from the Nexmark stream.
                 for (rec <- recs) {
                     val event = Nexmark.deserialize(rec._2).event

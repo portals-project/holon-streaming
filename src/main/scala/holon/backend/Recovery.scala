@@ -4,7 +4,7 @@ import holon.*
 import holon.Utils.*
 import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
 import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferDenial, OwnershipTransferRequest}
-import holon.example.nexmark.Config.*
+import Config.*
 import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -384,7 +384,7 @@ class Recovery(nodeId: Int) {
         for (partitionId <- partitions) {
             val procFun = this.procFunFactory.create(partitionId)
             procFunctionPerPartition += partitionId -> procFun
-            val consumer = ConsumerProducerSetup.addNewNexmarkConsumer(partitionId, consumerPerPartition)
+            val consumer = ConsumerProducerSetup.addNewInputConsumer(partitionId, consumerPerPartition)
 
             this.checkpointManager.recoverCheckpointForPartition(partitionId, procFun, consumer)
         }

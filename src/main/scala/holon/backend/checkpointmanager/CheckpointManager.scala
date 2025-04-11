@@ -1,6 +1,6 @@
 package holon.backend.checkpointmanager
 
-import holon.example.nexmark.Config.*
+import holon.Config.*
 import holon.*
 
 import java.util.Base64

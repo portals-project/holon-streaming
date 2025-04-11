@@ -4,7 +4,7 @@ import holon.*
 import holon.Utils.*
 import holon.backend.*
 import holon.example.Nexmark
-import holon.example.nexmark.Config.*
+import Config.*
 import upickle.default.*
 
 /** Count the total number of bids. */
@@ -32,7 +32,7 @@ object Query {
     // Job function creates a job object with the specified consumers and producers
     def job(partitions: List[Int]): Job = {
         val nexmarkConsumers = partitions.map { partition =>
-            consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition)
+            consumerRef(CHN_INPUT, KAFKA_TOPIC_INPUT, partition)
         }
         val internalConsumers = List(
             consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0),
@@ -41,7 +41,7 @@ object Query {
         val consumers = nexmarkConsumers ++ internalConsumers
 
         val producers = List(
-            producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK),
+            producerRef(CHN_INPUT, KAFKA_TOPIC_INPUT),
             producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST),
             producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL),
             producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT),
@@ -62,7 +62,7 @@ object Query {
 
     /** Run the Nexmark producer */
     def runNexmarkProducer() = {
-        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
+        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
         val logger = Logger.apply("Producer")
         Logger.setLevel("Producer", "INFO")
@@ -104,7 +104,7 @@ object Query {
         logger.info("Setting up Kafka")
 
         val system = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
-        system.startStream(KAFKA_TOPIC_NEXMARK)
+        system.startStream(KAFKA_TOPIC_INPUT)
         system.startStream(KAFKA_TOPIC_BROADCAST)
         system.startStream(KAFKA_TOPIC_CONTROL)
         system.startStream(KAFKA_TOPIC_OUTPUT)

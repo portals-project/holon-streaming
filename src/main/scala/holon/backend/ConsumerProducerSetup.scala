@@ -1,6 +1,6 @@
 package holon.backend
 
-import holon.example.nexmark.Config.*
+import holon.Config.*
 import holon.*
 
 object ConsumerProducerSetup {
@@ -40,8 +40,8 @@ object ConsumerProducerSetup {
 
         consumerRefs.foreach { ref =>
             // Don't setup CONTROL or BROADCAST channel consumer here. It is setup separately.
-            // Also, don't setup Nexmark consumer if partition is not owned by this node.
-            if (ref.chn == CHN_NEXMARK && partitionsOwned.contains(ref.partitions.head)) {
+            // Also, don't setup Input consumer if partition is not owned by this node.
+            if (ref.chn == CHN_INPUT && partitionsOwned.contains(ref.partitions.head)) {
                 val consumer = KafkaLogConsumer.fromRef(ref)
                 logger.debug(s"Setting up consumer: $consumer for partition ${consumer.partition}")
                 consumerPerPartition.put(consumer.partition, (ref.chn, consumer))
@@ -51,25 +51,25 @@ object ConsumerProducerSetup {
         // Setup consumers for other owned partitions
         for (partitionId <- partitionsOwned) {
             if (!consumerPerPartition.contains(partitionId)) {
-                addNewNexmarkConsumer(partitionId, consumerPerPartition)
+                addNewInputConsumer(partitionId, consumerPerPartition)
             }
         }
     }
 
     /**
-     * Add new Nexmark consumer for the partition.
+     * Add new Input consumer for the partition.
      * @return The new consumer.
      */
-    def addNewNexmarkConsumer(partitionId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): LogConsumer = {
+    def addNewInputConsumer(partitionId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): LogConsumer = {
         val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
-            chn = CHN_NEXMARK,
+            chn = CHN_INPUT,
             host = KAFKA_HOST,
             port = KAFKA_PORT,
-            topic = KAFKA_TOPIC_NEXMARK,
+            topic = KAFKA_TOPIC_INPUT,
             partitions = List(partitionId),
             ))
         logger.debug(s"Adding new consumer for partition $partitionId: $inputConsumer")
-        consumerPerPartition.put(partitionId, (CHN_NEXMARK, inputConsumer))
+        consumerPerPartition.put(partitionId, (CHN_INPUT, inputConsumer))
         inputConsumer
     }
 

@@ -3,7 +3,7 @@ package holon.example.nexmark
 import holon.*
 import holon.backend.*
 import holon.example.Nexmark
-import holon.example.nexmark.Config.*
+import Config.*
 import upickle.default.*
 
 object NexmarkProducer {
@@ -20,7 +20,7 @@ object NexmarkProducer {
         KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
         println(s"KAFKA_N_PARTITIONS: $KAFKA_N_PARTITIONS")
 
-        val producer = KafkaLogProducer(host, port, KAFKA_TOPIC_NEXMARK)
+        val producer = KafkaLogProducer(host, port, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
         while true do
             for i <- 0 until KAFKA_N_PARTITIONS do

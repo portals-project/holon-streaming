@@ -1,7 +1,7 @@
 package holon.backend
 
 import holon.*
-import holon.example.nexmark.Config.*
+import Config.*
 
 object LagManager {
 
