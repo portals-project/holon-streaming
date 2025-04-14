@@ -31,5 +31,4 @@ object OutputConsumer {
 
                         logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
     }
-
 }

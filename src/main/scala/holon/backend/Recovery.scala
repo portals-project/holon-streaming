@@ -177,7 +177,7 @@ class Recovery(nodeId: Int) {
                             case OwnershipTransferRequest(receiverId, partitions, senderId) =>
                                 if (receiverId == nodeId) {
                                     logger.info(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
-                                    handoverOwnership(senderId, partitions)
+                                    handleOwnershipTransferRequest(senderId, partitions)
 
                                     // TODO delete: for now give node more time to recover
                                     failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)

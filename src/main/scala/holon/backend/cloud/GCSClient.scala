@@ -9,7 +9,7 @@ import java.io.FileInputStream
 
 object GCSClient {
 
-    private val bucketName = sys.env.getOrElse("GCS_BUCKET_NAME", GCS_BUCKET_NAME)
+    val bucketName: String = sys.env.getOrElse("GCS_BUCKET_NAME", GCS_BUCKET_NAME)
     private val credentialsPath = sys.env.getOrElse("GOOGLE_APPLICATION_CREDENTIALS", GC_CREDENTIALS_FILE_PATH)
     private val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     private val storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService

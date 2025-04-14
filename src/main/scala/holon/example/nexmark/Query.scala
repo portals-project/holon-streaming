@@ -4,61 +4,13 @@ import holon.*
 import holon.Utils.*
 import holon.backend.*
 import holon.example.Nexmark
+import holon.example.nexmark.HolonNode.*
 import Config.*
 import upickle.default.*
 
 /** Count the total number of bids. */
 object Query {
     Logger.setRootLevel("ERROR")
-
-    // Define the consumer and producer references
-    private def consumerRef(chn: Byte, topic: String, partition: Int): ConsumerRef =
-        ConsumerRef(
-            chn = chn,
-            host = KAFKA_HOST,
-            port = KAFKA_PORT,
-            topic = topic,
-            partitions = List(partition),
-            )
-
-    private def producerRef(chn: Byte, topic: String): ProducerRef =
-        ProducerRef(
-            chn = chn,
-            host = KAFKA_HOST,
-            port = KAFKA_PORT,
-            topic = topic,
-            )
-
-    // Job function creates a job object with the specified consumers and producers
-    def job(partitions: List[Int]): Job = {
-        val nexmarkConsumers = partitions.map { partition =>
-            consumerRef(CHN_INPUT, KAFKA_TOPIC_INPUT, partition)
-        }
-        val internalConsumers = List(
-            consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0),
-            consumerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, 0)
-            )
-        val consumers = nexmarkConsumers ++ internalConsumers
-
-        val producers = List(
-            producerRef(CHN_INPUT, KAFKA_TOPIC_INPUT),
-            producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST),
-            producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL),
-            producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT),
-            )
-
-        val job = Job(
-            consumers = consumers,
-            producers = producers,
-            // procFunFactory = new RecordProcFunFactory(),
-            // procFunFactory = new CentralProcFunFactory(),
-            // procFunFactory = new WindowedRecordProcFunFactory(),
-            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
-            partitions = partitions,
-            )
-
-        job
-    }
 
     /** Run the Nexmark producer */
     def runNexmarkProducer() = {
@@ -129,7 +81,7 @@ object Query {
 
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
-                val j = job(partitions)
+                val j = job(partitions, KAFKA_HOST, KAFKA_PORT)
                 val holon = Holon(i)
                 holon.submitOrUpdate(j)
             }
