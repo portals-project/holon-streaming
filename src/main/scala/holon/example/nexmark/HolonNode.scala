@@ -14,7 +14,6 @@ object HolonNode {
         Config.N_NODES = N_NODES
         val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
         Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
-        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
 
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt

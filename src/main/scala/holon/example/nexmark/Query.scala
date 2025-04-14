@@ -68,7 +68,7 @@ object Query {
         Logger.setLevel("Producer", "INFO")
         logger.info("Starting Nexmark Producer")
         while true do
-            for i <- 0 until KAFKA_N_PARTITIONS do
+            for i <- 0 until nrOfKafkaPartitions() do
                 val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
                 // println(s"Sending batch (size ${batch.size})")
                 producer.send(batch)
@@ -81,7 +81,7 @@ object Query {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
         logger.info("Starting Output Consumer")
-        val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
+        val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
                 case Nil =>
@@ -103,7 +103,7 @@ object Query {
         Logger.setLevel("Kafka", "INFO")
         logger.info("Setting up Kafka")
 
-        val system = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
+        val system = KafkaSystem(nrOfKafkaPartitions(), KAFKA_HOST, KAFKA_PORT)
         system.startStream(KAFKA_TOPIC_INPUT)
         system.startStream(KAFKA_TOPIC_BROADCAST)
         system.startStream(KAFKA_TOPIC_CONTROL)

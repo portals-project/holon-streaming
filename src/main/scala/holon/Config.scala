@@ -3,7 +3,6 @@ package holon
 object Config {
   var N_NODES = 2
   var PARTITIONS_PER_NODE = 2
-  var KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
   final val KAFKA_TOPIC_INPUT = "input"
   final val KAFKA_TOPIC_BROADCAST = "broadcast"
   final val KAFKA_TOPIC_CONTROL = "control"
@@ -30,4 +29,8 @@ object Config {
 
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
+
+  def nrOfKafkaPartitions(): Int = {
+    N_NODES * PARTITIONS_PER_NODE
+  }
 }

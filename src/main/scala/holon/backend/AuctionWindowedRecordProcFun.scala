@@ -50,7 +50,7 @@ class AuctionWindowedRecordProcFun[T](partition: Int)(
   logger.info("Starting AuctionWindowedRecordProcFun")
 
   // Vector clock holding the highest event time seen from each partition.
-  private val vectorClock: Array[Long] = Array.fill(KAFKA_N_PARTITIONS)(0L)
+  private val vectorClock: Array[Long] = Array.fill(nrOfKafkaPartitions())(0L)
 
   // The windowMap now holds a CRDT that tracks a map: auction id -> bid count.
   private val windowMap = mutable.Map.empty[Long, (T, Boolean)]

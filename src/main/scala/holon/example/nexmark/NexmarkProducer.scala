@@ -17,13 +17,11 @@ object NexmarkProducer {
         Config.N_NODES = N_NODES
         val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
         Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
-        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
-        println(s"KAFKA_N_PARTITIONS: $KAFKA_N_PARTITIONS")
 
         val producer = KafkaLogProducer(host, port, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
         while true do
-            for i <- 0 until KAFKA_N_PARTITIONS do
+            for i <- 0 until nrOfKafkaPartitions() do
                 val batch = (0 until PRODUCER_BATCH_SIZE)
                     .map(_ => iter.next())
                     .map(x => (writeBinary(i), Nexmark.serialize(x)))

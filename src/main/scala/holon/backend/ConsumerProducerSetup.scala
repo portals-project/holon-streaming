@@ -19,7 +19,6 @@ object ConsumerProducerSetup {
         }
     }
 
-
     /**
      * Setup internal consumers for CONTROL and BROADCAST channels.
      * @return Tuple of control and broadcast consumers.

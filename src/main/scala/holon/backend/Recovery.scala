@@ -27,8 +27,8 @@ class Recovery(nodeId: Int) {
 
     private var pollsWithoutRecords = 0
     private var waitingForWorkStealConfirmationFrom = List.empty[Int] // TODO: likely delete
-    private val logger = Logger.apply("Recovery")
 
+    private val logger = Logger.apply("Recovery")
     Logger.setLevel("Recovery", "INFO")
 
     RunThread(this.run())
