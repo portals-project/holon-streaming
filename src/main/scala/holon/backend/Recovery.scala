@@ -27,7 +27,6 @@ class Recovery(nodeId: Int) {
     private var failedNodes = List.empty[Int]
 
     private var pollsWithoutRecords = 0
-    private var waitingForWorkStealConfirmationFrom = List.empty[Int] // TODO: likely delete
 
     private val logger = Logger.apply("Recovery")
     Logger.setLevel("Recovery", "INFO")
@@ -122,7 +121,11 @@ class Recovery(nodeId: Int) {
 
     private inline def runStep(): Unit = {
         processControlChannel()
-        processOtherChannels()
+        if (this.consumerPerPartition.nonEmpty) {
+            processOtherChannels()
+        } else {
+            attemptWorkSteal()
+        }
         // Flush all producers
         for ((chn, producer) <- producers) do producer.flush()
     }
@@ -173,8 +176,6 @@ class Recovery(nodeId: Int) {
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.debug(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
-                                if waitingForWorkStealConfirmationFrom.contains(senderId) then
-                                    waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
 
                                 val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
                                 integrateNewPartitions(newPartitions)
@@ -198,8 +199,6 @@ class Recovery(nodeId: Int) {
                                 if (receiverId == nodeId) {
                                     logger.info(s"(Node $nodeId) Received ownership denial from node $senderId for partitions $partitions")
                                     LagManager.updateLag(senderId, 0)
-                                    if waitingForWorkStealConfirmationFrom.contains(senderId) then
-                                        waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filter(_ != senderId)
                                     failureDetector.setHeartbeat(senderId)
                                 }
                         }
@@ -337,12 +336,14 @@ class Recovery(nodeId: Int) {
         partitionsByOwnerToRequest
     }
 
+    /**
+     * Attempt to steal work from other nodes if there is no lag and no confirmation is pending.
+     */
     private def attemptWorkSteal(): Unit = {
-        if (LagManager.getCurrentLag == 0 && waitingForWorkStealConfirmationFrom.isEmpty) {
+        if (LagManager.getCurrentLag == 0) {
             val victimNode = LagManager.getNodeWithMaxLag
             if (victimNode.isDefined && victimNode.get._2 > 0) {
                 logger.info(s"Node $nodeId is attempting work steal from node $victimNode")
-                waitingForWorkStealConfirmationFrom = List(victimNode.get._1)
                 // Send in empty partition list to request any partition
                 sendControlMessage(OwnershipTransferRequest(victimNode.get._1, List(), nodeId))
             }
@@ -354,9 +355,6 @@ class Recovery(nodeId: Int) {
      */
     private def handleFailedNodes(failedNodes: List[Int]): Unit = {
         if (failedNodes.isEmpty) return;
-
-        // Remove failed nodes from waitingForWorkStealConfirmationFrom list
-        waitingForWorkStealConfirmationFrom = waitingForWorkStealConfirmationFrom.filterNot(failedNodes.contains)
 
         logger.warn(s"Node $nodeId detected other failed nodes: $failedNodes")
 
