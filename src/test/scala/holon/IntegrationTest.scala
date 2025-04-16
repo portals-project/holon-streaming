@@ -5,7 +5,7 @@ import holon.Utils.{RunThread, RunThreadWithTimeLimit}
 import holon.backend.*
 import holon.example.Nexmark
 import holon.Config.*
-import holon.example.nexmark.WindowedRecordProcFunFactory
+import holon.example.nexmark.BidCountWindowedFactory
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -305,7 +305,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
             consumers = consumers,
             producers = producers,
             //      procFunFactory = new RecordProcFunFactory(),
-            procFunFactory = new WindowedRecordProcFunFactory(),
+            procFunFactory = new BidCountWindowedFactory(),
             partitions = partitions,
             )
 
