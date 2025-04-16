@@ -2,7 +2,7 @@ package holon.example.nexmark
 
 import holon.ProcFun
 import holon.ProcFunFactory
-import holon.backend.AuctionWindowedRecordProcFun
+import holon.backend.WindowedRecordProcFun
 import holon.crdt.GCounterWrapper
 import holon.example.CRDT
 import org.apache.pekko.cluster.ddata.GCounter
@@ -25,8 +25,8 @@ class WindowedRecordProcFunFactory extends ProcFunFactory {
         (m: Map[String, (GCounter, Boolean)]) => scala.collection.mutable.Map(m.toSeq: _*)
       )
 
-//    new WindowedRecordProcFun[GCounter](partition)
+    new WindowedRecordProcFun[GCounter](partition)
     // TODO: change this later
-    new AuctionWindowedRecordProcFun[GCounter](partition)
+//    new AuctionWindowedRecordProcFun[GCounter](partition)
   }
 }
