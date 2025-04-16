@@ -7,7 +7,7 @@ object LagManager {
 
     // Keeps track of the current lag for this node across all partitions
     private val LAG_CALCULATION_INTERVAL = 1_000
-    private var lagCalculationTime = System.currentTimeMillis()
+    var lagCalculationTime = System.currentTimeMillis()
     private val lagPerNode = scala.collection.mutable.Map.empty[Int, Long]
     private var currentLag = 0L
     private val logger = Logger.apply("LagManager")
@@ -68,5 +68,4 @@ object LagManager {
             consumer.lag()
         }.sum
     }
-
 }

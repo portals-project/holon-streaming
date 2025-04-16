@@ -73,9 +73,9 @@ class Recovery(nodeId: Int) {
             sendControlMessage(OwnershipStateRequest(nodeId))
             waitForOwnershipStateMessage()
 
-            val partitionsByOwnerToRequest = determinePartitionsToRequestOwnership(basePartitions)
-            for (ownerNodeId <- partitionsByOwnerToRequest.keys) {
-                val partitions = partitionsByOwnerToRequest(ownerNodeId)
+            val partitionsToRequestByOwner = determinePartitionsToRequestOwnership(basePartitions)
+            for (ownerNodeId <- partitionsToRequestByOwner.keys) {
+                val partitions = partitionsToRequestByOwner(ownerNodeId)
                 logger.info(s"Node $nodeId is requesting ownership of partitions $partitions from node $ownerNodeId")
                 sendControlMessage(OwnershipTransferRequest(ownerNodeId, partitions, nodeId))
             }

@@ -16,7 +16,7 @@ import scala.jdk.CollectionConverters.*
 
 class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfterEach {
 
-    val kafkaSystem: KafkaSystem = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
+    val kafkaSystem: KafkaSystem = KafkaSystem(nrOfKafkaPartitions(), KAFKA_HOST, KAFKA_PORT)
 
     override def beforeAll(): Unit = {
     }
@@ -24,7 +24,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
     override def beforeEach(): Unit = {
         deleteSnapshotFiles()
         // Restart topics
-        kafkaSystem.startStream(KAFKA_TOPIC_NEXMARK)
+        kafkaSystem.startStream(KAFKA_TOPIC_INPUT)
         kafkaSystem.startStream(KAFKA_TOPIC_BROADCAST)
         kafkaSystem.startStream(KAFKA_TOPIC_CONTROL)
         kafkaSystem.startStream(KAFKA_TOPIC_OUTPUT)
@@ -32,7 +32,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
 
     override def afterEach(): Unit = {
         println("Deleting all Kafka topics...")
-        kafkaSystem.deleteTopics(List(KAFKA_TOPIC_NEXMARK, KAFKA_TOPIC_BROADCAST, KAFKA_TOPIC_CONTROL, KAFKA_TOPIC_OUTPUT))
+        kafkaSystem.deleteTopics(List(KAFKA_TOPIC_INPUT, KAFKA_TOPIC_BROADCAST, KAFKA_TOPIC_CONTROL, KAFKA_TOPIC_OUTPUT))
     }
 
     override def afterAll(): Unit = {
@@ -177,7 +177,6 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
 
         val j1 = job(List(0, 1))
         val holon1 = Holon(0)
-        holon1.
         holon1.submitOrUpdate(j1)
 
         val j2 = job(List(2, 3))
@@ -198,11 +197,10 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
     }
 
     def runNexmarkProducer() = {
-        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
-        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
+        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
         while true do
-            for i <- 0 until KAFKA_N_PARTITIONS do
+            for i <- 0 until nrOfKafkaPartitions() do
                 val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
                 producer.send(batch)
 
@@ -216,11 +214,10 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
      * 90% of the data goes to partitions 2 and 3, while 10% goes to partitions 0 and 1.
      */
     def runNexmarkProducerUnevenWorkload() = {
-        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
-        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_NEXMARK)
+        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
         while true do
-            for i <- 0 until KAFKA_N_PARTITIONS do
+            for i <- 0 until nrOfKafkaPartitions() do
                 val targetPartition =
                     if (i == 2 || i == 3 || scala.util.Random.nextDouble() < 0.95)
                         scala.util.Random.shuffle(List(2, 3)).head
@@ -234,7 +231,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
     }
 
     def setupOutputConsumer(): KafkaLogConsumer = {
-        KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
+        KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
     }
 
     def runOutputConsumer(outputConsumer: KafkaLogConsumer, callbackFunction: () => Unit) = {
@@ -257,8 +254,8 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
         Logger.setLevel("Kafka", "ERROR")
         logger.info("Setting up Kafka")
 
-        val system = KafkaSystem(KAFKA_N_PARTITIONS, KAFKA_HOST, KAFKA_PORT)
-        system.startStream(KAFKA_TOPIC_NEXMARK)
+        val system = KafkaSystem(nrOfKafkaPartitions(), KAFKA_HOST, KAFKA_PORT)
+        system.startStream(KAFKA_TOPIC_INPUT)
         system.startStream(KAFKA_TOPIC_BROADCAST)
         system.startStream(KAFKA_TOPIC_CONTROL)
         system.startStream(KAFKA_TOPIC_OUTPUT)
@@ -286,7 +283,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
     // Job function creates a job object with the specified consumers and producers
     def job(partitions: List[Int]): Job = {
         val nexmarkConsumers = partitions.map { partition =>
-            consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition)
+            consumerRef(CHN_INPUT, KAFKA_TOPIC_INPUT, partition)
         }
         val internalConsumers = List(
             consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0),
@@ -295,7 +292,7 @@ class IntegrationTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll w
         val consumers = nexmarkConsumers ++ internalConsumers
 
         val producers = List(
-            producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK),
+            producerRef(CHN_INPUT, KAFKA_TOPIC_INPUT),
             producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST),
             producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL),
             producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT),
