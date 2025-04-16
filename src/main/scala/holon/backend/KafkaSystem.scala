@@ -31,6 +31,9 @@ class KafkaSystem(nPartitions: Int, host: String, port: Int):
 
   def stop(): Unit =
     EmbeddedKafka.stop()
+    
+  def deleteTopics(topics: List[String]): Unit =
+    EmbeddedKafka.deleteTopics(topics)(using customKafkaConfig)
 
   private def checkArguments(): Unit =
     if nPartitions < 1 then throw new IllegalArgumentException("nPartitions must be at least 1")

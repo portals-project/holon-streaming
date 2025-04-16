@@ -12,6 +12,7 @@ import scala.collection.immutable.List
 
 class Recovery(nodeId: Int) {
 
+    private var running = true
     private val queue = new ConcurrentLinkedQueue[Job]()
     private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
     private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
@@ -19,7 +20,7 @@ class Recovery(nodeId: Int) {
     private var procFunFactory: ProcFunFactory = null
     private var procFunctionPerPartition = scala.collection.mutable.Map.empty[Int, ProcFun]
 
-    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager() else DecentralizedCheckpointManager(out)
+    private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager(out) else DecentralizedCheckpointManager(out)
     private val ownershipManager = PartitionOwnershipManager(nodeId)
 
     private val failureDetector = FailureDetector(nodeId)
@@ -35,6 +36,16 @@ class Recovery(nodeId: Int) {
 
     def submitOrUpdate(job: Job): Unit = {
         this.queue.add(job)
+    }
+
+    def partitions(): List[Int] = {
+        this.procFunctionPerPartition.keySet.toList
+    }
+
+    def stop(): Unit = {
+        logger.info(s"Stopping node $nodeId")
+        this.running = false
+        this.consumerPerPartition.values.foreach { case (_, consumer) => consumer.close() }
     }
 
     private def setup(job: Job): Unit = {
@@ -81,7 +92,7 @@ class Recovery(nodeId: Int) {
     private def run(): Unit = {
         var time = 0L
 
-        while (true) {
+        while (running) {
             // Check the job queue every 1_000 milliseconds
             val t = System.currentTimeMillis()
             if ((t - time) > 1_000) {
@@ -158,6 +169,7 @@ class Recovery(nodeId: Int) {
                                     logger.debug(s"Node $nodeId received checkpoint from node $senderId")
                                     failureDetector.setHeartbeat(senderId)
                                     this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
+                                    checkIfCheckpointIncludesOwnPartitions(senderId, partitionSnapshots)
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.debug(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
@@ -278,7 +290,7 @@ class Recovery(nodeId: Int) {
             case CHN_OUTPUT =>
                 // Check if node is responsible for partition
                 val ownerNodeId = ownershipManager.getPartitionOwner(partitionId)
-                if ownerNodeId == nodeId then {
+                if (ownerNodeId == nodeId) {
                     out.collect(chn, recs)
                 } else {
                     logger.info(s"Node $nodeId cannot output because it is not responsible for partition $partitionId")
@@ -382,6 +394,30 @@ class Recovery(nodeId: Int) {
     }
 
     /**
+     * Check if the checkpoint received from another node includes partitions owned by this node.
+     * If so, check if the offset is greater than the current offset for this partition.
+     * If it is, hand over ownership of the partition to the sender node.
+     */
+    private def checkIfCheckpointIncludesOwnPartitions(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
+
+        for ((partitionId, (snapshotOffset, _)) <- partitionSnapshots) {
+            if (this.procFunctionPerPartition.contains(partitionId)) {
+                logger.info(s"Node $nodeId received checkpoint for partition $partitionId which it owns")
+
+                // Compare offsets
+                val consumer = this.consumerPerPartition(partitionId)._2
+                if (consumer.offsets().head._2 < snapshotOffset) {
+                    logger.info(s"Node $nodeId received checkpoint for partition $partitionId with offset $snapshotOffset " +
+                                    s"which is greater than current offset ${consumer.offsets().head._2} for this partition. Dropping partition!")
+                    ownershipManager.setPartitionOwnership(partitionId, senderId)
+                    removeConsumerAndProcFun(partitionId)
+                }
+            }
+        }
+        sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
+    }
+
+    /**
      * Handle ownership transfer request from other nodes.
      * If the partition list is empty, hand over the partition with largest lag. Else hand over the requested partitions.
      * Deny ownership transfer if all owned partitions are requested or there are no partitions with lag.
@@ -440,7 +476,6 @@ class Recovery(nodeId: Int) {
     }
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
-        logger.info(s"Node $nodeId is removing consumer and processing function for partition $partitionId")
         val (_chn, consumer) = this.consumerPerPartition(partitionId)
         consumer.close()
         this.consumerPerPartition.remove(partitionId)
