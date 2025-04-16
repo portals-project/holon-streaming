@@ -64,7 +64,7 @@ class PartitionOwnershipManager(nodeId: Int) {
                     partitionToNodeId.put(partition, ownershipEntry)
             }
         }
-        logger.info(s"Merged ownership map: $partitionToNodeId")
+        logger.debug(s"Merged ownership map: $partitionToNodeId")
     }
 
     /**

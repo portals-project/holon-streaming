@@ -4,7 +4,7 @@ import holon.*
 import holon.backend.cloud.GCSClient.bucketName
 import holon.backend.cloud.GCSClient
 import holon.backend.messages.Checkpoint
-import holon.example.nexmark.Config.CHN_CONTROL
+import holon.Config.CHN_CONTROL
 import upickle.default.writeBinary
 
 import scala.collection.immutable.Map
