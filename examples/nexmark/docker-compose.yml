@@ -46,8 +46,8 @@ services:
 
   nexmark-producer-0:
     build:
-      context: .
-      dockerfile: docker/nexmark-producer/Dockerfile
+      context: ../..
+      dockerfile: examples/nexmark/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -56,8 +56,8 @@ services:
 
   output-consumer:
     build:
-      context: .
-      dockerfile: docker/output-consumer/Dockerfile
+      context: ../..
+      dockerfile: examples/nexmark/docker/output-consumer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -65,8 +65,8 @@ services:
 
   holon-node-0:
     build:
-      context: .
-      dockerfile: docker/holon-node/Dockerfile
+      context: ../..
+      dockerfile: examples/nexmark/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -75,8 +75,8 @@ services:
 
   holon-node-1:
     build:
-      context: .
-      dockerfile: docker/holon-node/Dockerfile
+      context: ../..
+      dockerfile: examples/nexmark/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -85,8 +85,8 @@ services:
 
   holon-node-2:
     build:
-      context: .
-      dockerfile: docker/holon-node/Dockerfile
+      context: ../..
+      dockerfile: examples/nexmark/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
