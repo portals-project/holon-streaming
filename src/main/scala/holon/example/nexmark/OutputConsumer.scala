@@ -3,7 +3,7 @@ package holon.example.nexmark
 import holon.*
 import holon.backend.*
 import Config.*
-import upickle.default.*
+import upickle.legacy.*
 
 object OutputConsumer {
 

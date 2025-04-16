@@ -1,20 +1,15 @@
 package holon.backend
 
-import holon._
+import holon.*
 import holon.crdt.CRDTWrapper
 import holon.example.CRDT.address
-import Config._
 import holon.example.{CRDT, Nexmark}
+import holon.serialization.mutableMapReadWriter
+import Config.*
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
-import upickle.default._
-import scala.collection.mutable
+import upickle.legacy.{ReadWriter, macroRW, readBinary, writeBinary}
 
-// Generic implicit for mutable maps
-implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[scala.collection.mutable.Map[K, V]] =
-  readwriter[Map[K, V]].bimap[scala.collection.mutable.Map[K, V]](
-    _.toMap,
-    m => scala.collection.mutable.Map.empty[K, V] ++ m
-  )
+import scala.collection.mutable
 
 // OutputState now includes the auction identifier with the most bids and the bid count.
 case class OutputState(
@@ -56,8 +51,7 @@ class WindowedRecordProcFun[T](partition: Int)(
   // To keep track of windows that have already been emitted.
   private val emittedWindows = mutable.Set.empty[Long]
 
-  // Broadcast and garbage collection intervals.
-  private val broadcastInterval: Long = 100L
+  // Garbage collection interval for old windows.
   private val gcInterval: Long = 500L
 
   override def process(
@@ -152,13 +146,11 @@ class WindowedRecordProcFun[T](partition: Int)(
       // and the oldest element in the vector clock is greater than the window key.
       if (windowAggregate._2 && !emittedWindows.contains(windowKey) && defineWindow(vectorClock.min) > windowKey) {
         val crdtValue: String = crdt.value(windowAggregate._1)
-        if (crdtValue == null) {
-          logger.debug(s"partition: $partition, window: $windowKey, crdtValue is null")
-          return
+        if (crdtValue != null) {
+          val outputState = OutputState(partition, windowKey, crdtValue)
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
+          emittedWindows += windowKey
         }
-        val outputState = OutputState(partition, windowKey, crdtValue)
-        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
-        emittedWindows += windowKey
       }
     }
   }
@@ -168,7 +160,7 @@ class WindowedRecordProcFun[T](partition: Int)(
     val currentLocalWin = defineWindow(vectorClock.min)
     if (currentLocalWin > 2) {
       var windowsToRemove: List[Long] = Nil
-      windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 5).toList
+      windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 2).toList
       if (windowsToRemove.nonEmpty) {
         logger.info(s"partition: $partition, garbage collecting ${windowsToRemove.size} windows")
         for (windowKey <- windowsToRemove) {

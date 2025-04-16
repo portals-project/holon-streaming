@@ -6,7 +6,7 @@ import holon.backend.*
 import holon.example.Nexmark
 import holon.example.nexmark.HolonNode.*
 import Config.*
-import upickle.default.*
+import upickle.legacy.*
 
 /** Count the total number of bids. */
 object Query {
