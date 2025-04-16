@@ -27,6 +27,7 @@ class Recovery(nodeId: Int) {
     private var failedNodes = List.empty[Int]
 
     private var pollsWithoutRecords = 0
+    private var lastWorkStealAttempt = 0L
 
     private val logger = Logger.apply("Recovery")
     Logger.setLevel("Recovery", "INFO")
@@ -57,7 +58,7 @@ class Recovery(nodeId: Int) {
         val (controlChannelConsumer, _) = ConsumerProducerSetup.setupInternalConsumers(job.consumers, consumerPerPartition)
         ConsumerProducerSetup.setupProducers(job.producers, this.producers)
 
-        // Set initial ownership of partitions
+        // Set initial ownership of partitions (with timestamp as 0)
         ownershipManager.initializePartitionOwnership(basePartitions)
         sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
 
@@ -72,9 +73,9 @@ class Recovery(nodeId: Int) {
             sendControlMessage(OwnershipStateRequest(nodeId))
             waitForOwnershipStateMessage()
 
-            val partitionsByOwnerToRequest = determinePartitionsToRequestOwnership(basePartitions)
-            for (ownerNodeId <- partitionsByOwnerToRequest.keys) {
-                val partitions = partitionsByOwnerToRequest(ownerNodeId)
+            val partitionsToRequestByOwner = determinePartitionsToRequestOwnership(basePartitions)
+            for (ownerNodeId <- partitionsToRequestByOwner.keys) {
+                val partitions = partitionsToRequestByOwner(ownerNodeId)
                 logger.info(s"Node $nodeId is requesting ownership of partitions $partitions from node $ownerNodeId")
                 sendControlMessage(OwnershipTransferRequest(ownerNodeId, partitions, nodeId))
             }
@@ -89,13 +90,13 @@ class Recovery(nodeId: Int) {
     }
 
     private def run(): Unit = {
-        var time = 0L
+        var lastJobQueueCheckTime = 0L
 
         while (running) {
             // Check the job queue every 1_000 milliseconds
             val t = System.currentTimeMillis()
-            if ((t - time) > 1_000) {
-                time = t
+            if ((t - lastJobQueueCheckTime) > 1_000) {
+                lastJobQueueCheckTime = t
                 checkJobQueue()
             }
 
@@ -340,12 +341,14 @@ class Recovery(nodeId: Int) {
      * Attempt to steal work from other nodes if there is no lag and no confirmation is pending.
      */
     private def attemptWorkSteal(): Unit = {
-        if (LagManager.getCurrentLag == 0) {
+        val currentTime = System.currentTimeMillis()
+        if (LagManager.getCurrentLag == 0 && (currentTime - lastWorkStealAttempt) > WORK_STEAL_ATTEMPT_COOLDOWN) {
             val victimNode = LagManager.getNodeWithMaxLag
             if (victimNode.isDefined && victimNode.get._2 > 0) {
                 logger.info(s"Node $nodeId is attempting work steal from node $victimNode")
                 // Send in empty partition list to request any partition
                 sendControlMessage(OwnershipTransferRequest(victimNode.get._1, List(), nodeId))
+                lastWorkStealAttempt = currentTime
             }
         }
     }
