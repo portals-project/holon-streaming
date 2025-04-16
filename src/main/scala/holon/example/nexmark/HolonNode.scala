@@ -59,10 +59,10 @@ object HolonNode {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
+            procFunFactory = new AuctionPopularityWindowedFactory(),
+            // procFunFactory = new BidCountWindowedFactory(),
             partitions = partitions,
             )
-
         job
     }
 
