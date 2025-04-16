@@ -26,9 +26,8 @@ object OutputConsumer {
                         // Deconstruct the output state
                         val partition = outputState.partition
                         val windowId = outputState.window
-                        val auctionId = outputState.auctionId
-                        val crdtValue = outputState.bidCount
+                        val outputValue = outputState.value
 
-                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
     }
 }
