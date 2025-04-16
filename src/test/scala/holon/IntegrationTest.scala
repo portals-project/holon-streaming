@@ -4,7 +4,7 @@ import holon.*
 import holon.Utils.{RunThread, RunThreadWithTimeLimit}
 import holon.backend.*
 import holon.example.Nexmark
-import holon.example.nexmark.Config.*
+import holon.Config.*
 import holon.example.nexmark.WindowedRecordProcFunFactory
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.flatspec.AnyFlatSpec
