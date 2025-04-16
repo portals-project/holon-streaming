@@ -5,14 +5,15 @@ import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 
 object AuctionGCounterWrapper extends CRDTWrapper[Map[String, GCounter]] {
   override def empty: Map[String, GCounter] = Map.empty
-
-  // For backward compatibility, the non-keyed increment delegates to a default key (here "default").
+  
+  // The increment method.
   override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: Nexmark.Events.Bid): Map[String, GCounter] =
     val auction: Long = delta.auction
     val counter = crdt.getOrElse(auction.toString, GCounter.empty)
     val updatedCounter = counter.increment(address, 1L)
     crdt.updated(auction.toString, updatedCounter)
 
+  // Merging two maps of GCounters.
   override def merge(a: Map[String, GCounter], b: Map[String, GCounter]): Map[String, GCounter] = {
     // Merge the two maps by taking the union of keys, merging counters for common keys.
     val allKeys = a.keySet ++ b.keySet
@@ -23,7 +24,7 @@ object AuctionGCounterWrapper extends CRDTWrapper[Map[String, GCounter]] {
     }
   }
 
-  // The value method now returns a map from auction id to its corresponding bid count.
+  // The value method now returns a string containing.
   override def value(crdt: Map[String, GCounter]): String = {
     // Find the auction with the maximum bid count.
     val maxAuction = crdt.maxByOption { case (_, counter) => counter.value }

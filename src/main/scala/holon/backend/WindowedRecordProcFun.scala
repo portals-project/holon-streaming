@@ -6,7 +6,7 @@ import holon.example.CRDT.address
 import holon.example.{CRDT, Nexmark}
 import holon.serialization.mutableMapReadWriter
 import Config.*
-import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
+import org.apache.pekko.cluster.ddata.SelfUniqueAddress
 import upickle.legacy.{ReadWriter, macroRW, readBinary, writeBinary}
 
 import scala.collection.mutable

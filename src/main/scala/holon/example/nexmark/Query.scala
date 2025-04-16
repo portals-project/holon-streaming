@@ -22,7 +22,6 @@ object Query {
         while true do
             for i <- 0 until nrOfKafkaPartitions() do
                 val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
-                // println(s"Sending batch (size ${batch.size})")
                 producer.send(batch)
 
             producer.flush()
