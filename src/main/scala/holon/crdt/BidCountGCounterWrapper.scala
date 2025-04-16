@@ -3,7 +3,7 @@ package holon.crdt
 import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 
-object GCounterWrapper extends CRDTWrapper[GCounter] {
+object BidCountGCounterWrapper extends CRDTWrapper[GCounter] {
   override def empty: GCounter = GCounter.empty
 
   override def increment(crdt: GCounter, address: SelfUniqueAddress, delta: Nexmark.Events.Bid): GCounter =
