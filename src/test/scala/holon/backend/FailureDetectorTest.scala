@@ -1,11 +1,17 @@
 package holon.backend
 
 import org.scalatest.funsuite.AnyFunSuite
+import holon.backend.mocks.MockOutputCollector
+import holon.backend.OutputCollectorImpl
+
+import scala.collection.mutable.Map
 
 class FailureDetectorTest extends AnyFunSuite {
 
+    val outputCollector: OutputCollectorImpl = new MockOutputCollector(scala.collection.mutable.Map.empty)
+
     test("setHeartbeat: should update heartbeat for a node") {
-        val fd = new FailureDetector(0)
+        val fd = new FailureDetector(0, outputCollector)
         fd.setStartCheckingForFailures()
 
         val nodeId = 1
@@ -15,7 +21,7 @@ class FailureDetectorTest extends AnyFunSuite {
     }
 
     test("checkNodeFailures: should detect failed nodes") {
-        val fd = new FailureDetector(0)
+        val fd = new FailureDetector(0, outputCollector)
         fd.setStartCheckingForFailures()
 
         // Simulate a node with an outdated heartbeat
@@ -29,7 +35,7 @@ class FailureDetectorTest extends AnyFunSuite {
     }
 
     test("checkNodeFailures: should not check failures if not started") {
-        val fd = new FailureDetector(0)
+        val fd = new FailureDetector(0, outputCollector)
 
         // Simulate a node with an outdated heartbeat
         val nodeId = 1
