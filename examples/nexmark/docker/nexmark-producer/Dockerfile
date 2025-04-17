@@ -1,3 +1,5 @@
+# Jonas: Use https://hub.docker.com/r/sbtscala/scala-sbt instead?
+# Jonas: The comments seem a bit Chat-GPT generated.
 # Use an official Scala SBT image as a parent image
 FROM hseeberger/scala-sbt:11.0.12_1.5.5_2.13.6
 

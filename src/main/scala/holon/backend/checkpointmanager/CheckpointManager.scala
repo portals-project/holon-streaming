@@ -4,7 +4,8 @@ import holon.Config.*
 import holon.*
 
 import java.util.Base64
-import scala.collection.immutable.Map
+// Jonas: Map is immutable by default in Scala
+// import scala.collection.immutable.Map
 
 abstract class CheckpointManager {
 

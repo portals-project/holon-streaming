@@ -12,7 +12,10 @@ object BidCountGCounterWrapper extends CRDTWrapper[GCounter] {
   override def merge(a: GCounter, b: GCounter): GCounter =
     a.merge(b)
 
-  override def value(crdt: GCounter): String =
-    crdt.value.toString()
+  // It probably makes more sense to return the value of the counter directly.
+  // You could just use the return type `Any`, or make it a type parameter,
+  // or return Array[Byte].
+  override def value(crdt: GCounter): Any =
+    crdt.value
 }
 

@@ -2,19 +2,19 @@ package holon.backend.messages
 
 import upickle.default.{ReadWriter, macroRW}
 
-sealed trait ControlMessage {
+sealed trait ControlMessage derives ReadWriter {
     def senderId: Int
 }
 
-object ControlMessage {
-    implicit val rw: ReadWriter[ControlMessage] = macroRW
-}
+// object ControlMessage {
+//     implicit val rw: ReadWriter[ControlMessage] = macroRW
+// }
 
-case class Heartbeat(senderId: Int) extends ControlMessage
+case class Heartbeat(senderId: Int) extends ControlMessage derives ReadWriter
 
-object Heartbeat {
-    implicit val rw: ReadWriter[Heartbeat] = macroRW
-}
+// object Heartbeat {
+//     implicit val rw: ReadWriter[Heartbeat] = macroRW
+// }
 
 case class Checkpoint(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]) extends ControlMessage
 

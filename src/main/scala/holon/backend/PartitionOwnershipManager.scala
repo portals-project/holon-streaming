@@ -5,6 +5,9 @@ import holon.backend.messages.OwnershipEntry
 import Config.N_NODES
 
 class PartitionOwnershipManager(nodeId: Int) {
+    // Jonas: You could just import the Map instead and use it without referencing its full path
+    // import scala.collection.mutable.Map
+    // Same for some of the other things in this file...
     var partitionToNodeId: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
     var controlChannelConsumer: Option[LogConsumer] = None
     private val logger = Logger.apply("PartitionOwnershipManager")
