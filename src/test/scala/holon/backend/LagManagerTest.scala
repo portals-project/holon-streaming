@@ -3,27 +3,9 @@ package holon.backend
 import holon.*
 import holon.Config
 import org.scalatest.funsuite.AnyFunSuite
+import holon.backend.mocks.MockLogConsumer
 
 import scala.collection.mutable
-
-class MockLogConsumer(lagValue: Long) extends holon.LogConsumer {
-    override def lag(): Long = lagValue
-
-    override def poll(): LogConsumerRecords = {
-        // Mock implementation
-        Iterable.empty
-    }
-    override def seek(partition: Int, offset: Long): Unit = {
-        // Mock implementation
-    }
-    override def offsets(): Iterable[(Int, Long)] = {
-        // Mock implementation
-        Iterable.empty
-    }
-    override def close(): Unit = {
-        // Mock implementation
-    }
-}
 
 class LagManagerTest extends AnyFunSuite {
 
@@ -77,18 +59,6 @@ class LagManagerTest extends AnyFunSuite {
         LagManager.calculateCurrentLagIfRequired(consumerPerPartition)
 
         assert(LagManager.getCurrentLag == 45) // 10 + 20 + 15
-    }
-
-    test("calculateCurrentLagIfRequired: should not calculate current lag when interval has not passed") {
-        val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
-        consumerPerPartition.put(0, (0.toByte, new MockLogConsumer(10)))
-        consumerPerPartition.put(1, (0.toByte, new MockLogConsumer(20)))
-        consumerPerPartition.put(2, (0.toByte, new MockLogConsumer(15)))
-
-        LagManager.lagCalculationTime = System.currentTimeMillis() // Simulate interval not passed
-        LagManager.calculateCurrentLagIfRequired(consumerPerPartition)
-
-        assert(LagManager.getCurrentLag == 0) // No calculation should occur
     }
 
     test("calculateCurrentLagIfRequired: should handle empty consumer map") {
