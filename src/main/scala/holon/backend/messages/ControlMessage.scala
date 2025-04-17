@@ -10,6 +10,12 @@ object ControlMessage {
     implicit val rw: ReadWriter[ControlMessage] = macroRW
 }
 
+case class Heartbeat(senderId: Int) extends ControlMessage
+
+object Heartbeat {
+    implicit val rw: ReadWriter[Heartbeat] = macroRW
+}
+
 case class Checkpoint(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]) extends ControlMessage
 
 object Checkpoint {

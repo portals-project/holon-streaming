@@ -6,5 +6,6 @@ import holon.*
 
 class OutputCollectorImpl(producers: Map[Byte, LogProducer]) extends OutputCollector {
   def collect(chn: Byte, rec: LogProducerRecords): Unit =
-    producers(chn).send(rec)
+    if (producers.contains(chn))
+      producers(chn).send(rec)
 }

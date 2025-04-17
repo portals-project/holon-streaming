@@ -3,7 +3,7 @@ package holon.backend
 import holon.*
 import holon.Utils.*
 import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
-import holon.backend.messages.{BroadcastMessage, CRDTUpdate, ControlMessage, Checkpoint, OwnershipState, OwnershipStateRequest, OwnershipTransferDenial, OwnershipTransferRequest}
+import holon.backend.messages.*
 import Config.*
 import upickle.default.{readBinary, writeBinary}
 
@@ -23,7 +23,7 @@ class Recovery(nodeId: Int) {
     private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager(out) else DecentralizedCheckpointManager(out)
     private val ownershipManager = PartitionOwnershipManager(nodeId)
 
-    private val failureDetector = FailureDetector(nodeId)
+    private val failureDetector = FailureDetector(nodeId, out)
     private var failedNodes = List.empty[Int]
 
     private var pollsWithoutRecords = 0
@@ -164,14 +164,13 @@ class Recovery(nodeId: Int) {
                     val message = readBinary[ControlMessage](value)
 
                     if (message.senderId != nodeId) {
-                        failureDetector.setHeartbeat(message.senderId)
-
                         message match {
+                            case Heartbeat(senderId) =>
+                                failureDetector.setHeartbeat(senderId)
                             case Checkpoint(senderId, partitionSnapshots) =>
                                 // Node Checkpoints are only send when checkpoints are not saved to cloud storage
                                 if (senderId != nodeId) {
                                     logger.debug(s"Node $nodeId received checkpoint from node $senderId")
-                                    failureDetector.setHeartbeat(senderId)
                                     this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
                                     checkIfCheckpointIncludesOwnPartitions(senderId, partitionSnapshots)
                                 }
@@ -182,7 +181,6 @@ class Recovery(nodeId: Int) {
                                 integrateNewPartitions(newPartitions)
                                 ownershipManager.mergeOwnershipMap(ownershipMap)
                                 receivedOwnershipState = true
-                                failureDetector.setHeartbeat(senderId)
                             case OwnershipStateRequest(senderId) =>
                                 logger.info(s"($nodeId) Received ownership state request from node $senderId")
                                 this.checkpointManager.sendCheckpointMessage(nodeId)
@@ -192,15 +190,11 @@ class Recovery(nodeId: Int) {
                                 if (receiverId == nodeId) {
                                     logger.info(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
                                     handleOwnershipTransferRequest(senderId, partitions)
-
-                                    // TODO delete: for now give node more time to recover
-                                    failureDetector.setHeartbeat(senderId, System.currentTimeMillis() + 5000)
                                 }
                             case OwnershipTransferDenial(receiverId, partitions, senderId) =>
                                 if (receiverId == nodeId) {
                                     logger.info(s"(Node $nodeId) Received ownership denial from node $senderId for partitions $partitions")
                                     LagManager.updateLag(senderId, 0)
-                                    failureDetector.setHeartbeat(senderId)
                                 }
                         }
                     }
@@ -254,7 +248,6 @@ class Recovery(nodeId: Int) {
                         case CRDTUpdate(update, senderId, lag) => {
                             if (senderId != nodeId) {
                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
-                                failureDetector.setHeartbeat(senderId)
                                 LagManager.updateLag(senderId, lag)
                             }
                             this.procFunctionPerPartition.foreach((_, procFun) =>
@@ -400,7 +393,7 @@ class Recovery(nodeId: Int) {
      * If it is, hand over ownership of the partition to the sender node.
      */
     private def checkIfCheckpointIncludesOwnPartitions(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
-
+        // TODO: Maybe drop
         for ((partitionId, (snapshotOffset, _)) <- partitionSnapshots) {
             if (this.procFunctionPerPartition.contains(partitionId)) {
                 logger.info(s"Node $nodeId received checkpoint for partition $partitionId which it owns")

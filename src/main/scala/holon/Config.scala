@@ -29,6 +29,9 @@ object Config {
   var N_NODES = 2
   var PARTITIONS_PER_NODE = 2
 
+  var HEARTBEAT_INTERVAL = 500L
+  var FAILURE_DETECTION_THRESHOLD = 2_000L
+
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 

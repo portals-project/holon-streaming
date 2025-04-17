@@ -185,8 +185,7 @@ class WindowedRecordProcFun[T](partition: Int)(
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
-    logger.info("Restoring from snapshot")
-    logger.info(s"Restoring snapshot of size: $snapshot")
+    logger.debug("Restoring from snapshot")
     if (snapshot == null) {
       logger.debug("Snapshot is null, skipping restore")
       return
