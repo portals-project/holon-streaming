@@ -10,20 +10,23 @@ class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) 
 
     private val heartbeatMap = scala.collection.mutable.Map.empty[Int, Long]
     private var heartbeatCheckTime: Long = -1
-    private val logger = Logger.apply("FailureDetector")
     private var startCheckingForFailures = false
+    private val heartbeatThread = RunThread(this.sendHeartbeats())
 
+    private val logger = Logger.apply("FailureDetector")
     Logger.setLevel("FailureDetector", "INFO")
 
-    RunThread(this.sendHeartbeats())
-
-    
     private def sendHeartbeats(): Unit = {
         while(true) {
             logger.debug(s"Heartbeat: $currentNodeId")
             outputCollector.collect(CHN_CONTROL, List((writeBinary(0), writeBinary(Heartbeat(currentNodeId)))))
             Thread.sleep(HEARTBEAT_INTERVAL)
         }
+    }
+
+    def stop(): Unit = {
+        heartbeatThread.interrupt()
+        heartbeatThread.join()
     }
 
     def setHeartbeat(nodeId: Int): Unit = {

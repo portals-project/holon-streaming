@@ -174,9 +174,8 @@ class WindowedRecordProcFun[T](partition: Int)(
 
   // Define the window for a given event time.
   override def defineWindow(eventTime: Long): Long = {
-    val windowDuration: Long = 10_000L
     val time = eventTime / 10
-    if (time % windowDuration == 0) time / windowDuration else (time / windowDuration) + 1
+    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
   override def snapshot(): Array[Byte] = {

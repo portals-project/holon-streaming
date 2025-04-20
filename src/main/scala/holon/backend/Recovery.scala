@@ -44,6 +44,7 @@ class Recovery(nodeId: Int) {
 
     def stop(): Unit = {
         logger.info(s"Stopping node $nodeId")
+        this.failureDetector.stop()
         this.running = false
         this.consumerPerPartition.values.foreach { case (_, consumer) => consumer.close() }
     }
