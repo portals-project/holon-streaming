@@ -71,10 +71,13 @@ class WindowedRecordProcFun[T](partition: Int)(
 
               val window: Long = defineWindow(eventTimestamp)
 
+              logger.debug(s"partition: $partition, event: $event, window: $window")
               if (!windowMap.contains(window)) {
-                windowMap(window) = (crdt.empty, false)
+                logger.debug(s"partition: $partition Creating new window: $window")
+                windowMap(window) = (crdt.empty(addr), false)
               }
-              // Increment the bid count for this auction.
+              // Increment the CRDT
+              logger.debug(s"partition: $partition window: $window, incrementing crdt")
               val updated = crdt.increment(windowMap(window)._1, addr, bid)
               windowMap(window) = (updated, false)
 
@@ -86,6 +89,7 @@ class WindowedRecordProcFun[T](partition: Int)(
         }
 
       case CHN_BROADCAST =>
+        logger.debug(s"partition: $partition, received broadcast from other partitions")
         // Merge state received from other nodes.
         for (rec <- recs) {
           val receivedState = readBinary[WindowState[T]](rec._2)
@@ -124,6 +128,7 @@ class WindowedRecordProcFun[T](partition: Int)(
         logger.debug(s"Broadcasting window state for partition: $partition")
         // Only send the map of the passed window, including the key and the value.
         val windowState = WindowState(partition, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
+        logger.debug(s"partition: $partition, broadcasting window state: $windowState")
         outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
 
         logger.debug(s"partition: $partition, closed window: $passedWindow")
@@ -148,6 +153,7 @@ class WindowedRecordProcFun[T](partition: Int)(
         val crdtValue: String = crdt.value(windowAggregate._1)
         if (crdtValue != null) {
           val outputState = OutputState(partition, windowKey, crdtValue)
+          logger.debug(s"partition: $partition, emitting window: $windowKey, value: $outputState")
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
           emittedWindows += windowKey
         }
@@ -162,7 +168,7 @@ class WindowedRecordProcFun[T](partition: Int)(
       var windowsToRemove: List[Long] = Nil
       windowsToRemove = emittedWindows.filter(_ < currentLocalWin - 2).toList
       if (windowsToRemove.nonEmpty) {
-        logger.info(s"partition: $partition, garbage collecting ${windowsToRemove.size} windows")
+        logger.debug(s"partition: $partition, garbage collecting ${windowsToRemove.size} windows")
         for (windowKey <- windowsToRemove) {
           if (windowMap.contains(windowKey)) {
             windowMap -= windowKey
@@ -175,7 +181,8 @@ class WindowedRecordProcFun[T](partition: Int)(
   // Define the window for a given event time.
   override def defineWindow(eventTime: Long): Long = {
     val time = eventTime / 10
-    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
+    val WL = 10_000L
+    if (time % WL == 0) time / WL else (time / WL) + 1
   }
 
   override def snapshot(): Array[Byte] = {
