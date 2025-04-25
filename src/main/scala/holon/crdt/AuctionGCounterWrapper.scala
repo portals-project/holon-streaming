@@ -7,8 +7,11 @@ object AuctionGCounterWrapper extends CRDTWrapper[Map[String, GCounter]] {
   override def empty(address: SelfUniqueAddress): Map[String, GCounter] = Map.empty
   
   // The increment method.
-  override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: Nexmark.Events.Bid): Map[String, GCounter] =
-    val auction: Long = delta.auction
+  override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: Nexmark.Events.TimeStampedEvent): Map[String, GCounter] =
+    if (delta.event != Nexmark.Events.Bid) return crdt
+  
+    val delta_ = delta.asInstanceOf[Nexmark.Events.Bid]
+    val auction: Long = delta_.auction
     val counter = crdt.getOrElse(auction.toString, GCounter.empty)
     val updatedCounter = counter.increment(address, 1L)
     crdt.updated(auction.toString, updatedCounter)

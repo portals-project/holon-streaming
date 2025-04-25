@@ -63,11 +63,12 @@ class WindowedRecordProcFun[T](partition: Int)(
       case CHN_INPUT =>
         // Process incoming events from the Nexmark stream.
         for (rec <- recs) {
-          val event = Nexmark.deserialize(rec._2).event
+//          val event = Nexmark.deserialize(rec._2).event
+          val event = Nexmark.deserialize(rec._2)
           event match {
-            case bid: Nexmark.Events.Bid =>
+            case event: Nexmark.Events.TimeStampedEvent =>
               // Get the event timestamp.
-              val eventTimestamp: Long = bid.dateTime
+              val eventTimestamp: Long = event.timestamp
 
               val window: Long = defineWindow(eventTimestamp)
 
@@ -78,7 +79,7 @@ class WindowedRecordProcFun[T](partition: Int)(
               }
               // Increment the CRDT
               logger.debug(s"partition: $partition window: $window, incrementing crdt")
-              val updated = crdt.increment(windowMap(window)._1, addr, bid)
+              val updated = crdt.increment(windowMap(window)._1, addr, event)
               windowMap(window) = (updated, false)
 
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
