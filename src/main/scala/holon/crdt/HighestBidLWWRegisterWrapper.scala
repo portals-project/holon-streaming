@@ -7,6 +7,7 @@ import org.apache.pekko.cluster.ddata.LWWRegister.Clock
 import upickle.legacy.{readBinary, writeBinary}
 
 object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]]] {
+  type EventType = Nexmark.Events.Bid
 
   // 1) Clock that extracts price from the serialized tuple
   val customPriceClock: Clock[Array[Byte]] = new Clock[Array[Byte]] {
@@ -17,18 +18,23 @@ object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]]
     }
   }
 
+  // 2) Check if event is a Bid
+  override def checkType(ts: TimeStampedEvent): Option[EventType] =
+    ts.event match
+      case b: EventType => Some(b)
+      case _      => None
+      
+  override def timeStamp(event: EventType): Long = event.dateTime
+
   // 2) Empty register holds serialized (0L, 0L)
   override def empty(address: SelfUniqueAddress): LWWRegister[Array[Byte]] =
     LWWRegister.create(address, writeBinary((0L, 0L)), customPriceClock)
 
   // 3) On each Bid, decode current price and only replace if higher
-  override def increment(crdt: LWWRegister[Array[Byte]], address: SelfUniqueAddress, delta: TimeStampedEvent): LWWRegister[Array[Byte]] = 
-    if (delta.event != Nexmark.Events.Bid) return crdt
-    
-    val delta_ = delta.asInstanceOf[Nexmark.Events.Bid]
+  override def increment(crdt: LWWRegister[Array[Byte]], address: SelfUniqueAddress, delta: EventType): LWWRegister[Array[Byte]] =
     val (_, currentPrice) = readBinary[(Long, Long)](crdt.value)
-    if (delta_.price > currentPrice) {
-      val newBytes = writeBinary((delta_.bidder, delta_.price))
+    if (delta.price > currentPrice) {
+      val newBytes = writeBinary((delta.bidder, delta.price))
       crdt.withValue(address, newBytes, customPriceClock)
     } else crdt
 

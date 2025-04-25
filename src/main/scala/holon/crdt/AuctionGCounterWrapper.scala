@@ -4,14 +4,21 @@ import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 
 object AuctionGCounterWrapper extends CRDTWrapper[Map[String, GCounter]] {
+  type EventType = Nexmark.Events.Bid
+  
+  // Check if the event is a Bid.
+  override def checkType(ts: Nexmark.Events.TimeStampedEvent): Option[EventType] =
+    ts.event match
+      case b: EventType => Some(b)
+      case _            => None
+  
+  override def timeStamp(event: EventType): Long = event.dateTime
+  
   override def empty(address: SelfUniqueAddress): Map[String, GCounter] = Map.empty
   
   // The increment method.
-  override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: Nexmark.Events.TimeStampedEvent): Map[String, GCounter] =
-    if (delta.event != Nexmark.Events.Bid) return crdt
-  
-    val delta_ = delta.asInstanceOf[Nexmark.Events.Bid]
-    val auction: Long = delta_.auction
+  override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: EventType): Map[String, GCounter] =
+    val auction: Long = delta.auction
     val counter = crdt.getOrElse(auction.toString, GCounter.empty)
     val updatedCounter = counter.increment(address, 1L)
     crdt.updated(auction.toString, updatedCounter)

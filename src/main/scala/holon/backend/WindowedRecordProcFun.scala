@@ -64,11 +64,11 @@ class WindowedRecordProcFun[T](partition: Int)(
         // Process incoming events from the Nexmark stream.
         for (rec <- recs) {
 //          val event = Nexmark.deserialize(rec._2).event
-          val event = Nexmark.deserialize(rec._2)
-          event match {
-            case event: Nexmark.Events.TimeStampedEvent =>
+          val tsEvent = Nexmark.deserialize(rec._2)
+          crdt.checkType(tsEvent) match {
+            case Some(event) =>
               // Get the event timestamp.
-              val eventTimestamp: Long = event.timestamp
+              val eventTimestamp: Long = crdt.timeStamp(event)
 
               val window: Long = defineWindow(eventTimestamp)
 
@@ -84,8 +84,8 @@ class WindowedRecordProcFun[T](partition: Int)(
 
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
-            case other =>
-              logger.debug(s"Ignored non-bid event: $other")
+            case None =>
+              logger.debug(s"Ignored non-bid event")
           }
         }
 
