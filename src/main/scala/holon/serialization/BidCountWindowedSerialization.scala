@@ -5,10 +5,10 @@ import org.apache.pekko.cluster.ddata.GCounter
 import upickle.legacy.{ReadWriter, readwriter}
 
 // This ensures that a mutable Map[String, (GCounter, Boolean)] is encoded as a dictionary.
-implicit val windowMapRW: ReadWriter[scala.collection.mutable.Map[String, (GCounter, Boolean)]] =
-  readwriter[Map[String, (GCounter, Boolean)]].bimap(
-    (m: scala.collection.mutable.Map[String, (GCounter, Boolean)]) => m.toMap,
-    (m: Map[String, (GCounter, Boolean)]) => scala.collection.mutable.Map(m.toSeq: _*)
+implicit val windowMapRW: ReadWriter[scala.collection.mutable.Map[Long, (GCounter, Boolean)]] =
+  readwriter[Map[Long, (GCounter, Boolean)]].bimap(
+    (m: scala.collection.mutable.Map[Long, (GCounter, Boolean)]) => m.toMap,
+    (m: Map[Long, (GCounter, Boolean)]) => scala.collection.mutable.Map(m.toSeq: _*)
   )
 
 implicit val gcounterRW: ReadWriter[GCounter] = readwriter[Array[Byte]].bimap[GCounter](
