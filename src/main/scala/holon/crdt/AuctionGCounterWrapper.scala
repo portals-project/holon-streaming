@@ -4,7 +4,7 @@ import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 
 object AuctionGCounterWrapper extends CRDTWrapper[Map[String, GCounter]] {
-  override def empty: Map[String, GCounter] = Map.empty
+  override def empty(address: SelfUniqueAddress): Map[String, GCounter] = Map.empty
   
   // The increment method.
   override def increment(crdt: Map[String, GCounter], address: SelfUniqueAddress, delta: Nexmark.Events.Bid): Map[String, GCounter] =

@@ -4,7 +4,7 @@ import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.SelfUniqueAddress
 
 trait CRDTWrapper[T] {
-  def empty: T
+  def empty(address: SelfUniqueAddress): T
   
   def increment(crdt: T, address: SelfUniqueAddress, delta: Nexmark.Events.Bid): T
 
