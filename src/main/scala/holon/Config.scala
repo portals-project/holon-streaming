@@ -26,8 +26,8 @@ object Config {
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
-  var N_NODES = 8
-  var PARTITIONS_PER_NODE = 4
+  var N_NODES = 3
+  var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
   var FAILURE_DETECTION_THRESHOLD = 2_000L
@@ -35,7 +35,7 @@ object Config {
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  var WINDOW_LENGTH = 10_000L
+  var WINDOW_LENGTH = 5_000L
 
   def nrOfKafkaPartitions(): Int = {
     N_NODES * PARTITIONS_PER_NODE

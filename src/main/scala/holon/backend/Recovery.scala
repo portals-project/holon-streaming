@@ -161,7 +161,7 @@ class Recovery(nodeId: Int) {
             while (records.nonEmpty) {
                 logger.debug(s"Node $nodeId is processing control messages")
                 for (rec <- records) {
-                    val (_, value) = rec
+                    val (_, value, _) = rec
                     val message = readBinary[ControlMessage](value)
 
                     if (message.senderId != nodeId) {
@@ -239,11 +239,11 @@ class Recovery(nodeId: Int) {
     /**
      * Process records from channels other than Control channel.
      */
-    private def processRecords(chn: Byte, partitionId: Int, records: Iterable[(Array[Byte], Array[Byte])]): Unit = {
+    private def processRecords(chn: Byte, partitionId: Int, records: Iterable[(Array[Byte], Array[Byte], Long)]): Unit = {
         chn match {
             case CHN_BROADCAST =>
                 for (rec <- records) {
-                    val (_, value) = rec
+                    val (_, value, recTimestamp) = rec
                     val message = readBinary[BroadcastMessage](value)
                     message match {
                         case CRDTUpdate(update, senderId, lag) => {
@@ -252,7 +252,7 @@ class Recovery(nodeId: Int) {
                                 LagManager.updateLag(senderId, lag)
                             }
                             this.procFunctionPerPartition.foreach((_, procFun) =>
-                                                                      procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update)))
+                                                                      procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
                                                                   )
                         }
                     }

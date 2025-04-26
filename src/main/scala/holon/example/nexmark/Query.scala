@@ -32,6 +32,10 @@ object Query {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
         logger.info("Starting Output Consumer")
+
+        val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
+        val outputCountPerWindow = scala.collection.mutable.Map.empty[Long, Int]
+
         val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
@@ -44,8 +48,18 @@ object Query {
                         val partition = outputState.partition
                         val windowId = outputState.window
                         val outputValue = outputState.value
-                        
-                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                        val logAppendTime = r._3
+                        outputLagPerWindow(windowId) =
+                            math.max(outputLagPerWindow.getOrElse(windowId, 0L), logAppendTime)
+                        outputCountPerWindow(windowId) =
+                            outputCountPerWindow.getOrElse(windowId, 0) + 1
+
+                        if (outputCountPerWindow(windowId) == nrOfKafkaPartitions()) {
+                            logger.info(s"[LagAppendOutput] - window: $windowId, timestamp: ${outputLagPerWindow(windowId)}")
+                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                            outputLagPerWindow.remove(windowId)
+                            outputCountPerWindow.remove(windowId)
+                        }
     }
 
     def setupKafka(): Unit = {
@@ -63,17 +77,17 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 45_000
+        val RUNTIME = 85_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
 

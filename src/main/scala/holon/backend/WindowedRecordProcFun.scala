@@ -51,6 +51,10 @@ class WindowedRecordProcFun[T](partition: Int)(
   // To keep track of windows that have already been emitted.
   private val emittedWindows = mutable.Set.empty[Long]
 
+  // TODO delete: Only used for benchmarking.
+  // Keep track of Kafka log append times of the last record for this window.
+  private val logAppendTimePerWindow = mutable.Map.empty[Long, Long]
+
   // Garbage collection interval for old windows.
   private val gcInterval: Long = 500L
 
@@ -83,6 +87,9 @@ class WindowedRecordProcFun[T](partition: Int)(
               windowMap(window) = (updated, false)
 
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
+
+              logAppendTimePerWindow(window) =
+                math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
 
             case None =>
               logger.debug(s"Ignored non-bid event")
@@ -155,6 +162,7 @@ class WindowedRecordProcFun[T](partition: Int)(
         if (crdtValue != null) {
           val outputState = OutputState(partition, windowKey, crdtValue)
           logger.debug(s"partition: $partition, emitting window: $windowKey, value: $outputState")
+          logger.info(s"[LagAppendInput] - window: $windowKey, timestamp: ${logAppendTimePerWindow.getOrElse(windowKey, 0L)}")
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
           emittedWindows += windowKey
         }
@@ -174,6 +182,9 @@ class WindowedRecordProcFun[T](partition: Int)(
           if (windowMap.contains(windowKey)) {
             windowMap -= windowKey
           }
+          if (logAppendTimePerWindow.contains(windowKey)) {
+            logAppendTimePerWindow -= windowKey
+          }
         }
       }
     }
@@ -182,8 +193,7 @@ class WindowedRecordProcFun[T](partition: Int)(
   // Define the window for a given event time.
   override def defineWindow(eventTime: Long): Long = {
     val time = eventTime / 10
-    val WL = 10_000L
-    if (time % WL == 0) time / WL else (time / WL) + 1
+    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
   override def snapshot(): Array[Byte] = {

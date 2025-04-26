@@ -16,7 +16,8 @@ class KafkaSystem(nPartitions: Int, host: String, port: Int):
     override def zooKeeperPort = port + 1
     override def customBrokerProperties = Map(
       "auto.create.topics.enable" -> "false",
-      "num.partitions" -> s"$nPartitions"
+      "num.partitions" -> s"$nPartitions",
+      "log.message.timestamp.type" -> "LogAppendTime"
     )
     override def customProducerProperties: Map[String, String] = Map.empty
     override def customConsumerProperties: Map[String, String] = Map.empty
