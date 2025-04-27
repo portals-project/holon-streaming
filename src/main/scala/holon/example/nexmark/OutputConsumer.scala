@@ -1,8 +1,8 @@
 package holon.example.nexmark
 
 import holon.*
+import holon.Config.*
 import holon.backend.*
-import Config.*
 import upickle.legacy.*
 
 object OutputConsumer {
@@ -12,10 +12,17 @@ object OutputConsumer {
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
 
+        consumeOutput(host, port)
+    }
+
+    def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
-        val output = KafkaLogConsumer(host, port, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
 
+        val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
+        val outputCountPerWindow = scala.collection.mutable.Map.empty[Long, Int]
+
+        val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
                 case Nil =>
@@ -27,7 +34,17 @@ object OutputConsumer {
                         val partition = outputState.partition
                         val windowId = outputState.window
                         val outputValue = outputState.value
+                        val logAppendTime = r._3
+                        outputLagPerWindow(windowId) =
+                            math.max(outputLagPerWindow.getOrElse(windowId, 0L), logAppendTime)
+                        outputCountPerWindow(windowId) =
+                            outputCountPerWindow.getOrElse(windowId, 0) + 1
 
-                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                        if (outputCountPerWindow(windowId) == nrOfKafkaPartitions()) {
+                            logger.info(s"[LagAppendOutput] - window: $windowId, timestamp: ${outputLagPerWindow(windowId)}")
+                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                            outputLagPerWindow.remove(windowId)
+                            outputCountPerWindow.remove(windowId)
+                        }
     }
 }

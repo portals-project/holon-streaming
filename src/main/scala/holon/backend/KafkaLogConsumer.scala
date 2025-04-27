@@ -29,7 +29,6 @@ class KafkaLogConsumer(
     override def poll(): LogConsumerRecords =
         val records = cons.poll(java.time.Duration.ZERO)
         records.asScala.map { rec =>
-//            println(rec.timestampType())
             (rec.key(), rec.value(), rec.timestamp())
         }
 

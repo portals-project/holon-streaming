@@ -6,6 +6,7 @@ import holon.backend.*
 import holon.example.Nexmark
 import holon.example.nexmark.HolonNode.*
 import Config.*
+import holon.example.nexmark.OutputConsumer.consumeOutput
 import upickle.legacy.*
 
 /** Count the total number of bids. */
@@ -33,33 +34,7 @@ object Query {
         Logger.setLevel("Consumer", "INFO")
         logger.info("Starting Output Consumer")
 
-        val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
-        val outputCountPerWindow = scala.collection.mutable.Map.empty[Long, Int]
-
-        val output = KafkaLogConsumer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
-        while true do
-            output.poll() match
-                case Nil =>
-                    Thread.sleep(CONSUMER_SLEEP_MS)
-                case records =>
-                    records.foreach: r =>
-                        val outputState = readBinary[OutputState](r._2)
-                        // Deconstruct the output state
-                        val partition = outputState.partition
-                        val windowId = outputState.window
-                        val outputValue = outputState.value
-                        val logAppendTime = r._3
-                        outputLagPerWindow(windowId) =
-                            math.max(outputLagPerWindow.getOrElse(windowId, 0L), logAppendTime)
-                        outputCountPerWindow(windowId) =
-                            outputCountPerWindow.getOrElse(windowId, 0) + 1
-
-                        if (outputCountPerWindow(windowId) == nrOfKafkaPartitions()) {
-                            logger.info(s"[LagAppendOutput] - window: $windowId, timestamp: ${outputLagPerWindow(windowId)}")
-                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
-                            outputLagPerWindow.remove(windowId)
-                            outputCountPerWindow.remove(windowId)
-                        }
+        consumeOutput(KAFKA_HOST, KAFKA_PORT)
     }
 
     def setupKafka(): Unit = {
