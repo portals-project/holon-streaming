@@ -472,9 +472,16 @@ class Recovery(nodeId: Int) {
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
         val (_chn, consumer) = this.consumerPerPartition(partitionId)
+        if (consumer == null) {
+            logger.warn(s"Consumer for partition $partitionId is null. Cannot remove consumer and processing function")
+            return
+        }
         consumer.close()
-        this.consumerPerPartition.remove(partitionId)
-        this.procFunctionPerPartition.remove(partitionId)
+        if this.procFunctionPerPartition.contains(partitionId) then
+            this.procFunctionPerPartition.remove(partitionId)
+
+        if this.consumerPerPartition.contains(partitionId) then
+            this.consumerPerPartition.remove(partitionId)
     }
 
     private def sendControlMessage(message: ControlMessage): Unit = {

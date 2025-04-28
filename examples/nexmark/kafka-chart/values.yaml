@@ -1,0 +1,9 @@
+kafka:
+  image: bitnami/kafka:3.7.0
+
+initKafka:
+  image: confluentinc/cp-kafka:6.1.1
+
+holon:
+  n_nodes: 3
+  partitions_per_node: 2

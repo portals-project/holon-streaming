@@ -1,0 +1,59 @@
+{{- range $i := until (.Values.holon.n_nodes | int) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: holon-node-{{ $i }}-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $.Values.holon.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holon-node-{{ $i }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holon-node-{{ $i }}
+  template:
+    metadata:
+      labels:
+        app: holon-node-{{ $i }}
+    spec:
+      containers:
+        - name: holon-node-{{ $i }}
+          image: {{ $.Values.holon.image }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: NODE_ID
+              value: "{{ $i }}"
+            - name: N_NODES
+              value: "{{ $.Values.holon.n_nodes }}"
+            - name: PARTITIONS_PER_NODE
+              value: "{{ $.Values.holon.partitions_per_node }}"
+            - name: RUNTIME
+              value: "{{ $.Values.holon.runtime }}"
+            - name: SLEEP_BETWEEN_POLLS
+              value: "{{ $.Values.holon.sleep_between_polls }}"
+          volumeMounts:
+            - name: holon-storage
+              mountPath: /snapshots
+{{/*          resources:*/}}
+{{/*            requests:*/}}
+{{/*              cpu: "250m"*/}}
+{{/*              memory: "512Mi"*/}}
+{{/*            limits:*/}}
+{{/*              cpu: "500m"*/}}
+{{/*              memory: "1Gi"*/}}
+      volumes:
+        - name: holon-storage
+          persistentVolumeClaim:
+            claimName: holon-node-{{ $i }}-pvc
+      restartPolicy: Always
+{{- end }}
