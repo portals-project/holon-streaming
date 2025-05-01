@@ -39,8 +39,27 @@ docker push gcr.io/<your-project-id>/holon-node:latest
    ```bash
    gcloud container clusters get-credentials YOUR_CLUSTER_NAME --zone YOUR_COMPUTE_ZONE
    ```
-5. Apply the Kubernetes manifests to create the necessary resources in your GKE cluster.
+   
+5. Deploy the helm charts
     ```bash
+    helm install kafka ./kafka-chart
+    helm install holon ./holon-chart
+  
+    # Update the image tags in the deployment files
+    helm upgrade holon ./holon-chart
+    ```
+6. The holon nodes and producer are started with 0 replicas. This is to prevent them from starting at very different times. 
+   To start them at  approx. the same time run:
+   ```bash
+   kubectl scale deployment holon-node-0 holon-node-1 holon-node-2 --replicas=1
+   kubectl scale deployment nexmark-producer-0 --replicas=1 
+   ```
+
+
+
+OR: Apply the Kubernetes manifests to create the necessary resources in your GKE cluster.
+
+   ```bash
     kubectl apply -f combined-kubernetes.yaml 
 
    ```

@@ -9,14 +9,14 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ $.Values.holon.storage }}
+      storage: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: holon-node-{{ $i }}
 spec:
-  replicas: 1
+  replicas: {{ $.Values.holon.replicas | int }}
   selector:
     matchLabels:
       app: holon-node-{{ $i }}
@@ -43,7 +43,7 @@ spec:
               value: "{{ $.Values.holon.sleep_between_polls }}"
           volumeMounts:
             - name: holon-storage
-              mountPath: /snapshots
+              mountPath: /app/snapshots
 {{/*          resources:*/}}
 {{/*            requests:*/}}
 {{/*              cpu: "250m"*/}}
@@ -55,5 +55,5 @@ spec:
         - name: holon-storage
           persistentVolumeClaim:
             claimName: holon-node-{{ $i }}-pvc
-      restartPolicy: Always
+{{/*      restartPolicy: Never*/}}
 {{- end }}

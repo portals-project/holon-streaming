@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: output-consumer
 spec:
-  replicas: 1
+  replicas: {{ .Values.outputConsumer.replicas }}
   selector:
     matchLabels:
       io.kompose.service: output-consumer

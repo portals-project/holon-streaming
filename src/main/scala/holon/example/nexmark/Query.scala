@@ -7,6 +7,7 @@ import holon.example.Nexmark
 import holon.example.nexmark.HolonNode.*
 import Config.*
 import holon.example.nexmark.OutputConsumer.consumeOutput
+import holon.example.nexmark.NexmarkProducer.runProducer
 import upickle.legacy.*
 
 /** Count the total number of bids. */
@@ -15,18 +16,7 @@ object Query {
 
     /** Run the Nexmark producer */
     def runNexmarkProducer() = {
-        val producer = KafkaLogProducer(KAFKA_HOST, KAFKA_PORT, KAFKA_TOPIC_INPUT)
-        val iter = Nexmark.iterator()
-        val logger = Logger.apply("Producer")
-        Logger.setLevel("Producer", "INFO")
-        logger.info("Starting Nexmark Producer")
-        while true do
-            for i <- 0 until nrOfKafkaPartitions() do
-                val batch = (0 until PRODUCER_BATCH_SIZE).map(_ => iter.next()).map(x => (writeBinary(i), Nexmark.serialize(x)))
-                producer.send(batch)
-
-            producer.flush()
-            Thread.sleep(PRODUCER_SLEEP_MS)
+        runProducer(KAFKA_HOST, KAFKA_PORT, PRODUCER_SLEEP_MS)
     }
 
     def runOutputConsumer() = {

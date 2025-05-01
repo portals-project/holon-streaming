@@ -40,11 +40,12 @@ object OutputConsumer {
                         outputCountPerWindow(windowId) =
                             outputCountPerWindow.getOrElse(windowId, 0) + 1
 
-                        if (outputCountPerWindow(windowId) == nrOfKafkaPartitions()) {
-                            logger.info(s"[LagAppendOutput] - window: $windowId, timestamp: ${outputLagPerWindow(windowId)}")
-                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
-                            outputLagPerWindow.remove(windowId)
-                            outputCountPerWindow.remove(windowId)
+                        val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
+                        windowsToOutput.foreach { winId =>
+                            logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                            logger.info(s"[OUTPUT]: partition: $partition window: $winId, value: $outputValue")
+                            outputLagPerWindow.remove(winId)
+                            outputCountPerWindow.remove(winId)
                         }
     }
 }
