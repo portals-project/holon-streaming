@@ -4,12 +4,18 @@ import holon.*
 import holon.crdt.CRDTWrapper
 import holon.example.CRDT.address
 import holon.example.{CRDT, Nexmark}
-import holon.serialization.mutableMapReadWriter
 import Config.*
 import org.apache.pekko.cluster.ddata.SelfUniqueAddress
-import upickle.legacy.{ReadWriter, macroRW, readBinary, writeBinary}
+import upickle.legacy.{ReadWriter, macroRW, readBinary, readwriter, writeBinary}
 
 import scala.collection.mutable
+
+// Generic implicit for mutable maps
+implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[scala.collection.mutable.Map[K, V]] =
+  readwriter[Map[K, V]].bimap[scala.collection.mutable.Map[K, V]](
+    _.toMap,
+    m => scala.collection.mutable.Map.empty[K, V] ++ m
+  )
 
 // OutputState now includes the auction identifier with the most bids and the bid count.
 case class OutputState(
@@ -18,12 +24,13 @@ case class OutputState(
                         value: String
                       )
 object OutputState {
-  implicit val rw: ReadWriter[OutputState] = macroRW
+  implicit def rw: ReadWriter[OutputState] = macroRW
 }
 
 // WindowState is generic in the CRDT type T.
 case class WindowState[T](
                            partition: Int,
+                           queryId: Int,
                            vectorClock: Array[Long],
                            windowMap: mutable.Map[Long, (T, Boolean)]
                          )
@@ -32,10 +39,7 @@ object WindowState {
 }
 
 // This processing function maps bids to auctions and aggregates per window.
-class WindowedRecordProcFun[T](partition: Int)(
-  implicit crdt: CRDTWrapper[T],
-  rw: ReadWriter[T]
-) extends ProcFun {
+case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, queryId: Int = 0, rw: ReadWriter[T], rwout: ReadWriter[V]) extends ProcFun {
 
   // Our unique address for this partition.
   private val addr: SelfUniqueAddress = address(partition)
@@ -44,10 +48,10 @@ class WindowedRecordProcFun[T](partition: Int)(
   logger.info("Starting WindowedRecordProcFun")
 
   // Vector clock holding the highest event time seen from each partition.
-  private val vectorClock: Array[Long] = Array.fill(nrOfKafkaPartitions())(0L)
+  val vectorClock: Array[Long] = Array.fill(nrOfKafkaPartitions())(0L)
 
   // The windowMap now holds a CRDT that tracks a map: auction id -> bid count.
-  private val windowMap = mutable.Map.empty[Long, (T, Boolean)]
+  val windowMap = mutable.Map.empty[Long, (T, Boolean)]
   // To keep track of windows that have already been emitted.
   private val emittedWindows = mutable.Set.empty[Long]
 
@@ -58,7 +62,11 @@ class WindowedRecordProcFun[T](partition: Int)(
   // Garbage collection interval for old windows.
   private val gcInterval: Long = 500L
 
-  override def process(
+  implicit val elementRW: ReadWriter[T] = rw
+  
+  implicit val outputStateRW: ReadWriter[V] = rwout
+
+  override def processInput(
                         outputFunction: (Int, Byte, LogProducerRecords) => Unit,
                         chn: Byte,
                         recs: LogConsumerRecords
@@ -83,7 +91,7 @@ class WindowedRecordProcFun[T](partition: Int)(
               }
               // Increment the CRDT
               logger.debug(s"partition: $partition window: $window, incrementing crdt")
-              val updated = crdt.increment(windowMap(window)._1, addr, event)
+              val updated = crdt.update(windowMap(window)._1, addr, event)
               windowMap(window) = (updated, false)
 
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
@@ -95,30 +103,31 @@ class WindowedRecordProcFun[T](partition: Int)(
               logger.debug(s"Ignored non-bid event")
           }
         }
-
       case CHN_BROADCAST =>
         logger.debug(s"partition: $partition, received broadcast from other partitions")
         // Merge state received from other nodes.
         for (rec <- recs) {
           val receivedState = readBinary[WindowState[T]](rec._2)
-          val receivedPartition = receivedState.partition
-          val receivedVectorClock = receivedState.vectorClock
-          val receivedWindowMap = receivedState.windowMap
-          logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
+          if (receivedState.queryId == queryId) {
+            val receivedPartition = receivedState.partition
+            val receivedVectorClock = receivedState.vectorClock
+            val receivedWindowMap = receivedState.windowMap
+            logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
 
-          // For each window in the received state, merge with our own state.
-          for ((windowKey, receivedAggregate) <- receivedWindowMap) {
-            if (windowMap.contains(windowKey) && !emittedWindows.contains(windowKey)) {
-              val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
-              windowMap(windowKey) = (merged, windowMap(windowKey)._2)
-            } else {
-              windowMap(windowKey) = receivedAggregate
+            // For each window in the received state, merge with our own state.
+            for ((windowKey, receivedAggregate) <- receivedWindowMap) {
+              if (windowMap.contains(windowKey) && !emittedWindows.contains(windowKey)) {
+                val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
+                windowMap(windowKey) = (merged, windowMap(windowKey)._2)
+              } else {
+                windowMap(windowKey) = receivedAggregate
+              }
             }
-          }
 
-          // Merge vector clocks element-wise.
-          vectorClock(receivedPartition) =
-            math.max(vectorClock(receivedPartition), receivedVectorClock(receivedPartition))
+            // Merge vector clocks element-wise.
+            vectorClock(receivedPartition) =
+              math.max(vectorClock(receivedPartition), receivedVectorClock(receivedPartition))
+          }
         }
 
       case _ =>
@@ -135,7 +144,7 @@ class WindowedRecordProcFun[T](partition: Int)(
 
         logger.debug(s"Broadcasting window state for partition: $partition")
         // Only send the map of the passed window, including the key and the value.
-        val windowState = WindowState(partition, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
+        val windowState = WindowState(partition,  queryId, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
         logger.debug(s"partition: $partition, broadcasting window state: $windowState")
         outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
 
@@ -150,7 +159,7 @@ class WindowedRecordProcFun[T](partition: Int)(
     }
 
     // Check and emit windows which are closed and have converged.
-    emitWindow(outputFunction)
+//    emitWindow(outputFunction)
   }
 
   private def emitWindow(outputFunction: (Int, Byte, LogProducerRecords) => Unit): Unit = {
@@ -158,16 +167,22 @@ class WindowedRecordProcFun[T](partition: Int)(
       // Emit the window if the CRDT state has been marked closed, hasn't yet been emitted,
       // and the oldest element in the vector clock is greater than the window key.
       if (windowAggregate._2 && !emittedWindows.contains(windowKey) && defineWindow(vectorClock.min) > windowKey) {
-        val crdtValue: String = crdt.value(windowAggregate._1)
+        val crdtValue = crdt.value(windowAggregate._1).toString
         if (crdtValue != null) {
           val outputState = OutputState(partition, windowKey, crdtValue)
           logger.debug(s"partition: $partition, emitting window: $windowKey, value: $outputState")
           logger.info(s"[LagAppendInput] - window: $windowKey, timestamp: ${logAppendTimePerWindow.getOrElse(windowKey, 0L)}")
-          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
           emittedWindows += windowKey
         }
       }
     }
+  }
+
+  // Define the window for a given event time.
+  def defineWindow(eventTime: Long): Long = {
+    val time = eventTime / 10
+    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
   private def garbageCollect(): Unit = {
@@ -188,12 +203,6 @@ class WindowedRecordProcFun[T](partition: Int)(
         }
       }
     }
-  }
-
-  // Define the window for a given event time.
-  override def defineWindow(eventTime: Long): Long = {
-    val time = eventTime / 10
-    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
   override def snapshot(): Array[Byte] = {
