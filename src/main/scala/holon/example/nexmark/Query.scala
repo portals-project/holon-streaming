@@ -52,17 +52,17 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 85_000
+        val RUNTIME = 12_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
 
