@@ -4,7 +4,7 @@ import holon.example.Nexmark
 import holon.example.Nexmark.Events
 import org.apache.pekko.cluster.ddata.{GCounter, SelfUniqueAddress}
 
-object BidCountGCounterWrapper extends CRDTWrapper[GCounter] {
+object BidCountGCounterWrapper extends CRDTWrapper[GCounter, String] {
   type EventType = Nexmark.Events.Bid
   
   override def checkType(ts: Events.TimeStampedEvent): Option[EventType] =
@@ -16,7 +16,7 @@ object BidCountGCounterWrapper extends CRDTWrapper[GCounter] {
   
   override def empty(address: SelfUniqueAddress): GCounter = GCounter.empty
 
-  override def increment(crdt: GCounter, address: SelfUniqueAddress, delta: EventType): GCounter =
+  override def update(crdt: GCounter, address: SelfUniqueAddress, delta: EventType): GCounter =
       crdt.increment(address, 1L)
 
 
