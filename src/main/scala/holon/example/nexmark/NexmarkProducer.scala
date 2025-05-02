@@ -8,6 +8,8 @@ import upickle.default.*
 import scala.collection.mutable
 
 object NexmarkProducer {
+    private val FirestoreClient = holon.backend.cloud.FirestoreClient
+
     private val logger = Logger("NexmarkProducer")
     Logger.setLevel("NexmarkProducer", "INFO")
 
@@ -18,6 +20,11 @@ object NexmarkProducer {
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
         val PRODUCER_SLEEP_TIME_MS = sys.env.getOrElse("PRODUCER_SLEEP_TIME_MS", "100").toInt
+
+        while (!FirestoreClient.isStartFlagSet) {
+            logger.info("Waiting for start flag to be set.")
+            Thread.sleep(1_000)
+        }
 
         runProducer(host, port, PRODUCER_SLEEP_TIME_MS)
     }

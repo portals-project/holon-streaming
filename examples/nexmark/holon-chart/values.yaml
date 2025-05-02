@@ -4,11 +4,11 @@ holon:
   partitions_per_node: 2
   runtime: 180000
   sleep_between_polls: 0
-  replicas: 0
+  replicas: 1
 
 nexmarkProducer:
   image: gcr.io/holon-450608/nexmark-producer:latest
-  replicas: 0
+  replicas: 1
   sleepTimeMs: 75
 
 outputConsumer:

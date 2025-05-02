@@ -259,7 +259,7 @@ class Recovery(nodeId: Int) {
                 }
             case _ =>
                 pollsWithoutRecords = 0
-                val procFun = this.procFunctionPerPartition(partitionId)
+                val procFun = this.procFunctionPerPartition.getOrElse(partitionId, null)
                 if (procFun != null) {
                     logger.debug(s"Node $nodeId is processing records for partition $partitionId")
                     procFun.process(outputFunction, chn, records)

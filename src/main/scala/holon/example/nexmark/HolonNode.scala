@@ -6,11 +6,21 @@ import holon.Utils.*
 
 object HolonNode {
 
+    private val FirestoreClient = holon.backend.cloud.FirestoreClient
+
+    private val logger = Logger("HolonNode")
+    Logger.setLevel("HolonNode", "INFO")
+
     def main(args: Array[String]): Unit = {
         setupConfig()
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
+        
+        while (!FirestoreClient.isStartFlagSet) {
+            logger.info("Waiting for start flag to be set.")
+            Thread.sleep(500)
+        }
 
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
