@@ -1,7 +1,7 @@
 package holon.example.nexmark
 
 import holon.*
-import Config.*
+import holon.Config.*
 import holon.Utils.*
 
 object HolonNode {
@@ -60,6 +60,7 @@ object HolonNode {
             consumers = consumers,
             producers = producers,
             procFunFactory = new HighestBidWindowedFactory(),
+            procFunFactory = new Q4Factory(),
             partitions = partitions,
             )
         job
