@@ -36,6 +36,7 @@ object Config {
   var KAFKA_PORT = 9092
 
   var WINDOW_LENGTH = 5_000L
+  var GARBAGE_COLLECTION_INTERVAL = 500L
 
   def nrOfKafkaPartitions(): Int = {
     N_NODES * PARTITIONS_PER_NODE
