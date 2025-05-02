@@ -17,13 +17,13 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
 
   // First wrapper maps auctions to their highest bid
   val w0: CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] = AuctionToHighestBidWrapper
-  val auctionToBids = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w0, partition, 0, rwTuple, javaSetReadWriter)
+  val auctionToBids = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w0, partition, 0, rwTuple)
 
   // Second wrapper maps auctions to their category
   val w1: CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] = AuctionToCategoryWrapper
-  val auctionsToCats = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w1, partition, 1, rwTuple, javaSetReadWriter)
+  val auctionToCats = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w1, partition, 1, rwTuple)
 
-  var procfuns: List[WindowedRecordProcFun[GSet[(Long,Long)], java.util.Set[(Long, Long)]]] = List(auctionToBids, auctionsToCats)
+  var procfuns: List[WindowedRecordProcFun[GSet[(Long,Long)], java.util.Set[(Long, Long)]]] = List(auctionToBids, auctionToCats)
 
   logger.debug(s"Set up procfuns: $procfuns")
 
@@ -40,11 +40,11 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
     val inputRecords = rec
     val defineWindow = auctionToBids.defineWindow
     val out0 = auctionToBids.processInput(outputFunction, chn, inputRecords)
-    val out1 = auctionsToCats.processInput(outputFunction, chn, inputRecords)
+    val out1 = auctionToCats.processInput(outputFunction, chn, inputRecords)
 
     // Get the latest vector clock from both queries
     val aucToBidVC = auctionToBids.vectorClock
-    val aucToCatVC = auctionsToCats.vectorClock
+    val aucToCatVC = auctionToCats.vectorClock
 
     logger.debug(s"aucToBidVC: ${aucToBidVC.mkString("Array(", ", ", ")")}")
     logger.debug(s"aucToCatVC: ${aucToCatVC.mkString("Array(", ", ", ")")}")
@@ -57,15 +57,15 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
     // Start processing windows if vc is not empty
     if !minVC.contains(0) then
       // Get the minimum vector clock value across all partitions
-      lastClosedWindow = auctionToBids.defineWindow(minVC.filter(_ > 0).min) - 1L
+      lastClosedWindow = defineWindow(minVC.min) - 1L
     else
       lastClosedWindow = -1L
 
     if (lastClosedWindow > 0) {
       for (i <- queriedWindow until lastClosedWindow) {
-        logger.debug(s"partition: $partition processing window: $i")
+        logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        val result = processWindow(auctionToBids.windowMap(i)._1, auctionsToCats.windowMap(i)._1, i)
+        val result = processWindow(auctionToBids.windowMap(i)._1, auctionToCats.windowMap(i)._1, i)
         val outputState = OutputState(partition, i, result.toString())
         outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
       }
@@ -73,6 +73,7 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
     }
 
     def processWindow(bidsSet: GSet[(Long, Long)], catsSet: GSet[(Long, Long)], winKey: Long): Map[Long, Double] = {
+      logger.debug(s"partition: $partition processing window: $winKey, bidsSet: $bidsSet, catsSet: $catsSet")
       // 1. Raw bids and categories
       val bids: Set[(Long,Long)] = bidsSet.elements
       val catsByAuction: Map[Long,Set[Long]] =
