@@ -9,11 +9,11 @@ import holon.serialization.*
 
 // Nexmark Query 4:
 // Select the average of the wining bid prices for all auctions in each category.
-class ParentProcessFun(partition: Int) extends ProcFun {
+class Q4ProcessFun(partition: Int) extends ProcFun {
   // Set up logger
-  private val logger = Logger("ParentProcessFun")
-  Logger.setLevel("ParentProcessFun", "INFO")
-  logger.info("Starting ParentProcessFun")
+  private val logger = Logger("Q4ProcessFun")
+  Logger.setLevel("Q4ProcessFun", "INFO")
+  logger.info("Starting Q4ProcessFun")
 
   // First wrapper maps auctions to their highest bid
   val w0: CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] = AuctionToHighestBidWrapper
@@ -117,7 +117,7 @@ class ParentProcessFun(partition: Int) extends ProcFun {
     // read back the List[Array[Byte]]
     val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
 
-    // Restore each procFun in the list
+    // Restore each procFun in the listc
     snaps.zip(procfuns).foreach { case (bytes, pf) =>
       pf.restore(bytes)
     }
