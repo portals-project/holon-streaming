@@ -55,13 +55,12 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
         val result: String = w0.value(highestBid.windowMap(i)._1)
         val outputState = OutputState(partition, i, result)
         outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+
+        // Garbage collect the window
+        highestBid.garbageCollect(i - 1)
       }
       queriedWindow = lastClosedWindow
     }
-
-//    def processWindow(counter: GCounter, winKey: Long): BigInt = {
-//      // ...
-//    }
   }
 
   def snapshot(): Array[Byte] = {

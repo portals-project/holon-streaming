@@ -55,13 +55,12 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
         val result = bidCount.windowMap(i)._1.value
         val outputState = OutputState(partition, i, result.toString)
         outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+
+        // Garbage collect the window
+        bidCount.garbageCollect(i - 1)
       }
       queriedWindow = lastClosedWindow
     }
-
-//    def processWindow(counter: GCounter, winKey: Long): BigInt = {
-//      // ...
-//    }
   }
 
   def snapshot(): Array[Byte] = {

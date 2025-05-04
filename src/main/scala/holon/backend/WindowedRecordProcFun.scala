@@ -161,10 +161,10 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
     // Garbage collect old windows at defined intervals.
     // TODO: Find a better way to do this.
-    if (System.currentTimeMillis() % GARBAGE_COLLECTION_INTERVAL < 10) {
-      logger.debug(s"Garbage collecting windows for partition: $partition")
-      garbageCollect()
-    }
+//    if (System.currentTimeMillis() % GARBAGE_COLLECTION_INTERVAL < 10) {
+//      logger.debug(s"Garbage collecting windows for partition: $partition")
+//      garbageCollect()
+//    }
   }
 
   // Define the window for a given event time.
@@ -173,23 +173,13 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
-  private def garbageCollect(): Unit = {
-    if vectorClock.forall(_ == 0L) then return
-    val currentLocalWin = defineWindow(vectorClock.min)
-    if (currentLocalWin > 0) {
-      var windowsToRemove: List[Long] = List.empty
-      windowsToRemove = (emittedWindows until currentLocalWin - 1).toList
-      if (windowsToRemove.nonEmpty) {
-        logger.debug(s"partition: $partition, garbage collecting ${windowsToRemove.size} windows")
-        for (windowKey <- windowsToRemove) {
-          if (windowMap.contains(windowKey)) {
-            windowMap -= windowKey
-          }
-          if (logAppendTimePerWindow.contains(windowKey)) {
-            logAppendTimePerWindow -= windowKey
-          }
-        }
-      }
+  def garbageCollect(windowKey: Long): Unit = {
+    logger.debug(s"partition: $partition, garbage collecting for window key: ${windowKey}")
+    if (windowMap.contains(windowKey)) {
+      windowMap -= windowKey
+    }
+    if (logAppendTimePerWindow.contains(windowKey)) {
+      logAppendTimePerWindow -= windowKey
     }
   }
 
