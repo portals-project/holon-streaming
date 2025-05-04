@@ -37,10 +37,10 @@ spec:
               value: "{{ $.Values.holon.n_nodes }}"
             - name: PARTITIONS_PER_NODE
               value: "{{ $.Values.holon.partitions_per_node }}"
-            - name: RUNTIME
-              value: "{{ $.Values.holon.runtime }}"
             - name: SLEEP_BETWEEN_POLLS
               value: "{{ $.Values.holon.sleep_between_polls }}"
+            - name: RUNTIME
+              value: "{{ $.Values.holon.runtime }}"
           volumeMounts:
             - name: holon-storage
               mountPath: /app/snapshots

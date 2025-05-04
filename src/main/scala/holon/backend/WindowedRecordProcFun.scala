@@ -162,7 +162,9 @@ class WindowedRecordProcFun[T](partition: Int)(
         if (crdtValue != null) {
           val outputState = OutputState(partition, windowKey, crdtValue)
           logger.debug(s"partition: $partition, emitting window: $windowKey, value: $outputState")
-          logger.info(s"[LagAppendInput] - window: $windowKey, timestamp: ${logAppendTimePerWindow.getOrElse(windowKey, 0L)}")
+          if (logAppendTimePerWindow.contains(windowKey)) {
+            logger.info(s"[LagAppendInput] - window: $windowKey, timestamp: ${logAppendTimePerWindow(windowKey)}")
+          }
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary(outputState))))
           emittedWindows += windowKey
         }
