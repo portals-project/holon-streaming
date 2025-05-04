@@ -116,16 +116,13 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
         // Merge state received from other nodes.
         for (rec <- recs) {
           val receivedState = readBinary[WindowState[T]](rec._2)
-          // Process the received state if it matches our queryId (for multiple pary queries).
+          // Process the received state if it matches our queryId (for multiple queries).
+          // TODO: Find and add alternative for using queryId.
           if (receivedState.queryId == queryId) {
-            // Deconstruct the received state.
             val receivedPartition = receivedState.partition
-            val receivedVectorClock = receivedState.vectorClock
-            val receivedWindowMap = receivedState.windowMap
-
             logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
             // For each window in the received state, merge with our own state.
-            for ((windowKey, receivedAggregate) <- receivedWindowMap) {
+            for ((windowKey, receivedAggregate) <- receivedState.windowMap) {
               if (windowMap.contains(windowKey)) {
                 val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
                 windowMap(windowKey) = (merged, windowMap(windowKey)._2)
@@ -135,7 +132,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             }
             // Merge vector clock for the received partition.
             vectorClock(receivedPartition) =
-              math.max(vectorClock(receivedPartition), receivedVectorClock(receivedPartition))
+              math.max(vectorClock(receivedPartition), receivedState.vectorClock(receivedPartition))
           }
         }
       case _ =>
@@ -143,28 +140,17 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     }
 
     // Determine the current window based on the vector clock.
-    val currentLocalWin = defineWindow(vectorClock(partition))
-    if (currentLocalWin >= 0) {
-      val passedWindow: Long = currentLocalWin - 1
-      if (windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
-        // Mark the window as ready (closed) for emission.
-        windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
-        logger.debug(s"Broadcasting window state for partition: $partition")
-        // Only send the map of the passed window, including the key and the value.
-        val windowState = WindowState(partition,  queryId, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
-        logger.debug(s"partition: $partition, broadcasting window state: $windowState")
-        outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
+    val passedWindow: Long = defineWindow(vectorClock(partition)) - 1
+    if (passedWindow > 0 && windowMap.contains(passedWindow) && !windowMap(passedWindow)._2) {
+      // Mark the window as ready (closed) for emission.
+      windowMap(passedWindow) = (windowMap(passedWindow)._1, true)
+      // Only send the map of the passed window, including the key and the value.
+      val windowState = WindowState(partition,  queryId, vectorClock, windowMap.clone().filter(_._1 == passedWindow))
+      logger.debug(s"partition: $partition, broadcasting window state: $windowState")
+      outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
 
-        emittedWindows = math.max(emittedWindows, passedWindow)
-      }
+      emittedWindows = math.max(emittedWindows, passedWindow)
     }
-
-    // Garbage collect old windows at defined intervals.
-    // TODO: Find a better way to do this.
-//    if (System.currentTimeMillis() % GARBAGE_COLLECTION_INTERVAL < 10) {
-//      logger.debug(s"Garbage collecting windows for partition: $partition")
-//      garbageCollect()
-//    }
   }
 
   // Define the window for a given event time.
