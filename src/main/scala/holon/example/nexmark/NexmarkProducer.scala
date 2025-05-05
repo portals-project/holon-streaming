@@ -25,6 +25,7 @@ object NexmarkProducer {
             logger.info("Waiting for start flag to be set.")
             Thread.sleep(1_000)
         }
+        Thread.sleep(2_000) // Let holon nodes start first
 
         runProducer(host, port, PRODUCER_SLEEP_TIME_MS)
     }
@@ -67,6 +68,8 @@ object NexmarkProducer {
         Config.N_NODES = N_NODES
         val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
         Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
+        val WINDOW_L = sys.env.getOrElse("WINDOW_LENGTH", "10000").toLong
+        Config.WINDOW_LENGTH = WINDOW_L
     }
 
     def defineWindow(eventTime: Long): Long = {

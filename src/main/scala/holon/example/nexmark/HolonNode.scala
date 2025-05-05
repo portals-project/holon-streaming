@@ -24,7 +24,7 @@ object HolonNode {
 
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
-            System.out.println(s" Node: $nodeId Partitions: $partitions")
+            logger.info(s" [NODE START] Node: $nodeId Partitions: $partitions")
             val kafkaHost = kafkaBootstrapServers.split(":").head
             val kafkaPort = kafkaBootstrapServers.split(":").last.toInt
             val j = job(partitions, kafkaHost, kafkaPort)
@@ -45,6 +45,9 @@ object HolonNode {
 
         val sleepBetweenPolls = sys.env.getOrElse("SLEEP_BETWEEN_POLLS", "0").toLong
         Config.SLEEP_BETWEEN_POLLS = sleepBetweenPolls
+
+        val WINDOW_L = sys.env.getOrElse("WINDOW_LENGTH", "10000").toLong
+        Config.WINDOW_LENGTH = WINDOW_L
     }
 
     // Job function creates a job object with the specified consumers and producers

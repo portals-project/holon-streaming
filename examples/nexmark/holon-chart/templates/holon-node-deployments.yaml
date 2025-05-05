@@ -41,6 +41,8 @@ spec:
               value: "{{ $.Values.holon.sleep_between_polls }}"
             - name: RUNTIME
               value: "{{ $.Values.holon.runtime }}"
+            - name: WINDOW_LENGTH
+              value: "{{ $.Values.holon.window_length }}"
           volumeMounts:
             - name: holon-storage
               mountPath: /app/snapshots

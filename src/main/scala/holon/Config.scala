@@ -35,7 +35,7 @@ object Config {
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  var WINDOW_LENGTH = 5_000L
+  var WINDOW_LENGTH = 10_000L
 
   def nrOfKafkaPartitions(): Int = {
     N_NODES * PARTITIONS_PER_NODE

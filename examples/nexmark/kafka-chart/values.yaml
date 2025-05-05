@@ -5,5 +5,5 @@ initKafka:
   image: confluentinc/cp-kafka:6.1.1
 
 holon:
-  n_nodes: 3
+  n_nodes: 5
   partitions_per_node: 2
