@@ -48,12 +48,14 @@ docker push gcr.io/<your-project-id>/holon-node:latest
     # Update the image tags in the deployment files
     helm upgrade holon ./holon-chart
     ```
-6. The holon nodes and producer are started with 0 replicas. This is to prevent them from starting at very different times. 
-   To start them at  approx. the same time run:
-   ```bash
-   kubectl scale deployment holon-node-0 holon-node-1 holon-node-2 --replicas=1
-   kubectl scale deployment nexmark-producer-0 --replicas=1 
-   ```
+   
+
+
+These commands can be used to scale the deployments to the desired number of replicas.
+```bash
+kubectl scale deployment holon-node-0 holon-node-1 holon-node-2 --replicas=1
+kubectl scale deployment nexmark-producer-0 --replicas=1 
+```
 
 
 
