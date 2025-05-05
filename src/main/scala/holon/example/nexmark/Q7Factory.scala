@@ -2,11 +2,11 @@ package holon.example.nexmark
 
 import holon.ProcFun
 import holon.ProcFunFactory
-import holon.backend.BidCountProcessFun
+import holon.backend.Q7ProcessFun
 
 // This factory creates AuctionWindowedRecordProcFun instances using AuctionGCounterWrapper
-class BidCountWindowedFactory extends ProcFunFactory {
+class Q7Factory extends ProcFunFactory {
   override def create(partition: Int): ProcFun = {
-      new BidCountProcessFun(partition)
+    new Q7ProcessFun(partition)
   }
 }

@@ -1,7 +1,7 @@
 package holon.example.nexmark
 
 import holon.*
-import Config.*
+import holon.Config.*
 import holon.Utils.*
 
 object HolonNode {
@@ -69,7 +69,7 @@ object HolonNode {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            procFunFactory = new HighestBidWindowedFactory(),
+            procFunFactory = new Q5Factory(),
             partitions = partitions,
             )
         job

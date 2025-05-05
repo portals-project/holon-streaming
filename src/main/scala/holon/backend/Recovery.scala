@@ -251,8 +251,9 @@ class Recovery(nodeId: Int) {
                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                 LagManager.updateLag(senderId, lag)
                             }
+                            logger.debug(s"Partition: $partitionId calls the processing function for these: ${this.procFunctionPerPartition}")
                             this.procFunctionPerPartition.foreach((_, procFun) =>
-                                                                      procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
+                                                                      procFun.processInput(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
                                                                   )
                         }
                     }
@@ -262,7 +263,7 @@ class Recovery(nodeId: Int) {
                 val procFun = this.procFunctionPerPartition.getOrElse(partitionId, null)
                 if (procFun != null) {
                     logger.debug(s"Node $nodeId is processing records for partition $partitionId")
-                    procFun.process(outputFunction, chn, records)
+                    procFun.processInput(outputFunction, chn, records)
                 }
         }
     }
