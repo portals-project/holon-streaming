@@ -20,7 +20,6 @@ object OutputConsumer {
         Logger.setLevel("Consumer", "INFO")
 
         val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
-        val outputCountPerWindow = scala.collection.mutable.Map.empty[Long, Int]
 
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
@@ -35,17 +34,17 @@ object OutputConsumer {
                         val windowId = outputState.window
                         val outputValue = outputState.value
                         val logAppendTime = r._3
+                        // Take the minimum output log append time for the window
                         outputLagPerWindow(windowId) =
-                            math.max(outputLagPerWindow.getOrElse(windowId, 0L), logAppendTime)
-                        outputCountPerWindow(windowId) =
-                            outputCountPerWindow.getOrElse(windowId, 0) + 1
+                            if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
+                            else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
 
                         val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                         windowsToOutput.foreach { winId =>
                             logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-                            logger.info(s"[OUTPUT]: partition: $partition window: $winId, value: $outputValue")
                             outputLagPerWindow.remove(winId)
-                            outputCountPerWindow.remove(winId)
                         }
     }
 }

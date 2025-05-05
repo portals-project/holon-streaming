@@ -11,6 +11,15 @@ COPY project /app/project
 # Download dependencies
 RUN sbt update
 
+# Set the environment variable for the service account JSON file
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/.gcp/gcs-service-account.json
+ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
+
+# Copy the service account JSON file
+COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json
+COPY .gcp/firebase-user-account.json /app/.gcp/firebase-user-account.json
+
+
 # Copy the source code
 COPY src /app/src
 
