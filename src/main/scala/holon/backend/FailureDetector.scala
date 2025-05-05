@@ -7,14 +7,14 @@ import holon.Utils.RunThread
 import upickle.default.writeBinary
 
 class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) {
+    private val logger = Logger.apply("FailureDetector")
+    Logger.setLevel("FailureDetector", "INFO")
 
     private val heartbeatMap = scala.collection.mutable.Map.empty[Int, Long]
     private var heartbeatCheckTime: Long = -1
     private var startCheckingForFailures = false
     private val heartbeatThread = RunThread(this.sendHeartbeats())
 
-    private val logger = Logger.apply("FailureDetector")
-    Logger.setLevel("FailureDetector", "INFO")
 
     private def sendHeartbeats(): Unit = {
         while(true) {

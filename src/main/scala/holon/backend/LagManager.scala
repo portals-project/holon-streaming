@@ -59,7 +59,9 @@ object LagManager {
         if (t - lagCalculationTime > LAG_CALCULATION_INTERVAL) {
             lagCalculationTime = t
             calculateCurrentLag(consumerPerPartition)
-            logger.debug(s"Current lag: $currentLag and lag per node: $lagPerNode")
+            if (currentLag > 0) {
+                logger.info(s"Current lag: $currentLag and lag per node: $lagPerNode")
+            }
         }
     }
 

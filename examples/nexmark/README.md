@@ -39,8 +39,29 @@ docker push gcr.io/<your-project-id>/holon-node:latest
    ```bash
    gcloud container clusters get-credentials YOUR_CLUSTER_NAME --zone YOUR_COMPUTE_ZONE
    ```
-5. Apply the Kubernetes manifests to create the necessary resources in your GKE cluster.
+   
+5. Deploy the helm charts
     ```bash
+    helm install kafka ./kafka-chart
+    helm install holon ./holon-chart
+  
+    # Update the image tags in the deployment files
+    helm upgrade holon ./holon-chart
+    ```
+   
+
+
+These commands can be used to scale the deployments to the desired number of replicas.
+```bash
+kubectl scale deployment holon-node-0 holon-node-1 holon-node-2 --replicas=1
+kubectl scale deployment nexmark-producer-0 --replicas=1 
+```
+
+
+
+OR: Apply the Kubernetes manifests to create the necessary resources in your GKE cluster.
+
+   ```bash
     kubectl apply -f combined-kubernetes.yaml 
 
    ```
