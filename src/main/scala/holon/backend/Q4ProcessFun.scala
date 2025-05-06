@@ -65,15 +65,17 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
       for (i <- queriedWindow until lastClosedWindow) {
         logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        val result = processWindow(auctionToBids.windowMap(i)._1, auctionToCats.windowMap(i)._1, i)
-        val outputState = OutputState(partition, i, result.toString())
-        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+        if auctionToBids.windowMap.contains(i) && auctionToCats.windowMap.contains(i) then
+          val result = processWindow(auctionToBids.windowMap(i)._1, auctionToCats.windowMap(i)._1, i)
+          val outputState = OutputState(partition, i, result.toString())
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
-        // Garbage collect the window
-        auctionToBids.garbageCollect(i - 1)
-        auctionToCats.garbageCollect(i - 1)
+          // Garbage collect the window
+          auctionToBids.garbageCollect(i)
+          auctionToCats.garbageCollect(i)
+
+          queriedWindow = lastClosedWindow
       }
-      queriedWindow = lastClosedWindow
     }
 
     def processWindow(bidsSet: GSet[(Long, Long)], catsSet: GSet[(Long, Long)], winKey: Long): Map[Long, Double] = {
