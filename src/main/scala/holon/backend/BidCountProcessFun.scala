@@ -20,12 +20,16 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
 
   var procfuns: List[WindowedRecordProcFun[GCounter, String]] = List(bidCount)
 
-  logger.debug(s"Set up procfuns: $procfuns")
+  logger.info(s"Set up procfuns: $procfuns")
 
   // Holds the latest window key that has been queried and processed.
   var queriedWindow: Long = 1L
   // Holds the last closed window key.
   var lastClosedWindow: Long = 0L
+
+  val startTime: Long = System.currentTimeMillis()
+
+  val defineWindow: Long => Long = bidCount.defineWindow
 
   def processInput(
                       outputFunction: (Int, Byte, LogProducerRecords) => Unit,
@@ -33,18 +37,19 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
                  rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val defineWindow = bidCount.defineWindow
     val out0 = bidCount.processInput(outputFunction, chn, inputRecords)
+    
+    logger.debug(s"partition: $partition start processing input records: $inputRecords")
 
     // Get the minimum vector clock value from both queries
     val minVC: Array[Long] = bidCount.vectorClock
 
-    logger.debug(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
+    //logger.info(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
 
     // Start processing windows if vc is not empty
     if !minVC.contains(0) then
       // Get the minimum vector clock value across all partitions
-      lastClosedWindow = defineWindow(minVC.min) - 1L
+      lastClosedWindow = defineWindow(minVC.min) - 5L
     else
       lastClosedWindow = -1L
 
@@ -52,14 +57,16 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
       for (i <- queriedWindow until lastClosedWindow) {
         logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        val result = bidCount.windowMap(i)._1.value
-        val outputState = OutputState(partition, i, result.toString)
-        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+        if bidCount.windowMap.contains(i) then
+          logger.debug(s"partition: $partition window data for window $i: ${bidCount.windowMap(i)}")
+          val result = bidCount.windowMap(i)._1.value
+          val outputState = OutputState(partition, i, result.toString)
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
-        // Garbage collect the window
-        bidCount.garbageCollect(i - 1)
+          // Garbage collect the window
+          bidCount.garbageCollect(i)
+          queriedWindow = i
       }
-      queriedWindow = lastClosedWindow
     }
   }
 
@@ -71,7 +78,6 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
   def restore(allBytes: Array[Byte]): Unit = {
     // read back the List[Array[Byte]]
     val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
-
     // Restore each procFun in the listc
     snaps.zip(procfuns).foreach { case (bytes, pf) =>
       pf.restore(bytes)

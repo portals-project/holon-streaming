@@ -58,8 +58,8 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
 
         // Garbage collect the window
         highestBid.garbageCollect(i - 1)
+        queriedWindow = lastClosedWindow
       }
-      queriedWindow = lastClosedWindow
     }
   }
 
