@@ -27,13 +27,14 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
   // Holds the last closed window key.
   var lastClosedWindow: Long = 0L
 
+  val defineWindow = highestBid.defineWindow
+
   def processInput(
                       outputFunction: (Int, Byte, LogProducerRecords) => Unit,
                  chn: Byte,
                  rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val defineWindow = highestBid.defineWindow
     val out0: Unit = highestBid.processInput(outputFunction, chn, inputRecords)
 
     // Get the minimum vector clock value from both queries
@@ -52,13 +53,14 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
       for (i <- queriedWindow until lastClosedWindow) {
         logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        val result: String = w0.value(highestBid.windowMap(i)._1)
-        val outputState = OutputState(partition, i, result)
-        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+        if highestBid.windowMap.contains(i)then
+          val result: String = w0.value(highestBid.windowMap(i)._1)
+          val outputState = OutputState(partition, i, result)
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
-        // Garbage collect the window
-        highestBid.garbageCollect(i - 1)
-        queriedWindow = lastClosedWindow
+          // Garbage collect the window
+          highestBid.garbageCollect(i)
+          queriedWindow = i
       }
     }
   }

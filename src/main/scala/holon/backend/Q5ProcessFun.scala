@@ -52,14 +52,16 @@ class Q5ProcessFun(partition: Int) extends ProcFun {
       for (i <- queriedWindow until lastClosedWindow) {
         logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        val result: String = w0.value(mostPopularAuction.windowMap(i)._1)
-        val outputState = OutputState(partition, i, result)
-        outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
+        if mostPopularAuction.windowMap.contains(i) then
+          // Get the result from the window
+          val result: String = w0.value(mostPopularAuction.windowMap(i)._1)
+          val outputState = OutputState(partition, i, result)
+          outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
-        // Garbage collect the window
-        mostPopularAuction.garbageCollect(i - 1)
+          // Garbage collect the window
+          mostPopularAuction.garbageCollect(i)
+          queriedWindow = i
       }
-      queriedWindow = lastClosedWindow
     }
   }
 
