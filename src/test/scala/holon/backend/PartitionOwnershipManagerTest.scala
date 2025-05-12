@@ -1,8 +1,8 @@
 package holon.backend
 
+import holon.Config
 import holon.backend.messages.OwnershipEntry
 import org.scalatest.funsuite.AnyFunSuite
-import holon.example.nexmark.Config
 
 class PartitionOwnershipManagerTest extends AnyFunSuite {
 

@@ -22,10 +22,9 @@ object Nexmark:
   def iterator(): Iterator[Events.TimeStampedEvent] =
     val nexmarkConfig = NexmarkConfiguration.DEFAULT
 
-    // Set nexmark config parameters
-//    nexmarkConfig.hotAuctionRatio = 10
-//    nexmarkConfig.hotBiddersRatio = 10
-//    nexmarkConfig.hotSellersRatio = 10
+    nexmarkConfig.hotAuctionRatio = 2
+    nexmarkConfig.hotBiddersRatio = 4
+    nexmarkConfig.hotSellersRatio = 4
 
     val config = new GeneratorConfig(nexmarkConfig, 0, 0, 0, 0)
     val generator = new Generator(config)

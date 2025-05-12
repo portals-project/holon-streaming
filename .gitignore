@@ -9,4 +9,5 @@
 metals.sbt
 project/project/
 target/
-.sc
+*.sc
+snapshots

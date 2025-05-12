@@ -16,7 +16,8 @@ class KafkaSystem(nPartitions: Int, host: String, port: Int):
     override def zooKeeperPort = port + 1
     override def customBrokerProperties = Map(
       "auto.create.topics.enable" -> "false",
-      "num.partitions" -> s"$nPartitions"
+      "num.partitions" -> s"$nPartitions",
+      "log.message.timestamp.type" -> "LogAppendTime"
     )
     override def customProducerProperties: Map[String, String] = Map.empty
     override def customConsumerProperties: Map[String, String] = Map.empty
@@ -31,6 +32,9 @@ class KafkaSystem(nPartitions: Int, host: String, port: Int):
 
   def stop(): Unit =
     EmbeddedKafka.stop()
+    
+  def deleteTopics(topics: List[String]): Unit =
+    EmbeddedKafka.deleteTopics(topics)(using customKafkaConfig)
 
   private def checkArguments(): Unit =
     if nPartitions < 1 then throw new IllegalArgumentException("nPartitions must be at least 1")

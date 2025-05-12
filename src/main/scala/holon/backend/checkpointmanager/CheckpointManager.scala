@@ -1,9 +1,10 @@
 package holon.backend.checkpointmanager
 
-import holon.example.nexmark.Config.*
+import holon.Config.*
 import holon.*
 
 import java.util.Base64
+import scala.collection.immutable.Map
 
 abstract class CheckpointManager {
 
@@ -31,6 +32,7 @@ abstract class CheckpointManager {
                 partitionSnapshots.put(partitionId, (consumerOffset,snapshotContent))
             })
             savePartitionSnapshots(nodeId, partitionSnapshots)
+            sendCheckpointMessage(nodeId, partitionSnapshots.toMap)
             logger.info(s"Checkpoint created for partitions ${partitionSnapshots.keySet}")
 
             // Save broadcast & control channel offset for node.
@@ -116,6 +118,8 @@ abstract class CheckpointManager {
     /** HELPERS */
 
     def sendCheckpointMessage(nodeId: Int): Unit
+
+    def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit
 
     private def createNodeOffsetString(broadcastOffset: Long, controlOffset: Long): String = {
         broadcastOffset.toString + ":" + controlOffset.toString

@@ -1,13 +1,13 @@
 package holon.backend
 
 import holon.*
-import holon.example.nexmark.Config.*
+import Config.*
 
 object LagManager {
 
     // Keeps track of the current lag for this node across all partitions
     private val LAG_CALCULATION_INTERVAL = 1_000
-    private var lagCalculationTime = System.currentTimeMillis()
+    var lagCalculationTime = System.currentTimeMillis()
     private val lagPerNode = scala.collection.mutable.Map.empty[Int, Long]
     private var currentLag = 0L
     private val logger = Logger.apply("LagManager")
@@ -59,7 +59,9 @@ object LagManager {
         if (t - lagCalculationTime > LAG_CALCULATION_INTERVAL) {
             lagCalculationTime = t
             calculateCurrentLag(consumerPerPartition)
-            logger.debug(s"Current lag: $currentLag and lag per node: $lagPerNode")
+            if (currentLag > 0) {
+                logger.info(s"Current lag: $currentLag and lag per node: $lagPerNode")
+            }
         }
     }
 
@@ -68,5 +70,4 @@ object LagManager {
             consumer.lag()
         }.sum
     }
-
 }

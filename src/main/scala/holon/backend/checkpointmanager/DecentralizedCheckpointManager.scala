@@ -3,9 +3,10 @@ package holon.backend.checkpointmanager
 import holon.*
 import upickle.default.writeBinary
 import holon.backend.messages.Checkpoint
-import holon.example.nexmark.Config.CHN_CONTROL
+import Config.CHN_CONTROL
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
+import scala.collection.immutable.Map
 
 class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends CheckpointManager {
 
@@ -22,8 +23,6 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
         partitionSnapshots.foreach((partitionId, snapshotContent) => {
             saveLocalFile(partitionSnapshotPath(partitionId), snapshotContentFormat(snapshotContent))
         })
-
-        sendCheckpointMessage(nodeId, partitionSnapshots.toMap)
     }
 
     /**
@@ -121,7 +120,7 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
         sendCheckpointMessage(nodeId, partitionSnapshots.toMap)
     }
 
-    private def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
+    def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
         val message = Checkpoint(nodeId, partitionSnapshots)
         val serializedMessage = writeBinary(message)
         val records = List((writeBinary(0), serializedMessage))

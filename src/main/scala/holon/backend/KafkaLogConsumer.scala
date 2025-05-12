@@ -29,7 +29,7 @@ class KafkaLogConsumer(
     override def poll(): LogConsumerRecords =
         val records = cons.poll(java.time.Duration.ZERO)
         records.asScala.map { rec =>
-            (rec.key(), rec.value())
+            (rec.key(), rec.value(), rec.timestamp())
         }
 
     override def seek(partition: Int, offset: Long): Unit =

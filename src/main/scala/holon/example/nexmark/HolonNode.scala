@@ -1,12 +1,40 @@
 package holon.example.nexmark
 
 import holon.*
-import holon.example.nexmark.Config.*
+import Config.*
 import holon.Utils.*
 
 object HolonNode {
 
+    private val FirestoreClient = holon.backend.cloud.FirestoreClient
+
+    private val logger = Logger("HolonNode")
+    Logger.setLevel("HolonNode", "INFO")
+
     def main(args: Array[String]): Unit = {
+        setupConfig()
+        val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
+        val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
+        val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
+        
+        while (!FirestoreClient.isStartFlagSet) {
+            logger.info("Waiting for start flag to be set.")
+            Thread.sleep(500)
+        }
+
+        SafeRun(RUNTIME) {
+            val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
+            System.out.println(s" Node: $nodeId Partitions: $partitions")
+            val kafkaHost = kafkaBootstrapServers.split(":").head
+            val kafkaPort = kafkaBootstrapServers.split(":").last.toInt
+            val j = job(partitions, kafkaHost, kafkaPort)
+            val holon = Holon(nodeId)
+            holon.submitOrUpdate(j)
+            Thread.sleep(RUNTIME)
+        }
+    }
+
+    def setupConfig(): Unit = {
         Config.KAFKA_HOST = "kafka"
         Config.KAFKA_PORT = 9093
 
@@ -14,58 +42,40 @@ object HolonNode {
         Config.N_NODES = N_NODES
         val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
         Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
-        KAFKA_N_PARTITIONS = N_NODES * PARTITIONS_PER_NODE
 
-        val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
-        val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
         val sleepBetweenPolls = sys.env.getOrElse("SLEEP_BETWEEN_POLLS", "0").toLong
         Config.SLEEP_BETWEEN_POLLS = sleepBetweenPolls
-
-        val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
-
-        SafeRun(RUNTIME) {
-            val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
-            System.out.println(s" Node: $nodeId Partitions: $partitions")
-            val j = job(partitions, kafkaBootstrapServers)
-            val holon = Holon(nodeId)
-            holon.submitOrUpdate(j)
-            Thread.sleep(RUNTIME)
-        }
     }
 
-    def job(partitions: List[Int], kafkaBootstrapServer: String): Job = {
-        val kafka_host = kafkaBootstrapServer.split(":").head
-        val kafka_port = kafkaBootstrapServer.split(":").last.toInt
+    // Job function creates a job object with the specified consumers and producers
+    def job(partitions: List[Int], kafkaHost: String, kafkaPort: Int): Job = {
 
         val nexmarkConsumers = partitions.map { partition =>
-            consumerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, partition, kafka_host, kafka_port)
+            consumerRef(CHN_INPUT, KAFKA_TOPIC_INPUT, partition, kafkaHost, kafkaPort)
         }
         val internalConsumers = List(
-            consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0, kafka_host, kafka_port),
-            consumerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, 0, kafka_host, kafka_port)
+            consumerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, 0, kafkaHost, kafkaPort),
+            consumerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, 0, kafkaHost, kafkaPort)
             )
         val consumers = nexmarkConsumers ++ internalConsumers
 
         val producers = List(
-            producerRef(CHN_NEXMARK, KAFKA_TOPIC_NEXMARK, kafka_host, kafka_port),
-            producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, kafka_host, kafka_port),
-            producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, kafka_host, kafka_port),
-            producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT, kafka_host, kafka_port),
+            producerRef(CHN_INPUT, KAFKA_TOPIC_INPUT, kafkaHost, kafkaPort),
+            producerRef(CHN_BROADCAST, KAFKA_TOPIC_BROADCAST, kafkaHost, kafkaPort),
+            producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, kafkaHost, kafkaPort),
+            producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT, kafkaHost, kafkaPort),
             )
 
         val job = Job(
             consumers = consumers,
             producers = producers,
-//            procFunFactory = new RecordProcFunFactory(),
-//            procFunFactory = new WindowedRecordProcFunFactory(),
-            procFunFactory = new AuctionWindowedRecordProcFunFactory(),
+            procFunFactory = new HighestBidWindowedFactory(),
             partitions = partitions,
             )
-
         job
     }
 
-    private def consumerRef(chn: Byte, topic: String, partition: Int, host: String, port: Int) =
+    def consumerRef(chn: Byte, topic: String, partition: Int, host: String, port: Int): ConsumerRef =
         ConsumerRef(
             chn = chn,
             host = host,
@@ -74,7 +84,7 @@ object HolonNode {
             partitions = List(partition),
             )
 
-    private def producerRef(chn: Byte, topic: String, host: String, port: Int) =
+    def producerRef(chn: Byte, topic: String, host: String, port: Int): ProducerRef =
         ProducerRef(
             chn = chn,
             host = host,

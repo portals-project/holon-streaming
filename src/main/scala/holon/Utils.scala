@@ -46,6 +46,19 @@ object Utils:
     thread.start()
     thread
 
+  def RunThreadWithTimeLimit(f: => Unit, timeLimitMillis: Long): Thread =
+    val thread = new Thread(() =>
+      try
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeLimitMillis) {
+          f
+        }
+      catch
+        case _: InterruptedException => // Handle thread interruption gracefully
+    )
+    thread.start()
+    thread
+
   //////////////////////////////////////////////////////////////////////////////
   // Benchmarking utils
   //////////////////////////////////////////////////////////////////////////////

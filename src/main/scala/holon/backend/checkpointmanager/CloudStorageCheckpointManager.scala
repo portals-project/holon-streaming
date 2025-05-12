@@ -1,10 +1,15 @@
 package holon.backend.checkpointmanager
 
-import holon.backend.GCSClient
-import holon.backend.GCSClient.bucketName
 import holon.*
+import holon.backend.cloud.GCSClient.bucketName
+import holon.backend.cloud.GCSClient
+import holon.backend.messages.Checkpoint
+import holon.Config.CHN_CONTROL
+import upickle.default.writeBinary
 
-class CloudStorageCheckpointManager extends CheckpointManager {
+import scala.collection.immutable.Map
+
+class CloudStorageCheckpointManager(outputCollector: OutputCollector) extends CheckpointManager {
 
     private val logger = Logger.apply("CloudStorageCheckpointManager")
     Logger.setLevel("CloudStorageCheckpointManager", "INFO")
@@ -23,10 +28,6 @@ class CloudStorageCheckpointManager extends CheckpointManager {
 
     def saveSnapshotsFromOtherNodes(partitionSnapshots: Map[Int, (Long, String)]): Unit = {
         // Ignore snapshots from other nodes
-    }
-
-    def sendCheckpointMessage(nodeId: Int): Unit = {
-        // Ignore sending checkpoint messages
     }
 
     /**
@@ -58,6 +59,27 @@ class CloudStorageCheckpointManager extends CheckpointManager {
             val Array(offset: String, snapshotString: String) = fileContent.split(":")
             restorePartitionSnapshot(partitionId, offset.toLong, snapshotString, procFun, consumer)
         }
+    }
+
+    def sendCheckpointMessage(nodeId: Int): Unit = {
+        // Not required for cloud storage implementation. As we are only sharing the offsets with other nodes
+        // and in the cases where no partitionSnapshots are directly provided, we do not need to send a message.
+    }
+
+    def sendCheckpointMessage(nodeId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
+        // Only share offsets for each snapshot with other nodes. This is used to compare ownership when 2 nodes process the same partition.
+        // The snapshot itself is not shared, as it is not needed for recovery.
+        val sharableCheckpoints = scala.collection.mutable.Map[Int, (Long, String)]()
+        for ((partitionId, snapshotContent) <- partitionSnapshots) {
+            val (offset, _) = snapshotContent
+            sharableCheckpoints.put(partitionId, (offset, ""))
+        }
+
+        val message = Checkpoint(nodeId, sharableCheckpoints.toMap)
+        val serializedMessage = writeBinary(message)
+        val records = List((writeBinary(0), serializedMessage))
+
+        outputCollector.collect(CHN_CONTROL, records)
     }
 
     private def getPartitionSnapshotName(partitionId: Int): String = {

@@ -1,6 +1,6 @@
 package holon
 
-type LogConsumerRecords = Iterable[(Array[Byte], Array[Byte])]
+type LogConsumerRecords = Iterable[(Array[Byte], Array[Byte], Long)]
 
 trait LogConsumer {
   def poll(): LogConsumerRecords

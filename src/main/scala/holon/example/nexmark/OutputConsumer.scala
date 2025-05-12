@@ -1,9 +1,9 @@
 package holon.example.nexmark
 
 import holon.*
+import holon.Config.*
 import holon.backend.*
-import holon.example.nexmark.Config.*
-import upickle.default.*
+import upickle.legacy.*
 
 object OutputConsumer {
 
@@ -12,10 +12,16 @@ object OutputConsumer {
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
 
+        consumeOutput(host, port)
+    }
+
+    def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
-        val output = KafkaLogConsumer(host, port, KAFKA_TOPIC_OUTPUT, (0 until KAFKA_N_PARTITIONS).toList)
 
+        val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
+
+        val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
                 case Nil =>
@@ -26,10 +32,19 @@ object OutputConsumer {
                         // Deconstruct the output state
                         val partition = outputState.partition
                         val windowId = outputState.window
-                        val auctionId = outputState.auctionId
-                        val crdtValue = outputState.bidCount
+                        val outputValue = outputState.value
+                        val logAppendTime = r._3
+                        // Take the minimum output log append time for the window
+                        outputLagPerWindow(windowId) =
+                            if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
+                            else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
-                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId auction: $auctionId closed a window with final aggregate: $crdtValue")
+                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+
+                        val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
+                        windowsToOutput.foreach { winId =>
+                            logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                            outputLagPerWindow.remove(winId)
+                        }
     }
-
 }

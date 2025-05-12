@@ -1,18 +1,33 @@
 package holon.backend
 
 import holon.*
-import holon.example.nexmark.Config.*
+import Config.*
+import holon.backend.messages.Heartbeat
+import holon.Utils.RunThread
+import upickle.default.writeBinary
 
-class FailureDetector(currentNodeId: Int) {
-
-    private val HEARTBEAT_INTERVAL = 5_000L
+class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) {
+    private val logger = Logger.apply("FailureDetector")
+    Logger.setLevel("FailureDetector", "INFO")
 
     private val heartbeatMap = scala.collection.mutable.Map.empty[Int, Long]
     private var heartbeatCheckTime: Long = -1
-    private val logger = Logger.apply("FailureDetector")
     private var startCheckingForFailures = false
+    private val heartbeatThread = RunThread(this.sendHeartbeats())
 
-    Logger.setLevel("FailureDetector", "INFO")
+
+    private def sendHeartbeats(): Unit = {
+        while(true) {
+            logger.debug(s"Heartbeat: $currentNodeId")
+            outputCollector.collect(CHN_CONTROL, List((writeBinary(0), writeBinary(Heartbeat(currentNodeId)))))
+            Thread.sleep(HEARTBEAT_INTERVAL)
+        }
+    }
+
+    def stop(): Unit = {
+        heartbeatThread.interrupt()
+        heartbeatThread.join()
+    }
 
     def setHeartbeat(nodeId: Int): Unit = {
         heartbeatMap.put(nodeId, System.currentTimeMillis())
@@ -40,12 +55,12 @@ class FailureDetector(currentNodeId: Int) {
      */
     def checkNodeFailures(): Option[List[Int]] = {
         val t = System.currentTimeMillis()
-        if startCheckingForFailures && heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > HEARTBEAT_INTERVAL then {
+        if startCheckingForFailures && heartbeatCheckTime > 0 && (t - heartbeatCheckTime) > FAILURE_DETECTION_THRESHOLD then {
             logger.debug(s"Checking for failed nodes $heartbeatMap")
             heartbeatCheckTime = System.currentTimeMillis()
 
             val failedNodes = heartbeatMap.filter { case (_, lastHeartbeat) =>
-                (t - lastHeartbeat) > HEARTBEAT_INTERVAL
+                (t - lastHeartbeat) > FAILURE_DETECTION_THRESHOLD
             }.keys
 
             return Some(failedNodes.toList)

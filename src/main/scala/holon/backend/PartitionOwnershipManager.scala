@@ -2,7 +2,7 @@ package holon.backend
 
 import holon.*
 import holon.backend.messages.OwnershipEntry
-import holon.example.nexmark.Config.N_NODES
+import Config.N_NODES
 
 class PartitionOwnershipManager(nodeId: Int) {
     var partitionToNodeId: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
@@ -64,7 +64,7 @@ class PartitionOwnershipManager(nodeId: Int) {
                     partitionToNodeId.put(partition, ownershipEntry)
             }
         }
-        logger.info(s"Merged ownership map: $partitionToNodeId")
+        logger.debug(s"Merged ownership map: $partitionToNodeId")
     }
 
     /**
@@ -89,9 +89,6 @@ class PartitionOwnershipManager(nodeId: Int) {
         newOwnedPartitions.toList
     }
 
-    def getOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = {
-        partitionToNodeId
-    }
 
     /**
      * Check if the current node is responsible for taking over the partitions of the failed node.
@@ -99,11 +96,13 @@ class PartitionOwnershipManager(nodeId: Int) {
     def checkOwnershipResponsibilityAfterFailure(failedNode: Int, failedNodes: List[Int]): Boolean = {
         var owner = failedNode
         while failedNodes.contains(owner) do
-        // TODO add test for this to be sure!
         // If the failed node is also the current node, then the current node is responsible for redistribution
             owner = (owner + 1) % N_NODES
 
         owner == nodeId
     }
 
+    def getOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = {
+        partitionToNodeId
+    }
 }

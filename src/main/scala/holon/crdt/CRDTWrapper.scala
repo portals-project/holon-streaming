@@ -1,20 +1,20 @@
 package holon.crdt
 
+import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.SelfUniqueAddress
 
 trait CRDTWrapper[T] {
-  def empty: T
-
-  // Existing method for simple counters.
-  def increment(crdt: T, address: SelfUniqueAddress, delta: Long): T
-
-  // Overloaded method for map-based CRDTs,
-  def increment(crdt: T, address: SelfUniqueAddress, delta: Long, key: String): T
+  type EventType
+  
+  def checkType(tsEvent: Nexmark.Events.TimeStampedEvent): Option[EventType]
+  
+  def timeStamp(event: EventType): Long
+  
+  def empty(address: SelfUniqueAddress): T
+  
+  def increment(crdt: T, address: SelfUniqueAddress, delta: EventType): T
 
   def merge(a: T, b: T): T
-
-  def value(crdt: T): BigInt
   
-  //TODO: find better way to implement this  
-  def value(crdt: T, string: String): Map[String, BigInt]
+  def value(crdt: T): String
 }
