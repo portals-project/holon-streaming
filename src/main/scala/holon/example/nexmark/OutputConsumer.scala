@@ -5,6 +5,8 @@ import holon.Config.*
 import holon.backend.*
 import upickle.legacy.*
 
+import scala.collection.mutable
+
 object OutputConsumer {
 
     def main(args: Array[String]): Unit = {
@@ -18,9 +20,7 @@ object OutputConsumer {
     def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
-
-        val outputLagPerWindow = scala.collection.mutable.Map.empty[Long, Long]
-
+        val outputLagPerWindow = mutable.Map.empty[Long, Long]
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match

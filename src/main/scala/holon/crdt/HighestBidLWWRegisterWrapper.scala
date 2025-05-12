@@ -6,7 +6,7 @@ import org.apache.pekko.cluster.ddata.{LWWRegister, SelfUniqueAddress}
 import org.apache.pekko.cluster.ddata.LWWRegister.Clock
 import upickle.legacy.{readBinary, writeBinary}
 
-object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]]] {
+object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]], String] {
   type EventType = Nexmark.Events.Bid
 
   // 1) Clock that extracts price from the serialized tuple
@@ -31,7 +31,7 @@ object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]]
     LWWRegister.create(address, writeBinary((0L, 0L)), customPriceClock)
 
   // 3) On each Bid, decode current price and only replace if higher
-  override def increment(crdt: LWWRegister[Array[Byte]], address: SelfUniqueAddress, delta: EventType): LWWRegister[Array[Byte]] =
+  override def update(crdt: LWWRegister[Array[Byte]], address: SelfUniqueAddress, delta: EventType): LWWRegister[Array[Byte]] =
     val (_, currentPrice) = readBinary[(Long, Long)](crdt.value)
     if (delta.price > currentPrice) {
       val newBytes = writeBinary((delta.bidder, delta.price))

@@ -9,6 +9,7 @@ import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
+import KafkaDebugger.*
 
 class Recovery(nodeId: Int) {
 
@@ -126,7 +127,7 @@ class Recovery(nodeId: Int) {
         if (this.consumerPerPartition.nonEmpty) {
             processOtherChannels()
         } else {
-            attemptWorkSteal()
+           attemptWorkSteal()
         }
         // Flush all producers
         for ((chn, producer) <- producers) do producer.flush()
@@ -183,18 +184,18 @@ class Recovery(nodeId: Int) {
                                 ownershipManager.mergeOwnershipMap(ownershipMap)
                                 receivedOwnershipState = true
                             case OwnershipStateRequest(senderId) =>
-                                logger.info(s"($nodeId) Received ownership state request from node $senderId")
+                                logger.debug(s"($nodeId) Received ownership state request from node $senderId")
                                 this.checkpointManager.sendCheckpointMessage(nodeId)
                                 val ownershipMap = ownershipManager.getOwnershipMap
                                 sendControlMessage(OwnershipState(ownershipMap, nodeId))
                             case OwnershipTransferRequest(receiverId, partitions, senderId) =>
                                 if (receiverId == nodeId) {
-                                    logger.info(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
+                                    logger.debug(s"($nodeId) Received ownership request from $senderId for partitions $partitions")
                                     handleOwnershipTransferRequest(senderId, partitions)
                                 }
                             case OwnershipTransferDenial(receiverId, partitions, senderId) =>
                                 if (receiverId == nodeId) {
-                                    logger.info(s"(Node $nodeId) Received ownership denial from node $senderId for partitions $partitions")
+                                    logger.debug(s"(Node $nodeId) Received ownership denial from node $senderId for partitions $partitions")
                                     LagManager.updateLag(senderId, 0)
                                 }
                         }
@@ -210,11 +211,14 @@ class Recovery(nodeId: Int) {
      * Process messages from channels other than the Control channel.
      */
     private def processOtherChannels(): Unit = {
+        logger.debug(s"Node $nodeId is processing other channels with ${this.consumerPerPartition} consumers")
         for ((partitionId, (chn, consumer)) <- this.consumerPerPartition) {
+            logger.debug(s"Node $nodeId is processing partition $partitionId with channel $chn")
             if (chn != CHN_CONTROL) {
                 try {
                     val records = consumer.poll()
 
+                    logger.debug(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn and will process them")
                     if (records.nonEmpty) {
                         processRecords(chn, partitionId, records)
                     } else if (pollsWithoutRecords >= WORK_STEALING_THRESHOLD) {
@@ -251,8 +255,10 @@ class Recovery(nodeId: Int) {
                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                 LagManager.updateLag(senderId, lag)
                             }
+                            logger.debug(s"Node $nodeId received CRDT update from node $senderId, one of the ${message} records")
+                            logger.debug(s"Node $nodeId, Partition: $partitionId calls the processing function for these: ${this.procFunctionPerPartition}")
                             this.procFunctionPerPartition.foreach((_, procFun) =>
-                                                                      procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
+                                                                      procFun.processInput(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
                                                                   )
                         }
                     }
@@ -262,7 +268,7 @@ class Recovery(nodeId: Int) {
                 val procFun = this.procFunctionPerPartition.getOrElse(partitionId, null)
                 if (procFun != null) {
                     logger.debug(s"Node $nodeId is processing records for partition $partitionId")
-                    procFun.process(outputFunction, chn, records)
+                    procFun.processInput(outputFunction, chn, records)
                 }
         }
     }
@@ -471,7 +477,8 @@ class Recovery(nodeId: Int) {
     }
 
     private def removeConsumerAndProcFun(partitionId: Int): Unit = {
-        val (_chn, consumer) = this.consumerPerPartition(partitionId)
+        logger.info(s"Node $nodeId is removing consumer and processing function for partition $partitionId from ${this.consumerPerPartition}")
+        val (_chn, consumer) = this.consumerPerPartition.getOrElse(partitionId, (0, null))
         if (consumer == null) {
             logger.warn(s"Consumer for partition $partitionId is null. Cannot remove consumer and processing function")
             return

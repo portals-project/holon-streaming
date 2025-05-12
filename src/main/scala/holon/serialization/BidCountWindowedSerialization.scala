@@ -15,10 +15,3 @@ implicit val gcounterRW: ReadWriter[GCounter] = readwriter[Array[Byte]].bimap[GC
   gc => CRDT.crdtToBinaryWithManifest("GCounter", gc),
   bytes => CRDT.crdtFromBinaryWithManifest(bytes)._2.asInstanceOf[GCounter]
 )
-
-// Generic implicit for mutable maps
-implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[scala.collection.mutable.Map[K, V]] =
-  readwriter[Map[K, V]].bimap[scala.collection.mutable.Map[K, V]](
-    _.toMap,
-    m => scala.collection.mutable.Map.empty[K, V] ++ m
-  )
