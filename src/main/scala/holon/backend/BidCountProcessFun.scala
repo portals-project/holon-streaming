@@ -2,10 +2,10 @@ package holon.backend
 
 import holon.*
 import holon.Config.CHN_OUTPUT
-import holon.crdt.{AuctionToCategoryWrapper, AuctionToHighestBidWrapper, BidCountGCounterWrapper, CRDTWrapper}
+import holon.crdt.{BidCountGCounterWrapper, CRDTWrapper}
 import holon.serialization.*
-import org.apache.pekko.cluster.ddata.{GCounter, GSet}
-import upickle.legacy.{ReadWriter, readBinary, readwriter, writeBinary}
+import org.apache.pekko.cluster.ddata.GCounter
+import upickle.legacy.{readBinary, writeBinary}
 
 // Count total amount of bids
 class BidCountProcessFun(partition: Int) extends ProcFun {
@@ -37,7 +37,7 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
                  rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val out0 = bidCount.processInput(outputFunction, chn, inputRecords)
+    val out0: Unit = bidCount.processInput(outputFunction, chn, inputRecords)
     
     logger.debug(s"partition: $partition start processing input records: $inputRecords")
 

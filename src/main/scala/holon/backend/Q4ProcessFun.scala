@@ -3,9 +3,8 @@ package holon.backend
 import holon.Config.CHN_OUTPUT
 import holon.crdt.{AuctionToCategoryWrapper, AuctionToHighestBidWrapper, CRDTWrapper}
 import holon.*
-import holon.example.CRDT
 import org.apache.pekko.cluster.ddata.{GSet, LWWMap}
-import upickle.legacy.{ReadWriter, readBinary, readwriter, writeBinary}
+import upickle.legacy.{readBinary, writeBinary}
 import holon.serialization.rwTuple
 import holon.serialization.rwLWWMap
 
@@ -42,8 +41,8 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
                     rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val out0 = auctionToBids.processInput(outputFunction, chn, inputRecords)
-    val out1 = auctionToCats.processInput(outputFunction, chn, inputRecords)
+    val out0: Unit = auctionToBids.processInput(outputFunction, chn, inputRecords)
+    val out1: Unit = auctionToCats.processInput(outputFunction, chn, inputRecords)
 
     // Get the latest vector clock from both queries
     val aucToBidVC = auctionToBids.vectorClock

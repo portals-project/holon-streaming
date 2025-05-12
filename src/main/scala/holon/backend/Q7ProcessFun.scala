@@ -2,10 +2,10 @@ package holon.backend
 
 import holon.*
 import holon.Config.CHN_OUTPUT
-import holon.crdt.{AuctionToCategoryWrapper, AuctionToHighestBidWrapper, BidCountGCounterWrapper, CRDTWrapper, HighestBidLWWRegisterWrapper}
+import holon.crdt.{CRDTWrapper, HighestBidLWWRegisterWrapper}
 import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
-import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWRegister}
-import upickle.legacy.{ReadWriter, readBinary, readwriter, writeBinary}
+import org.apache.pekko.cluster.ddata.LWWRegister
+import upickle.legacy.{readBinary, writeBinary}
 
 // Count total amount of bids
 class Q7ProcessFun(partition: Int) extends ProcFun {
@@ -34,7 +34,7 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
                   ): Unit = {
     val inputRecords = rec
     val defineWindow = highestBid.defineWindow
-    val out0 = highestBid.processInput(outputFunction, chn, inputRecords)
+    val out0: Unit = highestBid.processInput(outputFunction, chn, inputRecords)
 
     // Get the minimum vector clock value from both queries
     val minVC: Array[Long] = highestBid.vectorClock

@@ -1,9 +1,7 @@
 package holon.crdt
 
-import holon.example.{CRDT, Nexmark}
-import org.apache.pekko.cluster.ddata.LWWRegister.Clock
-import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWRegister, SelfUniqueAddress}
-import upickle.legacy.readBinary
+import holon.example.Nexmark
+import org.apache.pekko.cluster.ddata.{GSet, SelfUniqueAddress}
 
 object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] {
   type EventType = Nexmark.Events.Auction

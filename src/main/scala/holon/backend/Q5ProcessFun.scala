@@ -4,8 +4,8 @@ import holon.*
 import holon.Config.CHN_OUTPUT
 import holon.crdt.*
 import holon.serialization.mapGcounterRW
-import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWRegister}
-import upickle.legacy.{ReadWriter, readBinary, readwriter, writeBinary}
+import org.apache.pekko.cluster.ddata.GCounter
+import upickle.legacy.{readBinary, writeBinary}
 
 // Count total amount of bids
 class Q5ProcessFun(partition: Int) extends ProcFun {
@@ -34,7 +34,7 @@ class Q5ProcessFun(partition: Int) extends ProcFun {
                   ): Unit = {
     val inputRecords = rec
     val defineWindow = mostPopularAuction.defineWindow
-    val out0 = mostPopularAuction.processInput(outputFunction, chn, inputRecords)
+    val out0: Unit = mostPopularAuction.processInput(outputFunction, chn, inputRecords)
 
     // Get the minimum vector clock value from both queries
     val minVC: Array[Long] = mostPopularAuction.vectorClock

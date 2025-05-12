@@ -1,10 +1,8 @@
 package holon.crdt
 
-import holon.example.{CRDT, Nexmark}
+import holon.example.Nexmark
 import org.apache.pekko.cluster.ddata.{LWWMap, SelfUniqueAddress}
 import org.apache.pekko.cluster.ddata.LWWRegister.Clock
-
-import java.util
 
 /**
  * Keeps track of the highest bid per auction in a single LWWMap[auctionId -> price].  

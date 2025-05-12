@@ -1,7 +1,7 @@
 package holon.serialization
 
 import holon.example.CRDT
-import org.apache.pekko.cluster.ddata.{GCounter, GSet, LWWMap, LWWRegister}
+import org.apache.pekko.cluster.ddata.{GSet, LWWMap}
 import upickle.legacy.{ReadWriter, readwriter}
 
 import scala.collection.mutable
@@ -16,8 +16,8 @@ object ByteCodec {
   def apply[T](implicit c: ByteCodec[T]): ByteCodec[T] = c
 
   implicit val arrayByteCodec: ByteCodec[Array[Byte]] = new ByteCodec[Array[Byte]] {
-    def toBytes(a: Array[Byte])       = a
-    def fromBytes(bytes: Array[Byte]) = bytes
+    def toBytes(a: Array[Byte]): Array[Byte] = a
+    def fromBytes(bytes: Array[Byte]): Array[Byte] = bytes
   }
 
   implicit val longTupleCodec: ByteCodec[(Long, Long)] = new ByteCodec[(Long, Long)] {

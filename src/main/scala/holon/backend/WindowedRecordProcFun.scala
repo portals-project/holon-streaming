@@ -176,7 +176,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
   }
 
   def garbageCollect(windowKey: Long): Unit = {
-    logger.debug(s"partition: $partition, garbage collecting for window key: ${windowKey}")
+    logger.debug(s"partition: $partition, garbage collecting for window key: $windowKey")
     if (windowMap.contains(windowKey)) {
       windowMap -= windowKey
     }

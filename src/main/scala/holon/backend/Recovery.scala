@@ -9,7 +9,6 @@ import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
-import KafkaDebugger.*
 
 class Recovery(nodeId: Int) {
 
@@ -142,7 +141,6 @@ class Recovery(nodeId: Int) {
         while (System.currentTimeMillis() - t < 2_000) {
             val receivedOwnershipState = processControlChannel()
             if (receivedOwnershipState) return
-
                 Thread.sleep(100)
         }
     }
@@ -250,17 +248,16 @@ class Recovery(nodeId: Int) {
                     val (_, value, recTimestamp) = rec
                     val message = readBinary[BroadcastMessage](value)
                     message match {
-                        case CRDTUpdate(update, senderId, lag) => {
+                        case CRDTUpdate(update, senderId, lag) =>
                             if (senderId != nodeId) {
                                 logger.debug(s"Node $nodeId received CRDT update from node $senderId")
                                 LagManager.updateLag(senderId, lag)
                             }
-                            logger.debug(s"Node $nodeId received CRDT update from node $senderId, one of the ${message} records")
+                            logger.debug(s"Node $nodeId received CRDT update from node $senderId, one of the $message records")
                             logger.debug(s"Node $nodeId, Partition: $partitionId calls the processing function for these: ${this.procFunctionPerPartition}")
                             this.procFunctionPerPartition.foreach((_, procFun) =>
                                                                       procFun.processInput(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
                                                                   )
-                        }
                     }
                 }
             case _ =>
