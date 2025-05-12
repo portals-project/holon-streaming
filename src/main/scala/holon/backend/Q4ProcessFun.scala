@@ -7,18 +7,7 @@ import holon.example.CRDT
 import org.apache.pekko.cluster.ddata.{GSet, LWWMap}
 import upickle.legacy.{ReadWriter, readBinary, readwriter, writeBinary}
 import holon.serialization.rwTuple
-
-// This ensures that a mutable Map[String, (GCounter, Boolean)] is encoded as a dictionary.
-implicit val windowLWWMapRW: ReadWriter[scala.collection.mutable.Map[Long, (LWWMap[Long, Long], Boolean)]] =
-  readwriter[Map[Long, (LWWMap[Long, Long], Boolean)]].bimap(
-    (m: scala.collection.mutable.Map[Long, (LWWMap[Long, Long], Boolean)]) => m.toMap,
-    (m: Map[Long, (LWWMap[Long, Long], Boolean)]) => scala.collection.mutable.Map(m.toSeq: _*)
-  )
-
-implicit def rwLWWMap: ReadWriter[LWWMap[Long, Long]] = readwriter[Array[Byte]].bimap[LWWMap[Long, Long]](
-  lwwmap => CRDT.crdtToBinaryWithManifest("LWWMap", lwwmap),
-  bytes => CRDT.crdtFromBinaryWithManifest(bytes)._2.asInstanceOf[LWWMap[Long, Long]]
-)
+import holon.serialization.rwLWWMap
 
 // Nexmark Query 4:
 // Select the average of the wining bid prices for all auctions in each category.
