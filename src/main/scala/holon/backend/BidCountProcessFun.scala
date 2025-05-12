@@ -44,7 +44,7 @@ class BidCountProcessFun(partition: Int) extends ProcFun {
     // Get the minimum vector clock value from both queries
     val minVC: Array[Long] = bidCount.vectorClock
 
-    //logger.info(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
+    logger.debug(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
 
     // Start processing windows if vc is not empty
     if !minVC.contains(0) then
