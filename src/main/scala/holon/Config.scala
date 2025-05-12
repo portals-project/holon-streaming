@@ -20,14 +20,14 @@ object Config {
 
   final val USE_CLOUD_STORAGE_CHECKPOINTS = false
   final val GCS_BUCKET_NAME = "failure-recovery-dev"
-  //  final val GC_CREDENTIALS_FILE_PATH = "/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json"
+  // Update locally
   final val GC_CREDENTIALS_FILE_PATH = "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json"
 
   final val WORK_STEALING_THRESHOLD = 10   // Determines how many (empty) polls a node should perform before it starts work stealing.
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
-  var N_NODES = 3
+  var N_NODES = 5
   var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
@@ -38,6 +38,9 @@ object Config {
 
   var WINDOW_LENGTH = 5_000L
   var GARBAGE_COLLECTION_INTERVAL = 500L
+
+  // Update locally
+  val FIRESTORE_START_KEY = "flags_ruben"
 
   def nrOfKafkaPartitions(): Int = {
     N_NODES * PARTITIONS_PER_NODE
