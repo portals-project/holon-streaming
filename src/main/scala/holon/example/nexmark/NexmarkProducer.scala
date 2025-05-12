@@ -22,7 +22,6 @@ object NexmarkProducer {
         val PRODUCER_SLEEP_TIME_MS = sys.env.getOrElse("PRODUCER_SLEEP_TIME_MS", "100").toInt
 
         logger.info(s"Set up the nexmark producer with these parameters: $host, $port, $PRODUCER_SLEEP_TIME_MS")
-
         while (!FirestoreClient.isStartFlagSet) {
             logger.info("Waiting for start flag to be set.")
             Thread.sleep(1_000)

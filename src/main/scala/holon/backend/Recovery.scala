@@ -127,7 +127,7 @@ class Recovery(nodeId: Int) {
         if (this.consumerPerPartition.nonEmpty) {
             processOtherChannels()
         } else {
-             attemptWorkSteal()
+           attemptWorkSteal()
         }
         // Flush all producers
         for ((chn, producer) <- producers) do producer.flush()

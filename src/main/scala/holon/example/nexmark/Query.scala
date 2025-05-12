@@ -49,10 +49,10 @@ object Query {
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
+            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
 

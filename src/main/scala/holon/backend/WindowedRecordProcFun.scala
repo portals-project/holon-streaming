@@ -16,7 +16,6 @@ implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[scal
     _.toMap,
     m => scala.collection.mutable.Map.empty[K, V] ++ m
   )
-
 case class OutputState(
                         partition: Int,
                         window: Long,
@@ -99,7 +98,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
                 logger.debug(s"partition: $partition Creating new window: $window")
                 windowMap(window) = (crdt.empty(addr), false)
               }
-
               // Increment the CRDT and vector clock.
               logger.debug(s"partition: $partition window: $window, incrementing crdt")
               val updated = crdt.update(windowMap(window)._1, addr, event)
