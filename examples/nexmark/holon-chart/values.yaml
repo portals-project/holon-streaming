@@ -1,8 +1,8 @@
 holon:
   image: gcr.io/holon-458408/holon-node:latest
-  n_nodes: 3
+  n_nodes: 5
   partitions_per_node: 2
-  runtime: 120000
+  runtime: 150000
   sleep_between_polls: 0
   replicas: 1
 
