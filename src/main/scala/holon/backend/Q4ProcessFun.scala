@@ -7,22 +7,25 @@ import org.apache.pekko.cluster.ddata.{GSet, LWWMap}
 import upickle.legacy.{readBinary, writeBinary}
 import holon.serialization.rwTuple
 import holon.serialization.rwLWWMap
+import org.slf4j.LoggerFactory
 
 // Nexmark Query 4:
 // Select the average of the wining bid prices for all auctions in each category.
 class Q4ProcessFun(partition: Int) extends ProcFun {
   // Set up logger
+//  private val metricsLog = LoggerFactory.getLogger("com.holon.metrics")
+  private val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
   private val logger = Logger("Q4ProcessFun")
   Logger.setLevel("Q4ProcessFun", "INFO")
   logger.info("Starting Q4ProcessFun")
 
   // First wrapper maps auctions to their highest bid
   val w0: CRDTWrapper[LWWMap[Long, Long], Map[Long, Long]] = AuctionToHighestBidWrapper
-  val auctionToBids = new WindowedRecordProcFun[LWWMap[Long, Long], Map[Long, Long]](w0, partition, 0, rwLWWMap)
+  val auctionToBids: WindowedRecordProcFun[LWWMap[Long, Long], Map[Long, Long]] = new WindowedRecordProcFun[LWWMap[Long, Long], Map[Long, Long]](w0, partition, 0, rwLWWMap)
 
   // Second wrapper maps auctions to their category
   val w1: CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] = AuctionToCategoryWrapper
-  val auctionToCats = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w1, partition, 1, rwTuple)
+  val auctionToCats: WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]] = new WindowedRecordProcFun[GSet[(Long, Long)], java.util.Set[(Long, Long)]](w1, partition, 1, rwTuple)
 
   var procfuns: List[WindowedRecordProcFun[_, _]] = List(auctionToBids, auctionToCats)
 
@@ -41,12 +44,16 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
                     rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val out0: Unit = auctionToBids.processInput(outputFunction, chn, inputRecords)
-    val out1: Unit = auctionToCats.processInput(outputFunction, chn, inputRecords)
+    val auctionToBidsOutput: auctionToBids.type = procfuns.head.asInstanceOf[auctionToBids.type]
+    val auctionToCatsOutput: auctionToCats.type = procfuns.tail.head.asInstanceOf[auctionToCats.type]
+
+    // Process the input records
+    auctionToBidsOutput.processInput(outputFunction, chn, inputRecords)
+    auctionToCatsOutput.processInput(outputFunction, chn, inputRecords)
 
     // Get the latest vector clock from both queries
-    val aucToBidVC = auctionToBids.vectorClock
-    val aucToCatVC = auctionToCats.vectorClock
+    val aucToBidVC = auctionToBidsOutput.vectorClock
+    val aucToCatVC = auctionToCatsOutput.vectorClock
 
     logger.debug(s"aucToBidVC: ${aucToBidVC.mkString("Array(", ", ", ")")}")
     logger.debug(s"aucToCatVC: ${aucToCatVC.mkString("Array(", ", ", ")")}")
@@ -60,7 +67,7 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
     // Start processing windows if vc is not empty
     if !minVC.contains(0) then
       // Get the minimum vector clock value across all partitions
-      lastClosedWindow = defineWindow(minVC.min) - 5L
+      lastClosedWindow = defineWindow(minVC.min) - 2L
     else
       lastClosedWindow = -1L
 
@@ -68,19 +75,19 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
       for (i <- queriedWindow until lastClosedWindow) {
         logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        if auctionToBids.windowMap.contains(i) && auctionToCats.windowMap.contains(i) then
-          val result = processWindow(auctionToBids.windowMap(i)._1, auctionToCats.windowMap(i)._1, i)
+        if auctionToBidsOutput.windowMap.contains(i) && auctionToCatsOutput.windowMap.contains(i) then
+          val result = processWindow(auctionToBidsOutput.windowMap(i)._1, auctionToCatsOutput.windowMap(i)._1, i)
           val outputState = OutputState(partition, i, result.toString())
 
-          if (auctionToBids.logAppendTimePerWindow.contains(i)) {
-            logger.info(s"[LagAppendInput] - window: $i, timestamp: ${auctionToBids.logAppendTimePerWindow(i)}")
+          if (auctionToBidsOutput.logAppendTimePerWindow.contains(i)) {
+            logger.info(s"[LagAppendInput] - query 0 - window: $i, timestamp: ${auctionToBidsOutput.logAppendTimePerWindow(i)}")
           }
-          
+
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
           // Garbage collect the window
-          auctionToBids.garbageCollect(i)
-          auctionToCats.garbageCollect(i)
+          auctionToBidsOutput.garbageCollect(i)
+          auctionToCatsOutput.garbageCollect(i)
 
           queriedWindow = i
       }
@@ -122,17 +129,21 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
   }
 
   def snapshot(): Array[Byte] = {
+    logger.info(s"partition: $partition, snapshotting Q4ProcessFun with: queriedWindow: $queriedWindow")
     // Snapshot each procFun in the list
-    writeBinary(procfuns.map(_.snapshot()))
+    val snaps: List[Array[Byte]] = writeBinary(queriedWindow) :: procfuns.map(_.snapshot())
+    writeBinary(snaps)
   }
 
   def restore(allBytes: Array[Byte]): Unit = {
-    // read back the List[Array[Byte]]
-    val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
+    logger.info(s"partition: $partition, restoring Q4ProcessFun")
 
-    // Restore each procFun in the listc
-    snaps.zip(procfuns).foreach { case (bytes, pf) =>
-      pf.restore(bytes)
+    val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
+    queriedWindow = readBinary[Long](snaps.head)
+
+    for ((procFun, index) <- snaps.tail.zipWithIndex) {
+      procfuns(index).restore(procFun)
     }
+    logger.info(s"partition: $partition, restored Q4ProcessFun with: queriedWindow: $queriedWindow")
   }
 }
