@@ -2,9 +2,17 @@ holon:
   image: gcr.io/holon-458408/holon-node:latest
   n_nodes: 5
   partitions_per_node: 2
-  runtime: 150000
+  runtime: 300000
   sleep_between_polls: 0
   replicas: 1
+  # Set resource limits for GKE
+#  resources:
+#    requests:
+#      cpu: "2000m"
+#      memory: "4Gi"
+#    limits:
+#      cpu: "2000m"
+#      memory: "4Gi"
 
 nexmarkProducer:
   image: gcr.io/holon-458408/nexmark-producer:latest
