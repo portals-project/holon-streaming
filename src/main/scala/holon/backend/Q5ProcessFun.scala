@@ -56,6 +56,11 @@ class Q5ProcessFun(partition: Int) extends ProcFun {
           // Get the result from the window
           val result: String = w0.value(mostPopularAuction.windowMap(i)._1)
           val outputState = OutputState(partition, i, result)
+
+          if (mostPopularAuction.logAppendTimePerWindow.contains(i)) {
+            logger.info(s"[LagAppendInput] - window: $i, timestamp: ${mostPopularAuction.logAppendTimePerWindow(i)}")
+          }
+
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
           // Garbage collect the window

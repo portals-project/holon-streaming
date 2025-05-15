@@ -5,12 +5,14 @@ import holon.Config.CHN_OUTPUT
 import holon.crdt.{CRDTWrapper, HighestBidLWWRegisterWrapper}
 import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
 import org.apache.pekko.cluster.ddata.LWWRegister
+import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
 
 // Count total amount of bids
 class Q7ProcessFun(partition: Int) extends ProcFun {
   // Set up logger
   private val logger = Logger("Q7ProcessFun")
+  private val metricsLog = LoggerFactory.getLogger("com.holon.metrics")
   Logger.setLevel("Q7ProcessFun", "INFO")
   logger.info("Starting Q7ProcessFun")
 
@@ -56,6 +58,11 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
         if highestBid.windowMap.contains(i)then
           val result: String = w0.value(highestBid.windowMap(i)._1)
           val outputState = OutputState(partition, i, result)
+
+          if (highestBid.logAppendTimePerWindow.contains(i)) {
+            logger.info(s"[LagAppendInput] - query 0 - window: $i, timestamp: ${highestBid.logAppendTimePerWindow(i)}")
+          }
+
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
 
           // Garbage collect the window
