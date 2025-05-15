@@ -4,6 +4,7 @@ import holon.*
 import upickle.default.writeBinary
 import holon.backend.messages.Checkpoint
 import Config.CHN_CONTROL
+import org.slf4j.LoggerFactory
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import scala.collection.immutable.Map
@@ -16,6 +17,7 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
     private val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
 
     private val logger = Logger.apply("DecentralizedCheckpointManager")
+    private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("DecentralizedCheckpointManager", "INFO")
 
     protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit = {
