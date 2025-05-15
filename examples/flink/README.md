@@ -1,4 +1,4 @@
-
+# Deploy Flink on GKE
 
 ## Start Deployments
 ```bash
@@ -10,7 +10,7 @@ helm install prod-con ./prod-con-chart
 ```bash
 kubectl exec -it jobmanager-7cdc88c8b4-n6cw6 -- /bin/bash
 chmod -R 777 /flink-checkpoints
-./bin/sql-client.sh -Dparallelism.default=5  -f /opt/flink/queries/q7.sql
+./bin/sql-client.sh -Dparallelism.default=15  -f /opt/flink/queries/q7.sql
 
 ----
 docker exec -it flink-jobmanager ./bin/sql-client.sh -Dparallelism.default=5  -f /opt/flink/queries/q7.sql

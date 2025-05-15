@@ -38,7 +38,7 @@ spec:
                 state.backend.async: true
                 state.backend.incremental: true
                 execution.checkpointing.incremental: true
-                taskmanager.numberOfTaskSlots: 2
+                taskmanager.numberOfTaskSlots: 3
                 jobmanager.memory.process.size: 2048m
                 taskmanager.memory.process.size: 1700m
                 taskmanager.memory.task.heap.size: 1024m
@@ -46,16 +46,18 @@ spec:
                 taskmanager.memory.jvm-metaspace.size: 128m
                 state.checkpoints.dir: gs://flink-checkpoints-kolya-2/checkpoints
                 state.savepoints.dir: gs://flink-checkpoints-kolya-2/savepoints
-                execution.checkpointing.interval: 30000
 {{/*                execution.checkpointing.timeout: 30000*/}}
                 execution.checkpointing.unaligned: true
 {{/*                fs.gs.storage.http.connect-timeout-ms: 10000*/}}
 {{/*                fs.gs.storage.http.read-timeout-ms: 30000*/}}
                 fs.gs.storage.retry.max-retries: 5
+                execution.checkpointing.interval: 5000
                 execution.checkpointing.tolerable-failed-checkpoints: 5
                 execution.checkpointing.max-concurrent-checkpoints: 1
-                heartbeat.interval: 1000
-                heartbeat.timeout: 4000
+                execution.checkpointing.interval-during-backlog: 0
+                execution.checkpointing.min-pause: 3500
+                heartbeat.interval: 4000
+                heartbeat.timeout: 6000
           image: {{ $.Values.flink.image }}
           name: flink-jobmanager
           ports:
