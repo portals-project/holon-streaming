@@ -38,7 +38,9 @@ object Config {
   var KAFKA_PORT = 9092
 
   var WINDOW_LENGTH = 5_000L
-  var GARBAGE_COLLECTION_INTERVAL = 500L
+  // TODO: Test if this works, might need to be dynamic
+  // Buffer size for garbage collection roughly equals the # of windows that will be kept in checkpointed
+  val GARBAGE_COLLECTION_OFFSET = 10L
 
   // Update locally
   val FIRESTORE_START_KEY = "flags_ruben"
