@@ -23,7 +23,8 @@ object Config {
   // Update locally
   final val GC_CREDENTIALS_FILE_PATH = "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json"
 
-  final val WORK_STEALING_THRESHOLD = 10   // Determines how many (empty) polls a node should perform before it starts work stealing.
+  // TODO: was 10, change value to enable work stealing again
+  final val WORK_STEALING_THRESHOLD = 10_000   // Determines how many (empty) polls a node should perform before it starts work stealing.
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
