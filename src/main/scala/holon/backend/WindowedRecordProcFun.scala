@@ -78,89 +78,87 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
   override def processInput(
                         outputFunction: (Int, Byte, LogProducerRecords) => Unit,
                         chn: Byte,
-                        recs: LogConsumerRecords
+                        recs: LogConsumerRecords,
                       ): Unit = {
+    val rec = recs.head
     chn match {
       case CHN_INPUT =>
         // Process incoming events from the Nexmark stream.
-        for (rec <- recs) {
-          val tsEvent = Nexmark.deserialize(rec._2)
-          crdt.checkType(tsEvent) match {
-            case Some(event) =>
-              // Get the event timestamp.
-              val eventTimestamp: Long = crdt.timeStamp(event)
+        val tsEvent = Nexmark.deserialize(rec._2)
+        crdt.checkType(tsEvent) match {
+          case Some(event) =>
+            // Get the event timestamp.
+            val eventTimestamp: Long = crdt.timeStamp(event)
 
-              // Get current window
-              val window: Long = defineWindow(eventTimestamp)
+            // Get current window
+            val window: Long = defineWindow(eventTimestamp)
 
-              // Update windowMap
-              if (!windowMap.contains(window)) {
-                logger.debug(s"partition: $partition Creating new window: $window")
-                windowMap(window) = (crdt.empty(addr), false)
-              }
-              // Increment the CRDT and vector clock.
-              logger.debug(s"partition: $partition window: $window, incrementing crdt")
-              val updated = crdt.update(windowMap(window)._1, addr, event)
-              windowMap(window) = (updated, false)
+            // Update windowMap
+            if (!windowMap.contains(window)) {
+              logger.debug(s"partition: $partition Creating new window: $window")
+              windowMap(window) = (crdt.empty(addr), false)
+            }
+            // Increment the CRDT and vector clock.
+            logger.debug(s"partition: $partition window: $window, incrementing crdt")
+            val updated = crdt.update(windowMap(window)._1, addr, event)
+            windowMap(window) = (updated, false)
 
-              vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
+            vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
-              // Update the log append time for this window
-              if queryId == 0 then logAppendTimePerWindow(window) = math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
+            // Update the log append time for this window
+            if queryId == 0 then logAppendTimePerWindow(window) = math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
 
-              logger.debug(s"partition: $partition, is has ${recs.size} records, queryId: $queryId and crdt: $crdt")
-              // Get the minimum vector clock value across all partitions
-              lastClosedWindow = defineWindow(vectorClock(partition)) - 1L
+            logger.debug(s"partition: $partition, is has 1 record, queryId: $queryId and crdt: $crdt")
+            // Get the minimum vector clock value across all partitions
+            lastClosedWindow = defineWindow(vectorClock(partition)) - 1L
 
-              if (lastClosedWindow > 0) {
-                for (i <- queriedWindow until lastClosedWindow) {
-                  // Determine the current window based on the vector clock.
-                  if (windowMap.contains(i) && !windowMap(i)._2 && emittedWindows < i) {
-                    // Mark the window as ready (closed) for emission.
-                    windowMap(i) = (windowMap(i)._1, true)
-                    // Only send the map of the passed window, including the key and the value.
-                    val windowState = WindowState(partition, queryId, vectorClock, windowMap.filter(_._1 == i))
-                    logger.debug(s"partition: $partition, broadcasting window state: $i")
-                    outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
+            if (lastClosedWindow > 0) {
+              for (i <- queriedWindow until lastClosedWindow) {
+                // Determine the current window based on the vector clock.
+                if (windowMap.contains(i) && !windowMap(i)._2 && emittedWindows < i) {
+                  // Mark the window as ready (closed) for emission.
+                  windowMap(i) = (windowMap(i)._1, true)
+                  // Only send the map of the passed window, including the key and the value.
+                  val windowState = WindowState(partition, queryId, vectorClock, windowMap.filter(_._1 == i))
+                  logger.debug(s"partition: $partition, broadcasting window state: $i")
+                  outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
 
-                    emittedWindows = math.max(emittedWindows, i)
-                    queriedWindow = i
-                  }
+                  emittedWindows = math.max(emittedWindows, i)
+                  queriedWindow = i
                 }
               }
-            case None =>
-              logger.debug(s"Ignored non-bid event")
-          }
+            }
+          case None =>
+            logger.debug(s"Ignored non-bid event")
         }
+        
       // TODO: Find alternative for using channels.
       case CHN_BROADCAST =>
         logger.debug(s"partition: $partition, received broadcast from other partitions")
         // Merge state received from other nodes.
-        for (rec <- recs) {
-          try {
-            val receivedState = readBinary[WindowState[T]](rec._2)
-            // Process the received state if it matches our queryId (for multiple queries).
-            // TODO: Find and add alternative for using queryId.
-            if (receivedState.queryId == queryId) {
-              val receivedPartition = receivedState.partition
-              logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
-              // For each window in the received state, merge with our own state.
-              for ((windowKey, receivedAggregate) <- receivedState.windowMap) {
-                if (windowMap.contains(windowKey)) {
-                  val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
-                  windowMap(windowKey) = (merged, windowMap(windowKey)._2)
-                } else {
-                  windowMap(windowKey) = (receivedAggregate._1, false)
-                }
+        try {
+          val receivedState = readBinary[WindowState[T]](rec._2)
+          // Process the received state if it matches our queryId (for multiple queries).
+          // TODO: Find and add alternative for using queryId.
+          if (receivedState.queryId == queryId) {
+            val receivedPartition = receivedState.partition
+            logger.debug(s"partition: $partition Received broadcast from partition: $receivedPartition")
+            // For each window in the received state, merge with our own state.
+            for ((windowKey, receivedAggregate) <- receivedState.windowMap) {
+              if (windowMap.contains(windowKey)) {
+                val merged = crdt.merge(windowMap(windowKey)._1, receivedAggregate._1)
+                windowMap(windowKey) = (merged, windowMap(windowKey)._2)
+              } else {
+                windowMap(windowKey) = (receivedAggregate._1, false)
               }
-              // Merge vector clock for the received partition.
-              vectorClock(receivedPartition) =
-                math.max(vectorClock(receivedPartition), receivedState.vectorClock(receivedPartition))
             }
-          } catch {
-            case e: Exception =>
-              logger.debug(s"partition: $partition, error deserializing received state: ${rec._2.mkString("Array(", ", ", ")")}, error: ${e.getMessage}")
+            // Merge vector clock for the received partition.
+            vectorClock(receivedPartition) =
+              math.max(vectorClock(receivedPartition), receivedState.vectorClock(receivedPartition))
           }
+        } catch {
+          case e: Exception =>
+            logger.debug(s"partition: $partition, error deserializing received state: ${rec._2.mkString("Array(", ", ", ")")}, error: ${e.getMessage}")
         }
       case _ =>
         logger.debug(s"partition: $partition, Unknown channel: $chn")

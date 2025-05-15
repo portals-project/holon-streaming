@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 // Select the average of the wining bid prices for all auctions in each category.
 class Q4ProcessFun(partition: Int) extends ProcFun {
   // Set up logger
-//  private val metricsLog = LoggerFactory.getLogger("com.holon.metrics")
+  private val metricsLog = LoggerFactory.getLogger("com.holon.metrics")
   private val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
   private val logger = Logger("Q4ProcessFun")
   Logger.setLevel("Q4ProcessFun", "INFO")
@@ -47,35 +47,36 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
     val auctionToBidsOutput: auctionToBids.type = procfuns.head.asInstanceOf[auctionToBids.type]
     val auctionToCatsOutput: auctionToCats.type = procfuns.tail.head.asInstanceOf[auctionToCats.type]
 
-    // Process the input records
-    auctionToBidsOutput.processInput(outputFunction, chn, inputRecords)
-    auctionToCatsOutput.processInput(outputFunction, chn, inputRecords)
+    for record <- inputRecords do
+      val iterable: Iterable[(Array[Byte], Array[Byte], Long)] = Iterable(record)
 
-    // Get the latest vector clock from both queries
-    val aucToBidVC = auctionToBidsOutput.vectorClock
-    val aucToCatVC = auctionToCatsOutput.vectorClock
+      // Process the input records
+      auctionToBidsOutput.processInput(outputFunction, chn, iterable)
+      auctionToCatsOutput.processInput(outputFunction, chn, iterable)
 
-    logger.debug(s"aucToBidVC: ${aucToBidVC.mkString("Array(", ", ", ")")}")
-    logger.debug(s"aucToCatVC: ${aucToCatVC.mkString("Array(", ", ", ")")}")
+      // Get the latest vector clock from both queries
+      val aucToBidVC = auctionToBidsOutput.vectorClock
+      val aucToCatVC = auctionToCatsOutput.vectorClock
 
-    // Get the minimum vector clock value from both queries
-    val minVC: Array[Long] = aucToBidVC.zip(aucToCatVC).map { case (v0, v1) => math.min(v0, v1) }
+      logger.debug(s"aucToBidVC: ${aucToBidVC.mkString("Array(", ", ", ")")}")
+      logger.debug(s"aucToCatVC: ${aucToCatVC.mkString("Array(", ", ", ")")}")
 
-    if scala.util.Random.nextDouble() < 0.3 then
+      // Get the minimum vector clock value from both queries
+      val minVC: Array[Long] = aucToBidVC.zip(aucToCatVC).map { case (v0, v1) => math.min(v0, v1) }
+
       logger.debug(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
 
-    // Start processing windows if vc is not empty
-    if !minVC.contains(0) then
-      // Get the minimum vector clock value across all partitions
-      lastClosedWindow = defineWindow(minVC.min) - 2L
-    else
-      lastClosedWindow = -1L
+      // Start processing windows if vc is not empty
+      if !minVC.contains(0) then
+        // Get the minimum vector clock value across all partitions
+        lastClosedWindow = defineWindow(minVC.min) - 1L
+      else
+        lastClosedWindow = -1L
 
-    if (lastClosedWindow > 0) {
-      for (i <- queriedWindow until lastClosedWindow) {
-        logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
+      if (lastClosedWindow > queriedWindow) {
+        for (i <- queriedWindow until lastClosedWindow if auctionToBidsOutput.windowMap.contains(i) && auctionToCatsOutput.windowMap.contains(i)) {
+          logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
 
-        if auctionToBidsOutput.windowMap.contains(i) && auctionToCatsOutput.windowMap.contains(i) then
           val result = processWindow(auctionToBidsOutput.windowMap(i)._1, auctionToCatsOutput.windowMap(i)._1, i)
           val outputState = OutputState(partition, i, result.toString())
 
@@ -89,9 +90,9 @@ class Q4ProcessFun(partition: Int) extends ProcFun {
           auctionToBidsOutput.garbageCollect(i)
           auctionToCatsOutput.garbageCollect(i)
 
-          queriedWindow = i
+        }
+        queriedWindow = lastClosedWindow
       }
-    }
   }
 
   def processWindow(bidsMap: LWWMap[Long, Long], catsSet: GSet[(Long, Long)], winKey: Long): Map[Long, Double] = {

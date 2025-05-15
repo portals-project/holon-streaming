@@ -20,7 +20,7 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
   val w0: CRDTWrapper[LWWRegister[Array[Byte]], String] = HighestBidLWWRegisterWrapper
   val highestBid = new WindowedRecordProcFun[LWWRegister[Array[Byte]], String](w0, partition, 0, lwwRegisterBytesRW)
 
-  var procfuns: List[WindowedRecordProcFun[LWWRegister[Array[Byte]], String]] = List(highestBid)
+  var procfuns: List[WindowedRecordProcFun[_, _]] = List(highestBid)
 
   logger.debug(s"Set up procfuns: $procfuns")
 
@@ -37,53 +37,57 @@ class Q7ProcessFun(partition: Int) extends ProcFun {
                  rec: LogConsumerRecords,
                   ): Unit = {
     val inputRecords = rec
-    val out0: Unit = highestBid.processInput(outputFunction, chn, inputRecords)
+    logger.debug(s"partition: $partition, processing input records: ${inputRecords.size}")
+    val highestBidOutput: highestBid.type = procfuns.head.asInstanceOf[highestBid.type]
+    for record <- inputRecords do
+      val iterable: Iterable[(Array[Byte], Array[Byte], Long)] = Iterable(record)
 
-    // Get the minimum vector clock value from both queries
-    val minVC: Array[Long] = highestBid.vectorClock
+      highestBidOutput.processInput(outputFunction, chn, iterable)
 
-    logger.debug(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
+      // Get the minimum vector clock value from both queries
+      val minVC: Array[Long] = highestBidOutput.vectorClock
 
-    // Start processing windows if vc is not empty
-    if !minVC.contains(0) then
-      // Get the minimum vector clock value across all partitions
-      lastClosedWindow = defineWindow(minVC.min) - 1L
-    else
-      lastClosedWindow = -1L
+      logger.debug(s"partition: $partition minVC: ${minVC.mkString("Array(", ", ", ")")}")
 
-    if (lastClosedWindow > 0) {
-      for (i <- queriedWindow until lastClosedWindow) {
-        logger.debug(s"partition: $partition processing window: $i with lastClosedWindow: $lastClosedWindow")
+      // Start processing windows if vc is not empty
+      if !minVC.contains(0) then
+        // Get the minimum vector clock value across all partitions
+        lastClosedWindow = defineWindow(minVC.min) - 1L
+      else
+        lastClosedWindow = -1L
 
-        if highestBid.windowMap.contains(i)then
-          val result: String = w0.value(highestBid.windowMap(i)._1)
+      if (lastClosedWindow > queriedWindow) {
+        for (i <- queriedWindow until lastClosedWindow if highestBidOutput.windowMap.contains(i)) {
+          val result = w0.value(highestBidOutput.windowMap(i)._1)
           val outputState = OutputState(partition, i, result)
 
           if (highestBid.logAppendTimePerWindow.contains(i)) {
-            logger.info(s"[LagAppendInput] - query 0 - window: $i, timestamp: ${highestBid.logAppendTimePerWindow(i)}")
+            logger.info(s"[LagAppendInput] - window: $i, ts: ${highestBid.logAppendTimePerWindow(i)}")
           }
 
           outputFunction(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](outputState))))
-
-          // Garbage collect the window
-          highestBid.garbageCollect(i)
-          queriedWindow = i
+          highestBidOutput.garbageCollect(i)
+        }
+        queriedWindow = lastClosedWindow
       }
-    }
   }
 
   def snapshot(): Array[Byte] = {
+    logger.info(s"partition: $partition, snapshotting Q7ProcessFun with: queriedWindow: $queriedWindow")
     // Snapshot each procFun in the list
-    writeBinary(procfuns.map(_.snapshot()))
+    val snaps: List[Array[Byte]] = writeBinary(queriedWindow) :: procfuns.map(_.snapshot())
+    writeBinary(snaps)
   }
 
   def restore(allBytes: Array[Byte]): Unit = {
-    // read back the List[Array[Byte]]
-    val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
+    logger.info(s"partition: $partition, restoring Q7ProcessFun")
 
-    // Restore each procFun in the listc
-    snaps.zip(procfuns).foreach { case (bytes, pf) =>
-      pf.restore(bytes)
+    val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
+    queriedWindow = readBinary[Long](snaps.head)
+
+    for ((procFun, index) <- snaps.tail.zipWithIndex) {
+      procfuns(index).restore(procFun)
     }
+    logger.info(s"partition: $partition, restored Q7ProcessFun with: queriedWindow: $queriedWindow")
   }
 }
