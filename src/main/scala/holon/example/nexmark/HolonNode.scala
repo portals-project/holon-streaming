@@ -4,6 +4,9 @@ import holon.*
 import Config.*
 import holon.Utils.*
 
+import java.nio.file.{Files, Paths}
+
+
 object HolonNode {
 
     private val FirestoreClient = holon.backend.cloud.FirestoreClient
@@ -14,12 +17,22 @@ object HolonNode {
     def main(args: Array[String]): Unit = {
         setupConfig()
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
-        val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
+        var RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
+        val RECOVERY_SLEEPTIME = sys.env.getOrElse("RECOVERY_SLEEPTIME", "0").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
         
         while (!FirestoreClient.isStartFlagSet) {
             logger.info("Waiting for start flag to be set.")
             Thread.sleep(500)
+        }
+
+        // TODO: Only used for benchmarking.
+        val nodeSnapshotPath = s"./snapshots/node$nodeId.txt"
+        if (Files.exists(Paths.get(nodeSnapshotPath))) {
+            logger.info(s"Sleeping for $RECOVERY_SLEEPTIME")
+            Thread.sleep(RECOVERY_SLEEPTIME)
+            logger.info(s"Node $nodeId: Found existing snapshot. Recovering...")
+            RUNTIME = 120000
         }
 
         SafeRun(RUNTIME) {
@@ -48,6 +61,14 @@ object HolonNode {
 
         val WINDOW_L = sys.env.getOrElse("WINDOW_LENGTH", "10000").toLong
         Config.WINDOW_LENGTH = WINDOW_L
+
+        val  CHECKPOINT_INTERVAL = sys.env.getOrElse("CHECKPOINT_INTERVAL", "10000").toLong
+        Config.CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL
+
+        val heartbeatInterval = sys.env.getOrElse("HEARTBEAT_INTERVAL", "500").toLong
+        Config.HEARTBEAT_INTERVAL = heartbeatInterval
+        val failureDetectionThreshold = sys.env.getOrElse("FAILURE_DETECTION_THRESHOLD", "2000").toLong
+        Config.FAILURE_DETECTION_THRESHOLD = failureDetectionThreshold
     }
 
     // Job function creates a job object with the specified consumers and producers

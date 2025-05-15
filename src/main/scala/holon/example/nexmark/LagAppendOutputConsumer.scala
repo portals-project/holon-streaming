@@ -8,7 +8,7 @@ import upickle.default.*
 
 import scala.util.Try
 
-object OutputConsumerJson {
+object LagAppendOutputConsumer {
 
     case class OutputRecord(
         auction: Long,
@@ -47,8 +47,55 @@ object OutputConsumerJson {
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
 
-//        val heartbeatThread = RunThread(this.consumeInputStream(host, port))
-        consumeOutput(host, port)
+        consumeInputStreamThreaded(host, port)
+//        consumeOutput(host, port)
+    }
+
+    import scala.concurrent.{ExecutionContext, Future}
+    import java.util.concurrent.Executors
+
+    private def consumeInputStreamThreaded(kafkaHost: String, kafkaPort: Int): Unit = {
+        val logger = Logger.apply("InputStream")
+        Logger.setLevel("InputStream", "INFO")
+
+        val partitions = (0 until nrOfKafkaPartitions()).toList
+        val executor = Executors.newFixedThreadPool(partitions.size)
+        implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
+
+        logger.info(s"Starting InputStream Consumer with Kafka host: $kafkaHost, port: $kafkaPort")
+
+        partitions.foreach { partition =>
+            Future {
+                val input = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT, List(partition))
+                val lastAppendPerWindow = scala.collection.mutable.Map.empty[Long, Long]
+
+                while (true) {
+                    input.poll() match
+                        case Nil =>
+                            Thread.sleep(CONSUMER_SLEEP_MS)
+                        case records =>
+                            records.foreach: r =>
+                                val jsonString = new String(r._2, "UTF-8")
+                                Try(read[InputRecord](jsonString)) match {
+                                    case scala.util.Success(inputRecord) =>
+                                        if (inputRecord.eventType.contains("Bid")) {
+                                            val windowKey = defineWindow(inputRecord.timestamp)
+
+                                            lastAppendPerWindow(windowKey) =
+                                                math.max(lastAppendPerWindow.getOrElse(windowKey, 0L), r._3)
+
+                                            val windowsToOutput = lastAppendPerWindow.keys.filter(_ < windowKey - 1).toList.sorted
+                                            windowsToOutput.foreach { winId =>
+                                                logger.info(s"[LagAppendInput] - partition: $partition, window: $windowKey, timestamp: ${lastAppendPerWindow(winId)}")
+                                                lastAppendPerWindow.remove(winId)
+                                            }
+                                        }
+                                    case scala.util.Failure(exception) =>
+                                        logger.error(s"Failed to parse JSON: $jsonString, error: ${exception.getMessage}")
+                                }
+                }
+            }
+        }
     }
 
     private def consumeInputStream(kafkaHost: String, kafkaPort: Int): Unit = {

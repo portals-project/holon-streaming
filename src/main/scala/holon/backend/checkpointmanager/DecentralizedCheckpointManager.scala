@@ -65,7 +65,7 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
 
     def recoverNodeOffset(nodeId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Boolean = {
         val nodeFileExists = localFileExists(nodeSnapshotPath(nodeId))
-        if (localFileExists(nodeSnapshotPath(nodeId))) {
+        if (nodeFileExists) {
             val fileContent = readLocalFile(nodeSnapshotPath(nodeId))
             logger.debug(s"Restoring broadcast & consumer channel offset for node $nodeId: $fileContent")
             setNodeConsumerOffsets(fileContent, consumerPerPartition)

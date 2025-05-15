@@ -55,6 +55,7 @@ object Query {
             RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runOutputConsumer())
+            RunThread(runOutputConsumer())
 
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList

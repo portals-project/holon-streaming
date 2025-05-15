@@ -397,7 +397,7 @@ class Recovery(nodeId: Int) {
         // TODO: Maybe drop
         for ((partitionId, (snapshotOffset, _)) <- partitionSnapshots) {
             if (this.procFunctionPerPartition.contains(partitionId)) {
-                logger.info(s"Node $nodeId received checkpoint for partition $partitionId which it owns")
+                logger.info(s"Node $nodeId received checkpoint for partition $partitionId which it owns from node $senderId")
 
                 // Compare offsets
                 val consumer = this.consumerPerPartition(partitionId)._2
