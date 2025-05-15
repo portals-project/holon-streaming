@@ -20,6 +20,8 @@ CREATE TABLE bid
         'properties.bootstrap.servers' = 'kafka:9092',
         'format' = 'json',
         'json.ignore-parse-errors' = 'true',
+        'properties.group.id' = 'nexmark_q7_consumer',
+        'sink.partitioner' = 'round-robin',
         'scan.startup.mode' = 'earliest-offset'
         );
 

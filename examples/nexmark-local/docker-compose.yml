@@ -11,7 +11,7 @@ x-base-node-env: &base-node-env
 x-shared-holon-env: &shared-holon-env
   N_NODES: "2"
   PARTITIONS_PER_NODE: "2"
-  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
 
 x-combined-holon-env: &combined-holon-env
   # Copy each key/value from base-node-env:

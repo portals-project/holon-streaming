@@ -45,7 +45,7 @@ class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) 
             // Initialize the heartbeat map
             for i <- 0 until N_NODES do
                 if i != currentNodeId then
-                    heartbeatMap.put(i, System.currentTimeMillis())
+                    heartbeatMap.put(i, System.currentTimeMillis() + FAILURE_DETECTION_THRESHOLD)
     }
 
     /**

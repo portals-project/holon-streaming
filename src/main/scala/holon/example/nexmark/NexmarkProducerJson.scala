@@ -42,18 +42,17 @@ object NexmarkProducerJson {
         val inputEventsPerWindow = mutable.Map.empty[Long, Long]
 
         while true do
-            logger.info("Producing events...")
-            val batch = (0 until PRODUCER_BATCH_SIZE)
-                .map(_ => iter.next())
-                .map(x => {
-                    val window = defineWindow(x.timestamp)
-                    inputEventsPerWindow(window) = inputEventsPerWindow.getOrElse(window, 0L) + 1
-                    val key = writeBinary(0)
-                    val value = write(x) // Serialize the event as JSON
-                    (key, value.getBytes("UTF-8"))
-                })
-            producer.send(batch)
-            logger.info(s"Produced ${batch.size} events.")
+            for i <- 0 until nrOfKafkaPartitions() do
+                val batch = (0 until PRODUCER_BATCH_SIZE)
+                    .map(_ => iter.next())
+                    .map(x => {
+                        val window = defineWindow(x.timestamp)
+                        inputEventsPerWindow(window) = inputEventsPerWindow.getOrElse(window, 0L) + 1
+                        val key = writeBinary(i)
+                        val value = write(x) // Serialize the event as JSON
+                        (key, value.getBytes("UTF-8"))
+                    })
+                producer.send(batch)
 
             producer.flush()
 
@@ -70,6 +69,10 @@ object NexmarkProducerJson {
     }
 
     def setupConfig(): Unit = {
+        val N_NODES = sys.env.getOrElse("N_NODES", "2").toInt
+        Config.N_NODES = N_NODES
+        val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "1").toInt
+        Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
         val WINDOW_L = sys.env.getOrElse("WINDOW_LENGTH", "10000").toLong
         Config.WINDOW_LENGTH = WINDOW_L
     }
@@ -78,5 +81,6 @@ object NexmarkProducerJson {
         val time = eventTime / 10
         if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
     }
+
 }
 

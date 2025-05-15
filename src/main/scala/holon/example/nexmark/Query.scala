@@ -55,6 +55,7 @@ object Query {
 //            logger.info("Started Nexmark Producers, waiting for 60 seconds before to fill the Kafka topic")
 //            Thread.sleep(60_000)
             RunThread(runOutputConsumer())
+            RunThread(runOutputConsumer())
 
             // Wait a minute before submitting the jobs to fill the Kafka topic
             

@@ -1,0 +1,71 @@
+{{- range $i := until (.Values.holon.n_nodes | int) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskmanager-{{ $i }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: taskmanager-{{ $i }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.35.0 (HEAD)
+      labels:
+        io.kompose.service: taskmanager-{{ $i }}
+    spec:
+{{/*      nodeSelector:*/}}
+{{/*        node-type: basic*/}}
+      containers:
+        - command: [ "/docker-entrypoint.sh" ]
+          args: [ "taskmanager" ]
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /opt/gcs/key.json
+            - name: FLINK_PROPERTIES
+              value: |2
+                jobmanager.rpc.address: jobmanager
+                state.backend: rocksdb
+                state.backend.async: true
+                state.backend.rocksdb.incremental: true
+                state.backend.incremental: true
+                execution.checkpointing.incremental: true
+                taskmanager.numberOfTaskSlots: 5
+                jobmanager.memory.process.size: 1536m
+                taskmanager.memory.process.size: 12000m
+{{/*                taskmanager.memory.process.size: 4000m*/}}
+                state.checkpoints.dir: gs://flink-checkpoints-kolya-2/checkpoints
+                state.savepoints.dir: gs://flink-checkpoints-kolya-2/savepoints
+                execution.checkpointing.interval: 15000
+                execution.checkpointing.max-concurrent-checkpoints: 1
+                fs.gs.outputstream.upload.buffer.size: 8388608
+{{/*                execution.checkpointing.timeout: 300000*/}}
+                execution.checkpointing.unaligned: true
+{{/*                fs.gs.storage.http.connect-timeout-ms: 10000*/}}
+{{/*                fs.gs.storage.http.read-timeout-ms: 30000*/}}
+                fs.gs.storage.retry.max-retries: 5
+                execution.checkpointing.tolerable-failed-checkpoints: 5
+                execution.checkpointing.max-concurrent-checkpoints: 1
+                heartbeat.interval: 1000
+                heartbeat.timeout: 4000
+          image: {{ $.Values.flink.image }}
+          name: flink-taskmanager-{{ $i }}
+          resources:
+            requests:
+              memory: "12Gi"
+              cpu: "5"
+          volumeMounts:
+            - name: gcs-key
+              mountPath: /opt/gcs
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: gcs-key
+          secret:
+            secretName: gcs-key
+{{- end }}
