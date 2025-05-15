@@ -3,6 +3,7 @@ package holon.example.nexmark
 import holon.*
 import holon.Config.*
 import holon.backend.*
+import org.slf4j.LoggerFactory
 import upickle.legacy.*
 
 import scala.collection.mutable
@@ -19,6 +20,7 @@ object OutputConsumer {
 
     def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
+        val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
         Logger.setLevel("Consumer", "INFO")
         val outputLagPerWindow = mutable.Map.empty[Long, Long]
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
@@ -40,6 +42,7 @@ object OutputConsumer {
                             else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
                         logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                        systemOutputLog.info(s"${System.currentTimeMillis()}: [OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
 
                         val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                         windowsToOutput.foreach { winId =>
