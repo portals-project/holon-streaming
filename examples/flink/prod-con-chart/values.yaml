@@ -1,7 +1,7 @@
 holon:
   n_nodes: 5
   partitions_per_node: 3
-  runtime: 120000
+  runtime: 12000000
   runtime_n0: 120000
   runtime_n3: 120000
   recovery_sleeptime: 10000
