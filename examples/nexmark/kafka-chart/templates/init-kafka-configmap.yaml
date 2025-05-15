@@ -21,10 +21,10 @@ data:
     TOTAL_PARTITIONS=$((N_NODES * PARTITIONS_PER_NODE))
     echo "TOTAL_PARTITIONS: $TOTAL_PARTITIONS"
 
-    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic input --replication-factor 1 --partitions $TOTAL_PARTITIONS
-    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic broadcast --replication-factor 1 --partitions 1
-    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic control --replication-factor 1 --partitions 1
-    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic output --replication-factor 1 --partitions 1
+    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic input --replication-factor 1 --partitions $TOTAL_PARTITIONS --config message.timestamp.type=LogAppendTime
+    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic broadcast --replication-factor 1 --partitions 1 --config message.timestamp.type=LogAppendTime
+    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic control --replication-factor 1 --partitions 1 --config message.timestamp.type=LogAppendTime
+    kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic output --replication-factor 1 --partitions 1 --config message.timestamp.type=LogAppendTime
 
     echo "Successfully created topics:"
     kafka-topics --bootstrap-server kafka:9093 --list

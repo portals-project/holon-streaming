@@ -1,8 +1,7 @@
 package holon.backend
 
 import holon.Config.CHN_OUTPUT
-import holon.backend.cloud.FirestoreClient.logger
-import holon.{LogConsumerRecords, LogProducerRecords, ProcFun}
+import holon.{LogConsumerRecords, LogProducerRecords, Logger, ProcFun}
 import upickle.legacy.{readBinary, writeBinary}
 
 abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecordProcFun[_,_]]) extends ProcFun {
@@ -12,6 +11,9 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
   private val firstProcFun = procfuns.head
 
   private val defineWindow = firstProcFun.defineWindow
+
+  val logger = Logger.apply("WindowedQueryFun")
+  Logger.setLevel("WindowedQueryFun", "INFO")
 
   final override def processInput(
                                    outputFun: (Int, Byte, LogProducerRecords)=>Unit,
