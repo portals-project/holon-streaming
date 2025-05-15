@@ -13,7 +13,7 @@ for IMAGE in nexmark-producer output-consumer holon-node; do
 done
 
 gcloud config set project holon-458408
-gcloud config set compute/zone us-central1-c
-gcloud container clusters get-credentials cluster-1 --zone us-central1-c
+gcloud config set compute/zone us-central1-a
+gcloud container clusters get-credentials crdt --zone us-central1-a
 
 echo "✅ All done!"
