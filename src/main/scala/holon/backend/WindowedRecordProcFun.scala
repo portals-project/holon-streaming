@@ -105,9 +105,8 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
               vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
-              // Update the log append time for this window.
-              logAppendTimePerWindow(window) =
-                math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
+              // Update the log append time for this window
+              if queryId == 0 then logAppendTimePerWindow(window) = math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
 
               logger.debug(s"partition: $partition, is has ${recs.size} records, queryId: $queryId and crdt: $crdt")
               // Get the minimum vector clock value across all partitions
@@ -164,7 +163,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
           }
         }
       case _ =>
-        logger.info(s"partition: $partition, Unknown channel: $chn")
+        logger.debug(s"partition: $partition, Unknown channel: $chn")
         throw new RuntimeException(s"Unknown channel: $chn")
     }
   }
@@ -175,7 +174,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
-  def garbageCollect(windowKey: Long): Unit = {
+  def garbageCollect(windowKey: Long): Unit  = {
     logger.debug(s"partition: $partition, garbage collecting for window key: $windowKey")
     if (windowMap.contains(windowKey)) {
       windowMap -= windowKey
