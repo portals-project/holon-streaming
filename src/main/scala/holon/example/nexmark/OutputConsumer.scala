@@ -42,7 +42,6 @@ object OutputConsumer {
                             else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
                         logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
-                        systemOutputLog.info(s"${System.currentTimeMillis()}: [OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
 
                         val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                         windowsToOutput.foreach { winId =>
