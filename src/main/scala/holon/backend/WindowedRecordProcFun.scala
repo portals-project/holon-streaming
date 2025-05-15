@@ -184,7 +184,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
   override def snapshot(): Array[Byte] = {
     logger.debug("Taking snapshot")
-    val snapshotState = SnapShotState(emittedWindows, vectorClock, windowMap.clone())
+    val snapshotState = SnapShotState(emittedWindows, vectorClock, windowMap)
     writeBinary[SnapShotState[T]](snapshotState)
   }
 

@@ -1,7 +1,8 @@
 package holon.backend
 
-import holon.Config.CHN_OUTPUT
+import holon.Config.{CHN_OUTPUT, GARBAGE_COLLECTION_OFFSET}
 import holon.{LogConsumerRecords, LogProducerRecords, Logger, ProcFun}
+import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
 
 abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecordProcFun[_,_]]) extends ProcFun {
@@ -13,6 +14,7 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
   private val defineWindow = firstProcFun.defineWindow
 
   val logger = Logger.apply("WindowedQueryFun")
+  val outputLog = LoggerFactory.getLogger("com.holon.system.output")
   Logger.setLevel("WindowedQueryFun", "INFO")
 
   final override def processInput(
@@ -40,9 +42,14 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
           if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
           
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
-          procfuns.foreach(_.garbageCollect(w))
         }
         queriedWindow = lastClosed
+        // Garbage collection
+        procfuns.foreach { pf =>
+          pf.windowMap.keys
+            .filter(_ <= lastClosed - GARBAGE_COLLECTION_OFFSET)
+            .foreach(pf.garbageCollect)
+        }
       }
   }
 
