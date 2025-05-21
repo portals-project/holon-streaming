@@ -29,6 +29,8 @@ class Recovery(nodeId: Int) {
     private var pollsWithoutRecords = 0
     private var lastWorkStealAttempt = 0L
 
+    private var orphanNodeStateEnd = 0L
+
     private val logger = Logger.apply("Recovery")
     Logger.setLevel("Recovery", "INFO")
 
@@ -107,8 +109,15 @@ class Recovery(nodeId: Int) {
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
             if (currentFailedNodes.isDefined) {
-                handleFailedNodes(currentFailedNodes.get.diff(failedNodes))
-                this.failedNodes = currentFailedNodes.get
+                // If all nodes suddenly fail at once, enter orphan state and wait x seconds to see if other nodes recover.
+                if (!isOrphanState && this.failedNodes.isEmpty && currentFailedNodes.get.length == N_NODES - 1) {
+                    logger.info(s"Suddenly detected all other nodes as failed. Entering orphan state.")
+                    this.setOrphanStateEnd
+                } else if (!isOrphanState) {
+                    // Only handle nodes when we are not in orphan state
+                    handleFailedNodes(currentFailedNodes.get.diff(failedNodes))
+                    this.failedNodes = currentFailedNodes.get
+                }
             }
 
             runStep()
@@ -173,14 +182,10 @@ class Recovery(nodeId: Int) {
                                 if (senderId != nodeId) {
                                     logger.debug(s"Node $nodeId received checkpoint from node $senderId")
                                     this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
-                                    checkIfCheckpointIncludesOwnPartitions(senderId, partitionSnapshots)
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.debug(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
-
-                                val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
-                                integrateNewPartitions(newPartitions)
-                                ownershipManager.mergeOwnershipMap(ownershipMap)
+                                handleNewOwnershipState(ownershipMap)
                                 receivedOwnershipState = true
                             case OwnershipStateRequest(senderId) =>
                                 logger.info(s"($nodeId) Received ownership state request from node $senderId")
@@ -389,30 +394,6 @@ class Recovery(nodeId: Int) {
     }
 
     /**
-     * Check if the checkpoint received from another node includes partitions owned by this node.
-     * If so, check if the offset is greater than the current offset for this partition.
-     * If it is, hand over ownership of the partition to the sender node.
-     */
-    private def checkIfCheckpointIncludesOwnPartitions(senderId: Int, partitionSnapshots: Map[Int, (Long, String)]): Unit = {
-        // TODO: Maybe drop
-        for ((partitionId, (snapshotOffset, _)) <- partitionSnapshots) {
-            if (this.procFunctionPerPartition.contains(partitionId)) {
-                logger.info(s"Node $nodeId received checkpoint for partition $partitionId which it owns from node $senderId")
-
-                // Compare offsets
-                val consumer = this.consumerPerPartition(partitionId)._2
-                if (consumer.offsets().head._2 < snapshotOffset) {
-                    logger.info(s"Node $nodeId received checkpoint for partition $partitionId with offset $snapshotOffset " +
-                                    s"which is greater than current offset ${consumer.offsets().head._2} for this partition. Dropping partition!")
-                    ownershipManager.setPartitionOwnership(partitionId, senderId)
-                    removeConsumerAndProcFun(partitionId)
-                }
-            }
-        }
-        sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
-    }
-
-    /**
      * Handle ownership transfer request from other nodes.
      * If the partition list is empty, hand over the partition with largest lag. Else hand over the requested partitions.
      * Deny ownership transfer if all owned partitions are requested or there are no partitions with lag.
@@ -440,6 +421,40 @@ class Recovery(nodeId: Int) {
         }
 
         handoverOwnership(newOwnerId, partitionsToHandover)
+    }
+
+    /**
+     * Handle new ownership state received from other nodes.
+     * Integrate new partitions into the system and drop partitions that are no longer owned.
+     */
+    private def handleNewOwnershipState(ownershipMap: scala.collection.mutable.Map[Int, OwnershipEntry]): Unit = {
+        val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
+        integrateNewPartitions(newPartitions)
+
+        var dropPartitions = ownershipManager.getPartitionsToRelease(ownershipMap)
+        var partitionToKeep = -1
+        // Keep one partition if all partitions are dropped
+        if (dropPartitions.length > 0 && dropPartitions.length == this.procFunctionPerPartition.size) {
+            logger.info(s"dropPartitions: $dropPartitions")
+            partitionToKeep = dropPartitions.last
+            // Remove the partition to keep from the list of partitions to drop
+            dropPartitions = dropPartitions.filter(_ != partitionToKeep)
+            logger.info(s"dropPartitions: $dropPartitions")
+
+            logger.info(s"Node $nodeId cannot drop all partitions. Keeping partition: $partitionToKeep")
+        }
+
+        for (partitionId <- dropPartitions) {
+            logger.info(s"Node $nodeId dropped partition $partitionId. Ownership: ${ownershipManager.getOwnershipMap}")
+            removeConsumerAndProcFun(partitionId)
+        }
+        ownershipManager.mergeOwnershipMap(ownershipMap)
+        if (partitionToKeep != -1) {
+            ownershipManager.setPartitionOwnership(partitionToKeep)
+            // Update ownership state to keep 1 partition
+            sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
+            logger.info(s"After keeping partition $partitionToKeep. Ownership: ${ownershipManager.getOwnershipMap}")
+        }
     }
 
     /**
@@ -488,6 +503,15 @@ class Recovery(nodeId: Int) {
         val serializedMessage = writeBinary(message)
         val records = List((writeBinary(0), serializedMessage))
         out.collect(CHN_CONTROL, records)
+    }
+
+    private def setOrphanStateEnd: Unit = {
+        logger.info(s"Node $nodeId is entering orphan state")
+        this.orphanNodeStateEnd = System.currentTimeMillis() + 30_000
+    }
+
+    private def isOrphanState: Boolean = {
+        System.currentTimeMillis() < this.orphanNodeStateEnd
     }
 
 }
