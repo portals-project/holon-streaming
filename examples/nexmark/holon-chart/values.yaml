@@ -1,11 +1,11 @@
 holon:
-  image: gcr.io/holon-450608/holon-node:latest
+  image: gcr.io/holon-458408/holon-node-q7-orphan:latest
   n_nodes: 5
   partitions_per_node: 2
-  runtime: 120000
-  runtime_n0: 120000
-  runtime_n3: 120000
-  recovery_sleeptime: 10000
+  runtime: 300000
+  runtime_n0: 300000
+  runtime_n3: 300000
+  recovery_sleeptime: 180000
   sleep_between_polls: 0
   replicas: 1
   window_length: 10000
@@ -14,11 +14,11 @@ holon:
   heartbeat_interval: 100
 
 nexmarkProducer:
-  image: "gcr.io/holon-450608/nexmark-producer:latest"
+  image: "gcr.io/holon-458408/nexmark-producer-q7-kolya:latest"
   replicas: 1
   n_producers: 1
-  sleepTimeMs: 75
+  sleepTimeMs: 100
 
 outputConsumer:
-  image: gcr.io/holon-450608/output-consumer:latest
+  image: gcr.io/holon-458408/output-consumer-q7-kolya:latest
   replicas: 1

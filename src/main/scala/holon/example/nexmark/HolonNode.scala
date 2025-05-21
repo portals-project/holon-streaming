@@ -9,6 +9,19 @@ import java.nio.file.{Files, Paths}
 
 object HolonNode {
 
+    var ORPHAN_START_TIME = 0L
+    var ORPHAN_END_TIME = 0L
+//    var ORPHAN_START_TIME = System.currentTimeMillis() + 30_000
+//    var ORPHAN_END_TIME = ORPHAN_START_TIME + 10_000
+
+    def isNodeInOrphanState(node_id: Int): Boolean = {
+//        if (node_id != 1) {
+//            return false
+//        }
+        val now = System.currentTimeMillis()
+        ORPHAN_START_TIME > 0 && now >= ORPHAN_START_TIME && now <= ORPHAN_END_TIME
+    }
+
     private val FirestoreClient = holon.backend.cloud.FirestoreClient
 
     private val logger = Logger("HolonNode")
@@ -33,6 +46,14 @@ object HolonNode {
             Thread.sleep(RECOVERY_SLEEPTIME)
             logger.info(s"Node $nodeId: Found existing snapshot. Recovering...")
             RUNTIME = 120000
+        }
+
+        // TODO: Only used for orphan benchmarking.
+        val orphanNode = sys.env.getOrElse("ORPHAN_NODE", "false").replace("\"", "").toBoolean
+        if (orphanNode) {
+            logger.info(s"Node $nodeId: Running in orphan mode.")
+            ORPHAN_START_TIME = System.currentTimeMillis() + 60000
+            ORPHAN_END_TIME = ORPHAN_START_TIME + 10000
         }
 
         SafeRun(RUNTIME) {

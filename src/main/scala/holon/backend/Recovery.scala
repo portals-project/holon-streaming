@@ -10,6 +10,8 @@ import upickle.default.{readBinary, writeBinary}
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
 
+import holon.example.nexmark.HolonNode.isNodeInOrphanState
+
 class Recovery(nodeId: Int) {
 
     private var running = true
@@ -109,12 +111,12 @@ class Recovery(nodeId: Int) {
             // Check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
             if (currentFailedNodes.isDefined) {
-                // If all nodes suddenly fail at once, enter orphan state and wait x seconds to see if other nodes recover.
+                logger.debug(s"Node $nodeId isOrphanState: ${isOrphanState}, orphanNodeStateEnd: $orphanNodeStateEnd")
                 if (!isOrphanState && this.failedNodes.isEmpty && currentFailedNodes.get.length == N_NODES - 1) {
                     logger.info(s"Suddenly detected all other nodes as failed. Entering orphan state.")
                     this.setOrphanStateEnd
                 } else if (!isOrphanState) {
-                    // Only handle nodes when we are not in orphan state
+                    // Only handle nodes when we are not in orphan state anymore
                     handleFailedNodes(currentFailedNodes.get.diff(failedNodes))
                     this.failedNodes = currentFailedNodes.get
                 }
@@ -131,14 +133,24 @@ class Recovery(nodeId: Int) {
     }
 
     private inline def runStep(): Unit = {
-        processControlChannel()
-        if (this.consumerPerPartition.nonEmpty) {
-            processOtherChannels()
+
+        // TODO: delete after benchmarking
+        if (isNodeInOrphanState(nodeId)) {
+            if (this.consumerPerPartition.nonEmpty) {
+                processOtherChannels()
+            }
         } else {
-            attemptWorkSteal()
+
+            processControlChannel()
+            if (this.consumerPerPartition.nonEmpty) {
+                processOtherChannels()
+            } else {
+                attemptWorkSteal()
+            }
+
+            // Flush all producers
+            for ((chn, producer) <- producers) do producer.flush()
         }
-        // Flush all producers
-        for ((chn, producer) <- producers) do producer.flush()
     }
 
     /**
@@ -182,6 +194,8 @@ class Recovery(nodeId: Int) {
                                 if (senderId != nodeId) {
                                     logger.debug(s"Node $nodeId received checkpoint from node $senderId")
                                     this.checkpointManager.saveSnapshotsFromOtherNodes(partitionSnapshots)
+                                    // TODO: delete
+                                    // checkIfCheckpointIncludesOwnPartitions(senderId, partitionSnapshots)
                                 }
                             case OwnershipState(ownershipMap, senderId) =>
                                 logger.debug(s"($nodeId) Received ownership state from node $senderId: $ownershipMap")
@@ -216,6 +230,11 @@ class Recovery(nodeId: Int) {
      */
     private def processOtherChannels(): Unit = {
         for ((partitionId, (chn, consumer)) <- this.consumerPerPartition) {
+
+            if (isNodeInOrphanState(nodeId) && chn != CHN_INPUT) {
+                return
+            }
+
             if (chn != CHN_CONTROL) {
                 try {
                     val records = consumer.poll()

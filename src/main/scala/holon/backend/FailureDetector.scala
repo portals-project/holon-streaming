@@ -6,6 +6,8 @@ import holon.backend.messages.Heartbeat
 import holon.Utils.RunThread
 import upickle.default.writeBinary
 
+import holon.example.nexmark.HolonNode.isNodeInOrphanState
+
 class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) {
     private val logger = Logger.apply("FailureDetector")
     Logger.setLevel("FailureDetector", "INFO")
@@ -15,12 +17,19 @@ class FailureDetector(currentNodeId: Int, outputCollector: OutputCollectorImpl) 
     private var startCheckingForFailures = false
     private val heartbeatThread = RunThread(this.sendHeartbeats())
 
-
     private def sendHeartbeats(): Unit = {
         while(true) {
             logger.debug(s"Heartbeat: $currentNodeId")
-            outputCollector.collect(CHN_CONTROL, List((writeBinary(0), writeBinary(Heartbeat(currentNodeId)))))
-            Thread.sleep(HEARTBEAT_INTERVAL)
+
+            // TODO: delete after benchmarking
+            if (isNodeInOrphanState(currentNodeId)) {
+                logger.info(s"Node $currentNodeId is in orphan state. Not sending heartbeat.")
+                Thread.sleep(HEARTBEAT_INTERVAL * 4)
+            } else {
+                outputCollector.collect(CHN_CONTROL, List((writeBinary(0), writeBinary(Heartbeat(currentNodeId)))))
+                Thread.sleep(HEARTBEAT_INTERVAL)
+            }
+
         }
     }
 

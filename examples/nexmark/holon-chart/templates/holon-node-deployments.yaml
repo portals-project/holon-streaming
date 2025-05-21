@@ -45,8 +45,17 @@ spec:
                 {{ $.Values.holon.runtime_n0 }}
                 {{- else if eq $i 3 }}
                 {{ $.Values.holon.runtime_n3 }}
+                {{- else if eq $i 2 }}
+                {{ $.Values.holon.runtime_n3 }}
                 {{- else }}
                 {{ $.Values.holon.runtime }}
+                {{- end }}
+            - name: ORPHAN_NODE
+              value: |-
+                {{- if eq $i 1 }}
+                "true"
+                {{- else }}
+                "false"
                 {{- end }}
             - name: WINDOW_LENGTH
               value: "{{ $.Values.holon.window_length }}"
