@@ -41,6 +41,9 @@ object Config {
   // TODO: Test if this works, might need to be dynamic
   // Buffer size for garbage collection roughly equals the # of windows that will be kept in checkpointed
   val GARBAGE_COLLECTION_OFFSET = 10L
+  // Offset for the window map that is broadcasted to all nodes, value == amount of windows that are kept in the map for broadcast
+  // Increases message size
+  val BROADCAST_OFFSET = 13L
 
   // Update locally
   val FIRESTORE_START_KEY = "flags_ruben"
