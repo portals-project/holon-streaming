@@ -44,16 +44,17 @@ spec:
           volumeMounts:
             - name: holon-storage
               mountPath: /app/snapshots
-{{/*          resources:*/}}
-{{/*            requests:*/}}
-{{/*              cpu: "250m"*/}}
-{{/*              memory: "512Mi"*/}}
-{{/*            limits:*/}}
-{{/*              cpu: "500m"*/}}
-{{/*              memory: "1Gi"*/}}
+          {{- if $.Values.holon.resources }}
+          resources:
+            requests:
+              cpu: {{ $.Values.holon.resources.requests.cpu | quote }}
+              memory: {{ $.Values.holon.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ $.Values.holon.resources.limits.cpu | quote }}
+              memory: {{ $.Values.holon.resources.limits.memory | quote }}
+          {{- end }}
       volumes:
         - name: holon-storage
           persistentVolumeClaim:
             claimName: holon-node-{{ $i }}-pvc
-{{/*      restartPolicy: Never*/}}
 {{- end }}
