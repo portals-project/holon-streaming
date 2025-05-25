@@ -6,6 +6,8 @@ import org.apache.kafka.clients.producer.*
 
 import holon.*
 import holon.backend.KafkaSerdes.*
+import org.apache.kafka.common.{MetricName, Metric}
+import scala.jdk.CollectionConverters._
 
 class KafkaLogProducer(
     host: String,
@@ -29,6 +31,11 @@ class KafkaLogProducer(
       val record = new ProducerRecord(topic, rec._1, rec._2)
       producer.send(record)
     }
+
+  // TODO: Change this to something simpler
+  override def metrics(): scala.collection.immutable.Map[MetricName,Metric] = {
+    producer.metrics().asScala.toMap.view.toMap
+  }
 
   def flush(): Unit =
     producer.flush()

@@ -35,6 +35,11 @@ class KafkaLogConsumer(
     override def seek(partition: Int, offset: Long): Unit =
         cons.seek(new TopicPartition(topic, partition), offset)
 
+    // TODO: Change this to something simpler
+    override def metrics(): scala.collection.immutable.Map[MetricName,Metric] = {
+        cons.metrics().asScala.toMap.view.toMap
+    }
+
     override def lag(): Long =
         cons.currentLag(new TopicPartition(topic, partition)).orElse(0L)
 

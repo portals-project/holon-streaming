@@ -29,6 +29,9 @@ class Recovery(nodeId: Int) {
     private var pollsWithoutRecords = 0
     private var lastWorkStealAttempt = 0L
 
+    private val metricsIntervalMs = 500L
+    private var lastMetricsLogTime = System.currentTimeMillis()
+
     private val logger = Logger.apply("Recovery")
     Logger.setLevel("Recovery", "INFO")
 
@@ -112,6 +115,13 @@ class Recovery(nodeId: Int) {
             }
 
             runStep()
+
+            val now = System.currentTimeMillis()
+            if (now - lastMetricsLogTime >= metricsIntervalMs) {
+                logBroadcastBytes()
+                lastMetricsLogTime = now
+            }
+
             Thread.sleep(SLEEP_BETWEEN_POLLS)
         }
     }
@@ -131,6 +141,42 @@ class Recovery(nodeId: Int) {
         // Flush all producers
         for ((chn, producer) <- producers) do producer.flush()
     }
+
+    private def logBroadcastBytes(): Unit = {
+        // 1) If the broadcast topic name isn't set, bail out early
+        if (Option(KAFKA_TOPIC_BROADCAST).forall(_.trim.isEmpty)) {
+//            logger.warn(s"[MESSAGING-SIZE] $nodeId: KAFKA_TOPIC_BROADCAST is empty; skipping bytes-exchange log")
+            return
+        }
+
+        // 2) Sum bytes OUT on the broadcast topic
+        val bytesOut: Long = producers.get(CHN_BROADCAST).map { lp =>
+            lp.metrics().collect {
+                case (mn, metric)
+                    if mn.group() == "producer-topic-metrics" &&
+                      mn.name()  == "byte-total" &&
+                      // safe check for null tag values
+                      Option(mn.tags().get("topic")).contains(KAFKA_TOPIC_BROADCAST) =>
+                    metric.metricValue().asInstanceOf[Number].longValue()
+            }.sum
+        }.getOrElse(0L)
+
+        // 3) Sum bytes IN on the broadcast topic
+        val bytesIn: Long = consumerPerPartition.values.collect {
+            case (chn, lc) if chn == CHN_BROADCAST =>
+                lc.metrics().collect {
+                    case (mn, metric)
+                        if mn.group() == "consumer-fetch-manager-metrics" &&
+                          mn.name()  == "bytes-consumed-total" &&
+                          Option(mn.tags().get("topic")).contains(KAFKA_TOPIC_BROADCAST) =>
+                        metric.metricValue().asInstanceOf[Number].longValue()
+                }.sum
+        }.sum
+
+        // 4) Log the result
+//        logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
+    }
+
 
     /**
      * Wait for an OwnershipState message from another node.
