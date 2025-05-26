@@ -23,6 +23,8 @@ object OutputConsumer {
         val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
         Logger.setLevel("Consumer", "INFO")
         val outputLagPerWindow = mutable.Map.empty[Long, Long]
+        val outputPerWindow = mutable.Map.empty[Long, Map[Int, String]]
+        
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
@@ -40,9 +42,28 @@ object OutputConsumer {
                         outputLagPerWindow(windowId) =
                             if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
                             else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+                            
+                        outputPerWindow(windowId) = outputPerWindow.getOrElse(windowId, Map.empty[Int, String]) + (partition -> outputValue)
 
-                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                        if (outputPerWindow(windowId).size == nrOfKafkaPartitions()) {
+                            // if all strings for each partition are the same
+                            val allSame = outputPerWindow(windowId).values.toSeq.distinct.size == 1
+                            if allSame then
+                                logger.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                //                                systemOutputLog.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                //                                logger.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                outputPerWindow.remove(windowId)
+                            else
+                                //                                systemOutputLog.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                logger.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
 
+                            //                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                            //                        systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                        }
+
+                        // FOR Q0       
+//                        logger.info(s"[LagAppendOutput] - event: ${outputValue}, timestamp: $logAppendTime")
+//                        systemOutputLog.info(s"[LagAppendOutput] - event: ${outputValue}, timestamp: $logAppendTime")
                         val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                         windowsToOutput.foreach { winId =>
                             logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")

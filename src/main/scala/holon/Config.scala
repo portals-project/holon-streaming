@@ -24,26 +24,26 @@ object Config {
   final val GC_CREDENTIALS_FILE_PATH = "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json"
 
   // TODO: was 10, change value to enable work stealing again
-  final val WORK_STEALING_THRESHOLD = 10_000   // Determines how many (empty) polls a node should perform before it starts work stealing.
+  final val WORK_STEALING_THRESHOLD = 10_0000000   // Determines how many (empty) polls a node should perform before it starts work stealing.
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
-  var N_NODES = 5
+  var N_NODES = 4
   var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
-  var FAILURE_DETECTION_THRESHOLD = 2_000L
+  var FAILURE_DETECTION_THRESHOLD = 2_000000L
 
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  var WINDOW_LENGTH = 5_000L
+  var WINDOW_LENGTH = 25_000L
   // TODO: Test if this works, might need to be dynamic
   // Buffer size for garbage collection roughly equals the # of windows that will be kept in checkpointed
   val GARBAGE_COLLECTION_OFFSET = 10L
   // Offset for the window map that is broadcasted to all nodes, value == amount of windows that are kept in the map for broadcast
   // Increases message size
-  val BROADCAST_OFFSET = 13L
+  val BROADCAST_OFFSET = 1L
 
   // Update locally
   val FIRESTORE_START_KEY = "flags_ruben"

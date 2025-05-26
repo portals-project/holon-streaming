@@ -2,6 +2,14 @@
 
 These are some basic instructions to follow to deploy the Holon application on Google Kubernetes Engine (GKE).
 
+## Config setup
+#### Window size vs broadcast offset
+Q7: 5k + 1L
+Q4: 25k + 1L
+Q4: 15k + 12L
+Q4: 10K + 13L
+
+
 ## Useful Commands
 
 **Authenticate with Google Cloud**: `gcloud auth login`

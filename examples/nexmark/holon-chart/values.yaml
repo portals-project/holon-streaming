@@ -1,6 +1,6 @@
 holon:
-  image: gcr.io/holon-458408/holon-node:latest
-  n_nodes: 5
+  image: gcr.io/holon-458408/holon-node-ruben:latest
+  n_nodes: 4
   partitions_per_node: 2
   runtime: 300000
   sleep_between_polls: 0
@@ -15,10 +15,10 @@ holon:
       memory: "4Gi"
 
 nexmarkProducer:
-  image: gcr.io/holon-458408/nexmark-producer:latest
+  image: gcr.io/holon-458408/nexmark-producer-ruben:latest
   replicas: 1
-  sleepTimeMs: 35
+  sleepTimeMs: 200
 
 outputConsumer:
-  image: gcr.io/holon-458408/output-consumer:latest
+  image: gcr.io/holon-458408/output-consumer-ruben:latest
   replicas: 1

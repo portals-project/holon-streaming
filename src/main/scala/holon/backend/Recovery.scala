@@ -174,7 +174,7 @@ class Recovery(nodeId: Int) {
         }.sum
 
         // 4) Log the result
-//        logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
+        logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
     }
 
 

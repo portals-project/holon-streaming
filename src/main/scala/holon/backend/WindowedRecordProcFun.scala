@@ -95,9 +95,9 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             // Get the event timestamp.
             val eventTimestamp: Long = crdt.timeStamp(event)
 
-            if (eventTimestamp < lastSeenTimestamp) {
-              outputLog.info(s"partition: $partition, received event with timestamp: $eventTimestamp which is older than the last seen timestamp: $lastSeenTimestamp. stream is not in order.")
-            }
+//            if (eventTimestamp < lastSeenTimestamp) {
+////              outputLog.info(s"partition: $partition, received event with timestamp: $eventTimestamp which is older than the last seen timestamp: $lastSeenTimestamp. stream is not in order.")
+//            }
 
             // Get current window
             val window: Long = defineWindow(eventTimestamp)
@@ -118,19 +118,25 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             if queryId == 0 then logAppendTimePerWindow(window) = math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
 
             logger.debug(s"partition: $partition, is has 1 record, queryId: $queryId and crdt: $crdt")
+
+            // TODO: CHANGE BROADCASTING LOGIC TO USE BROADCAST WINDOW VALUE
+
             // Get the minimum vector clock value across all partitions
-//            lastClosedWindow = defineWindow(vectorClock(partition)) - 1L
+            // lastClosedWindow = defineWindow(vectorClock(partition)) - 1L
             val lastClosedWindow = defineWindow(vectorClock(partition)) - 1L
 
             if (lastClosedWindow > queriedWindow) {
               for (i <- queriedWindow until lastClosedWindow if windowMap.contains(i) && !windowMap(i)._2) {
                 windowMap(i) = (windowMap(i)._1, true)
 
+                // Wherever a window is closed, emit state size
+                val serializedState: Array[Byte] = writeBinary(windowMap)
+                logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+
                 val windowState = WindowState(partition, queryId, vectorClock, windowMap.filter(_k => _k._1 > (i - BROADCAST_OFFSET)))
                 logger.debug(s"partition: $partition, broadcasting window state: $i")
                 outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(windowState))))
 
-//                queriedWindow = i
                 emittedWindows = math.max(emittedWindows, i)
               }
               queriedWindow = lastClosedWindow
@@ -159,7 +165,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 //                  queriedWindow = i
 //                }
 //              }
-//
 //            }
           case None =>
             logger.debug(s"Ignored non-bid event")
@@ -188,11 +193,13 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 //                outputLog.info(s"[BROADCAST] - partition: $partition, an unseen window has been received new window: $windowKey from partition: $receivedPartition, vectorClock: ${receivedState.vectorClock.mkString(",")}")
 //                windowMap(windowKey) = (receivedAggregate._1, false)
 //              }
+
             }
-            if (defineWindow(receivedState.vectorClock(receivedPartition)) - defineWindow(vectorClock(receivedPartition)) > 1) {
+
+//            if (defineWindow(receivedState.vectorClock(receivedPartition)) - defineWindow(vectorClock(receivedPartition)) > 1) {
               // If the received vector clock is older than our own, we ignore it.
-              outputLog.info(s"[BROADCAST] - partition: $partition, received vector clock which skips a window from partition: $receivedPartition Our current window for the received partition: ${defineWindow(vectorClock(receivedPartition))}, received current window for the same partition: ${defineWindow(receivedState.vectorClock(receivedPartition))}")
-            }
+//              outputLog.info(s"[BROADCAST] - partition: $partition, received vector clock which skips a window from partition: $receivedPartition Our current window for the received partition: ${defineWindow(vectorClock(receivedPartition))}, received current window for the same partition: ${defineWindow(receivedState.vectorClock(receivedPartition))}")
+//            }
             // Merge vector clock for the received partition.
 //            outputLog.info(s"[BROADCAST] - partition: $partition, merging vector clock for partition: $receivedPartition, our own current window: ${defineWindow(vectorClock.min)}, received current window: ${defineWindow(receivedState.vectorClock.min)}")
             vectorClock(receivedPartition) =
@@ -210,7 +217,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
   // Define the window for a given event time.
   def defineWindow(eventTime: Long): Long = {
-    val time = eventTime
+    val time = eventTime / 10
     if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
   }
 
