@@ -1,0 +1,41 @@
+{{- range $i := until ($.Values.nexmarkProducer.n_producers | int) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexmark-producer-{{ $i }}
+spec:
+  replicas: {{ $.Values.nexmarkProducer.replicas }}
+  selector:
+    matchLabels:
+      io.kompose.service: nexmark-producer-{{ $i }}
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml --stdout
+        kompose.version: 1.35.0 (HEAD)
+      labels:
+        io.kompose.service: nexmark-producer-{{ $i }}
+    spec:
+{{/*      nodeSelector:*/}}
+{{/*        node-type: small*/}}
+      containers:
+        - name: nexmark-producer-0
+          image: {{ $.Values.nexmarkProducer.image }}
+          resources:
+            requests:
+              memory: "3Gi"
+              cpu: "1"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: N_NODES
+              value: "{{ $.Values.holon.n_nodes }}"
+            - name: PARTITIONS_PER_NODE
+              value: "{{ $.Values.holon.partitions_per_node }}"
+            - name: PRODUCER_SLEEP_TIME_MS
+              value: "{{ $.Values.nexmarkProducer.sleepTimeMs }}"
+            - name: WINDOW_LENGTH
+              value: "{{ $.Values.holon.window_length }}"
+      restartPolicy: Always
+{{- end }}

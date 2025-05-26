@@ -1,0 +1,6 @@
+apiVersion: v2
+name: holon-chart
+description: A Helm chart for deploying Holon stream processing components on GKE
+type: application
+version: 0.1.0
+appVersion: "1.16.0"

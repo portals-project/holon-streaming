@@ -52,7 +52,7 @@ services:
       - init-kafka
     environment:
       <<: *shared-holon-env
-      PRODUCER_SLEEP_TIME_MS: "500"
+      PRODUCER_SLEEP_TIME_MS: "200"
 
   output-consumer:
     build:
@@ -82,6 +82,7 @@ services:
     environment:
       <<: [*base-node-env, *shared-holon-env]
       NODE_ID: "1"
+      ORPHAN_NODE: "true"
 
   holon-node-2:
     build:

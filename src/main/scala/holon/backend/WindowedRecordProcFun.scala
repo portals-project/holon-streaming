@@ -164,7 +164,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
           case None =>
             logger.debug(s"Ignored non-bid event")
         }
-        
+
       // TODO: Find alternative for using channels.
       case CHN_BROADCAST =>
         logger.debug(s"partition: $partition, received broadcast from other partitions")

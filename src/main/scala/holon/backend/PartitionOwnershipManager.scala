@@ -5,7 +5,7 @@ import holon.backend.messages.OwnershipEntry
 import Config.N_NODES
 
 class PartitionOwnershipManager(nodeId: Int) {
-    var partitionToNodeId: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
+    private val partitionToOwner: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
     var controlChannelConsumer: Option[LogConsumer] = None
     private val logger = Logger.apply("PartitionOwnershipManager")
 
@@ -19,7 +19,7 @@ class PartitionOwnershipManager(nodeId: Int) {
         for (partition <- partitions) {
             // Initialize with 0 so it does not overwrite existing ownership (in the case that node failed an rejoined)
             val ownershipEntry = OwnershipEntry(nodeId, 0)
-            partitionToNodeId.put(partition, ownershipEntry)
+            partitionToOwner.put(partition, ownershipEntry)
         }
     }
 
@@ -30,19 +30,19 @@ class PartitionOwnershipManager(nodeId: Int) {
     def setPartitionOwnership(partition: Int, newOwnerId: Int): Unit = {
         val controlChannelOffset = controlChannelConsumer.get.offsets().head._2
         val ownershipEntry = OwnershipEntry(newOwnerId, controlChannelOffset)
-        partitionToNodeId.put(partition, ownershipEntry)
+        partitionToOwner.put(partition, ownershipEntry)
     }
 
     def getPartitionOwner(partition: Int): Int = {
-        partitionToNodeId.get(partition) match {
+        partitionToOwner.get(partition) match {
             case Some(ownershipEntry) => ownershipEntry.nodeId
             case None => -1
         }
     }
 
     def getPartitionsOwnedByNode(nodeId: Int): List[Int] = {
-        //partitionToNodeId.entries.filter(_._2.nodeId == nodeId).map(_._1).toList
-        partitionToNodeId.filter(_._2.nodeId == nodeId).keys.toList
+        //partitionToOwner.entries.filter(_._2.nodeId == nodeId).map(_._1).toList
+        partitionToOwner.filter(_._2.nodeId == nodeId).keys.toList
     }
 
     /**
@@ -53,18 +53,18 @@ class PartitionOwnershipManager(nodeId: Int) {
      */
     def mergeOwnershipMap(other: scala.collection.mutable.Map[Int, OwnershipEntry]): Unit = {
         for ((partition, ownershipEntry) <- other) {
-            partitionToNodeId.get(partition) match {
+            partitionToOwner.get(partition) match {
                 case Some(currentOwnershipEntry) =>
                     if (ownershipEntry.version > currentOwnershipEntry.version) {
-                        partitionToNodeId.put(partition, ownershipEntry)
+                        partitionToOwner.put(partition, ownershipEntry)
                     } else if (ownershipEntry.version == currentOwnershipEntry.version && ownershipEntry.nodeId < currentOwnershipEntry.nodeId) {
-                        partitionToNodeId.put(partition, ownershipEntry)
+                        partitionToOwner.put(partition, ownershipEntry)
                     }
                 case None =>
-                    partitionToNodeId.put(partition, ownershipEntry)
+                    partitionToOwner.put(partition, ownershipEntry)
             }
         }
-        logger.debug(s"Merged ownership map: $partitionToNodeId")
+        logger.debug(s"Merged ownership map: $partitionToOwner")
     }
 
     /**
@@ -74,7 +74,7 @@ class PartitionOwnershipManager(nodeId: Int) {
         val newOwnedPartitions = scala.collection.mutable.ListBuffer[Int]()
         for ((partition, ownershipEntry) <- newOwnershipCrdt) {
             if (ownershipEntry.nodeId == nodeId) {
-                partitionToNodeId.get(partition) match {
+                partitionToOwner.get(partition) match {
                     case Some(currentOwnershipEntry) =>
                         // Partition is currently owned by another node
                         if (currentOwnershipEntry.nodeId != nodeId && currentOwnershipEntry.version < ownershipEntry.version) {
@@ -87,6 +87,26 @@ class PartitionOwnershipManager(nodeId: Int) {
             }
         }
         newOwnedPartitions.toList
+    }
+
+    /**
+     * Get list of partitions that current node should release ownership of.
+     */
+    def getPartitionsToRelease(newOwnershipCrdt: scala.collection.mutable.Map[Int, OwnershipEntry]): List[Int] = {
+        val partitionsToRelease = scala.collection.mutable.ListBuffer[Int]()
+        for ((partition, ownershipEntry) <- partitionToOwner) {
+            if (ownershipEntry.nodeId == nodeId) {
+                newOwnershipCrdt.get(partition) match {
+                    case Some(newOwnershipEntry) =>
+                        // Partition is currently owned by the current node
+                        if (newOwnershipEntry.nodeId != nodeId && newOwnershipEntry.version > ownershipEntry.version) {
+                            partitionsToRelease += partition
+                        }
+                    case None => {}
+                }
+            }
+        }
+        partitionsToRelease.toList
     }
 
 
@@ -103,6 +123,6 @@ class PartitionOwnershipManager(nodeId: Int) {
     }
 
     def getOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = {
-        partitionToNodeId
+        partitionToOwner
     }
 }

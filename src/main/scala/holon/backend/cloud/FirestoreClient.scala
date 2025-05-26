@@ -12,7 +12,7 @@ object FirestoreClient {
 
     val FLAG_COLLECTION = FIRESTORE_START_KEY
 
-    val credentialsPath = sys.env.getOrElse("GOOGLE_FIRESTORE_CREDENTIALS", "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/firebase-user-account.json")
+    val credentialsPath = sys.env.getOrElse("GOOGLE_FIRESTORE_CREDENTIALS", "/Users/kolya/kth_projects/holon-streaming/.gcp/firebase-user-account.json")
     val credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
     val firestore: Firestore = FirestoreOptions.newBuilder().setCredentials(credentials).build().getService
     val logger = Logger.apply("FirestoreClient")

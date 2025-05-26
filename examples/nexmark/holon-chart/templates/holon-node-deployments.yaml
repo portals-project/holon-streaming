@@ -40,19 +40,27 @@ spec:
             - name: SLEEP_BETWEEN_POLLS
               value: "{{ $.Values.holon.sleep_between_polls }}"
             - name: RUNTIME
-              value: "{{ $.Values.holon.runtime }}"
+              value: |-
+                {{- if eq $i 0 }}
+                {{ $.Values.holon.runtime_n0 }}
+                {{- else if eq $i 3 }}
+                {{ $.Values.holon.runtime_n3 }}
+                {{- else }}
+                {{ $.Values.holon.runtime }}
+                {{- end }}
+            - name: WINDOW_LENGTH
+              value: "{{ $.Values.holon.window_length }}"
+            - name: RECOVERY_SLEEPTIME
+              value: "{{ $.Values.holon.recovery_sleeptime }}"
+            - name: CHECKPOINT_INTERVAL
+              value: "{{ $.Values.holon.checkpoint_interval }}"
+            - name: FAILURE_DETECTION_THRESHOLD
+              value: "{{ $.Values.holon.failure_detection_threshold }}"
+            - name: HEARTBEAT_INTERVAL
+              value: "{{ $.Values.holon.heartbeat_interval }}"
           volumeMounts:
             - name: holon-storage
               mountPath: /app/snapshots
-          {{- if $.Values.holon.resources }}
-          resources:
-            requests:
-              cpu: {{ $.Values.holon.resources.requests.cpu | quote }}
-              memory: {{ $.Values.holon.resources.requests.memory | quote }}
-            limits:
-              cpu: {{ $.Values.holon.resources.limits.cpu | quote }}
-              memory: {{ $.Values.holon.resources.limits.memory | quote }}
-          {{- end }}
       volumes:
         - name: holon-storage
           persistentVolumeClaim:

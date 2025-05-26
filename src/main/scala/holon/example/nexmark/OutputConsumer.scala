@@ -22,7 +22,9 @@ object OutputConsumer {
         val logger = Logger.apply("Consumer")
         val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
         Logger.setLevel("Consumer", "INFO")
+
         val outputLagPerWindow = mutable.Map.empty[Long, Long]
+
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match

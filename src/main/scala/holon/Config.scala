@@ -20,11 +20,9 @@ object Config {
 
   final val USE_CLOUD_STORAGE_CHECKPOINTS = false
   final val GCS_BUCKET_NAME = "failure-recovery-dev"
-  // Update locally
-  final val GC_CREDENTIALS_FILE_PATH = "/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json"
+  final val GC_CREDENTIALS_FILE_PATH = "/Users/kolya/kth_projects/holon-streaming/.gcp/gcs-service-account.json"
 
-  // TODO: was 10, change value to enable work stealing again
-  final val WORK_STEALING_THRESHOLD = 10_000   // Determines how many (empty) polls a node should perform before it starts work stealing.
+  final val WORK_STEALING_THRESHOLD = 10   // Determines how many (empty) polls a node should perform before it starts work stealing.
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
@@ -32,12 +30,12 @@ object Config {
   var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
-  var FAILURE_DETECTION_THRESHOLD = 2_000L
+  var FAILURE_DETECTION_THRESHOLD = 1_000L
 
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  var WINDOW_LENGTH = 5_000L
+  var WINDOW_LENGTH = 10_000L
   // TODO: Test if this works, might need to be dynamic
   // Buffer size for garbage collection roughly equals the # of windows that will be kept in checkpointed
   val GARBAGE_COLLECTION_OFFSET = 10L

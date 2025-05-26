@@ -3,21 +3,23 @@ package holon.example.nexmark
 import holon.*
 import holon.Utils.*
 import holon.backend.*
+import holon.example.Nexmark
 import holon.example.nexmark.HolonNode.*
 import Config.*
 import holon.example.nexmark.OutputConsumer.consumeOutput
 import holon.example.nexmark.NexmarkProducer.runProducer
+import upickle.legacy.*
 
 /** Count the total number of bids. */
 object Query {
     Logger.setRootLevel("ERROR")
 
     /** Run the Nexmark producer */
-    def runNexmarkProducer(): Unit = {
+    def runNexmarkProducer() = {
         runProducer(KAFKA_HOST, KAFKA_PORT, PRODUCER_SLEEP_MS)
     }
 
-    def runOutputConsumer(): Unit = {
+    def runOutputConsumer() = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
         logger.info("Starting Output Consumer")
@@ -40,7 +42,7 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 40_000
+        val RUNTIME = 100_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")
@@ -52,6 +54,7 @@ object Query {
             RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
+            RunThread(runOutputConsumer())
             RunThread(runOutputConsumer())
 
             for (i <- 0 until N_NODES) {
