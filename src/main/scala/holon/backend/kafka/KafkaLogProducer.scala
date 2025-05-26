@@ -1,13 +1,13 @@
-package holon.backend
-
-import java.util.Properties
-
-import org.apache.kafka.clients.producer.*
+package holon.backend.kafka
 
 import holon.*
-import holon.backend.KafkaSerdes.*
-import org.apache.kafka.common.{MetricName, Metric}
-import scala.jdk.CollectionConverters._
+import holon.backend.kafka.KafkaLogProducer
+import holon.backend.kafka.KafkaSerdes.*
+import org.apache.kafka.clients.producer.*
+import org.apache.kafka.common.{Metric, MetricName}
+
+import java.util.Properties
+import scala.jdk.CollectionConverters.*
 
 class KafkaLogProducer(
     host: String,

@@ -2,6 +2,9 @@ package holon.backend
 
 import holon.Config.*
 import holon.*
+import holon.backend.kafka.{KafkaLogConsumer, KafkaLogProducer}
+
+import scala.collection.*
 
 object ConsumerProducerSetup {
 
@@ -11,7 +14,7 @@ object ConsumerProducerSetup {
     /**
      * Setup producers from producer references.
      */
-    def setupProducers(producerRefs: List[ProducerRef], producers: scala.collection.mutable.Map[Byte, LogProducer]): Unit = {
+    def setupProducers(producerRefs: List[ProducerRef], producers: mutable.Map[Byte, LogProducer]): Unit = {
         producers.clear()
         producerRefs.foreach { ref =>
             val producer = KafkaLogProducer.fromRef(ref)
@@ -23,7 +26,7 @@ object ConsumerProducerSetup {
      * Setup internal consumers for CONTROL and BROADCAST channels.
      * @return Tuple of control and broadcast consumers.
      */
-    def setupInternalConsumers(consumerRefs: List[ConsumerRef], consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): (KafkaLogConsumer, KafkaLogConsumer) = {
+    def setupInternalConsumers(consumerRefs: List[ConsumerRef], consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): (KafkaLogConsumer, KafkaLogConsumer) = {
         val controlConsumer = KafkaLogConsumer.fromRef(consumerRefs.find(_.chn == CHN_CONTROL).get)
         consumerPerPartition.put(CONTROL_PARTITION_ID, (CHN_CONTROL, controlConsumer))
         val broadcastConsumer = KafkaLogConsumer.fromRef(consumerRefs.find(_.chn == CHN_BROADCAST).get)
@@ -35,7 +38,7 @@ object ConsumerProducerSetup {
      * Setup consumers for each partition owned by the node.
      */
     def setupPartitionConsumers(consumerRefs: List[ConsumerRef], partitionsOwned: List[Int],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+        consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
 
         consumerRefs.foreach { ref =>
             // Don't setup CONTROL or BROADCAST channel consumer here. It is setup separately.
@@ -59,7 +62,7 @@ object ConsumerProducerSetup {
      * Add new Input consumer for the partition.
      * @return The new consumer.
      */
-    def addNewInputConsumer(partitionId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): LogConsumer = {
+    def addNewInputConsumer(partitionId: Int, consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): LogConsumer = {
         val inputConsumer = KafkaLogConsumer.fromRef(ConsumerRef(
             chn = CHN_INPUT,
             host = KAFKA_HOST,

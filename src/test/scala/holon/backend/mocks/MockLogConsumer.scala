@@ -1,7 +1,6 @@
 package holon.backend.mocks
 
 import holon.*
-import holon.Config
 
 class MockLogConsumer(lagValue: Long) extends holon.LogConsumer {
     override def lag(): Long = lagValue

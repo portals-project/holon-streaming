@@ -4,7 +4,9 @@ import holon.*
 import holon.backend.*
 import holon.example.Nexmark
 import Config.*
+import holon.backend.kafka.KafkaLogProducer
 import upickle.default.*
+
 import scala.collection.mutable
 
 object NexmarkProducer {

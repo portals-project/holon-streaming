@@ -2,8 +2,9 @@ package holon.example.nexmark
 
 import holon.ProcFun
 import holon.ProcFunFactory
-import holon.backend.{Q7ProcessFun, WindowedRecordProcFun}
+import holon.backend.WindowedRecordProcFun
 import holon.crdt.HighestBidLWWRegisterWrapper
+import holon.example.nexmark.procfuns.Q7ProcessFun
 import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
 
 // This factory creates WindowedRecordProcFun's with a HighestBidLWWRegisterWrapper

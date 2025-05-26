@@ -1,4 +1,4 @@
-package holon.backend
+package holon.backend.kafka
 
 object KafkaSerdes:
   final val KAFKA_SER =

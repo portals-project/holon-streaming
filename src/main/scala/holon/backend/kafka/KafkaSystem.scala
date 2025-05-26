@@ -1,7 +1,6 @@
-package holon.backend
+package holon.backend.kafka
 
-import io.github.embeddedkafka.EmbeddedKafka
-import io.github.embeddedkafka.EmbeddedKafkaConfig
+import io.github.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 
 class KafkaSystem(nPartitions: Int, host: String, port: Int):
   this.checkArguments()

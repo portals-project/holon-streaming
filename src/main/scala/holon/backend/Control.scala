@@ -9,16 +9,17 @@ import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
+import scala.collection.*
 
-class Recovery(nodeId: Int) {
+class Control(nodeId: Int) {
 
     private var running = true
-    private val queue = new ConcurrentLinkedQueue[Job]()
-    private val producers = scala.collection.mutable.Map.empty[Byte, LogProducer]
-    private val consumerPerPartition = scala.collection.mutable.Map.empty[Int, (Byte, LogConsumer)]
+    private val jobQueue = new ConcurrentLinkedQueue[Job]()
+    private val producers = mutable.Map.empty[Byte, LogProducer]
+    private val consumerPerPartition = mutable.Map.empty[Int, (Byte, LogConsumer)]
     private val out = OutputCollectorImpl(producers)
     private var procFunFactory: ProcFunFactory = null
-    private var procFunctionPerPartition = scala.collection.mutable.Map.empty[Int, ProcFun]
+    private var procFunctionPerPartition = mutable.Map.empty[Int, ProcFun]
 
     private val checkpointManager = if (USE_CLOUD_STORAGE_CHECKPOINTS) CloudStorageCheckpointManager(out) else DecentralizedCheckpointManager(out)
     private val ownershipManager = PartitionOwnershipManager(nodeId)
@@ -37,7 +38,7 @@ class Recovery(nodeId: Int) {
     RunThread(this.run())
 
     def submitOrUpdate(job: Job): Unit = {
-        this.queue.add(job)
+        this.jobQueue.add(job)
     }
 
     def partitions(): List[Int] = {
@@ -126,7 +127,7 @@ class Recovery(nodeId: Int) {
     }
 
     private inline def checkJobQueue(): Unit = {
-        val job = this.queue.poll()
+        val job = this.jobQueue.poll()
         if job != null then this.setup(job)
     }
 
@@ -257,7 +258,7 @@ class Recovery(nodeId: Int) {
                                 LagManager.updateLag(senderId, lag)
                             }
                             this.procFunctionPerPartition.foreach((_, procFun) =>
-                                                                      procFun.process(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
+                                                                      procFun.processInput(outputFunction, CHN_BROADCAST, Iterable.single((writeBinary(0), update, recTimestamp)))
                                                                   )
                         }
                     }
@@ -267,7 +268,7 @@ class Recovery(nodeId: Int) {
                 val procFun = this.procFunctionPerPartition.getOrElse(partitionId, null)
                 if (procFun != null) {
                     logger.debug(s"Node $nodeId is processing records for partition $partitionId")
-                    procFun.process(outputFunction, chn, records)
+                    procFun.processInput(outputFunction, chn, records)
                 }
         }
     }
@@ -307,7 +308,7 @@ class Recovery(nodeId: Int) {
      * Setup processing functions for each partition owned.
      */
     private def setupProcFunctions(partitionsOwned: List[Int]): Unit = {
-        this.procFunctionPerPartition = scala.collection.mutable.Map(partitionsOwned.map { partition =>
+        this.procFunctionPerPartition = mutable.Map(partitionsOwned.map { partition =>
             partition -> this.procFunFactory.create(partition)
         }: _*)
     }
@@ -318,8 +319,8 @@ class Recovery(nodeId: Int) {
      * @param basePartitions List of partitions assigned to us.
      * @return Map from owner node id to list of partitions to request ownership for.
      */
-    private def determinePartitionsToRequestOwnership(basePartitions: List[Int]): scala.collection.mutable.Map[Int, List[Int]] = {
-        val partitionsByOwnerToRequest = scala.collection.mutable.Map.empty[Int, List[Int]]
+    private def determinePartitionsToRequestOwnership(basePartitions: List[Int]): mutable.Map[Int, List[Int]] = {
+        val partitionsByOwnerToRequest = mutable.Map.empty[Int, List[Int]]
         var updateOwnershipState = false
         for (partitionId <- basePartitions) {
             val ownerNodeId = ownershipManager.getPartitionOwner(partitionId)
@@ -427,7 +428,7 @@ class Recovery(nodeId: Int) {
      * Handle new ownership state received from other nodes.
      * Integrate new partitions into the system and drop partitions that are no longer owned.
      */
-    private def handleNewOwnershipState(ownershipMap: scala.collection.mutable.Map[Int, OwnershipEntry]): Unit = {
+    private def handleNewOwnershipState(ownershipMap: mutable.Map[Int, OwnershipEntry]): Unit = {
         val newPartitions = ownershipManager.getNewOwnedPartitions(ownershipMap)
         integrateNewPartitions(newPartitions)
 

@@ -1,6 +1,7 @@
-package holon.backend
+package holon.example.nexmark.procfuns
 
 import holon.*
+import holon.backend.{WindowedQueryFun, WindowedRecordProcFun}
 import holon.crdt.AuctionGCounterWrapper
 import org.apache.pekko.cluster.ddata.GCounter
 import org.slf4j.LoggerFactory

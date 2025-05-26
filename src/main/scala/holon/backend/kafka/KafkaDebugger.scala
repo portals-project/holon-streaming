@@ -1,15 +1,14 @@
-package holon.backend
+package holon.backend.kafka
 
 import holon.Config.{KAFKA_HOST, KAFKA_PORT}
 import holon.Logger
-
-import java.time.Duration
-import java.util.Properties
 import org.apache.kafka.clients.admin.{AdminClient, ListTopicsOptions}
 import org.apache.kafka.clients.consumer.{ConsumerRecords, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 
+import java.time.Duration
+import java.util.Properties
 import scala.jdk.CollectionConverters.*
 
 object KafkaDebugger extends App {

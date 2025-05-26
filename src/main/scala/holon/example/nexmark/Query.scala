@@ -6,6 +6,7 @@ import holon.backend.*
 import holon.example.Nexmark
 import holon.example.nexmark.HolonNode.*
 import Config.*
+import holon.backend.kafka.KafkaSystem
 import holon.example.nexmark.OutputConsumer.consumeOutput
 import holon.example.nexmark.NexmarkProducer.runProducer
 import upickle.legacy.*

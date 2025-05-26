@@ -3,6 +3,7 @@ package holon.example.nexmark
 import holon.*
 import holon.Config.*
 import holon.backend.*
+import holon.backend.kafka.KafkaLogConsumer
 import org.slf4j.LoggerFactory
 import upickle.legacy.*
 

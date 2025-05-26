@@ -1,7 +1,8 @@
-package holon.backend
+package holon.example.nexmark.procfuns
 
 import holon.*
 import holon.Config.CHN_OUTPUT
+import holon.backend.{WindowedQueryFun, WindowedRecordProcFun}
 import holon.crdt.{CRDTWrapper, HighestBidLWWRegisterWrapper}
 import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
 import org.apache.pekko.cluster.ddata.LWWRegister

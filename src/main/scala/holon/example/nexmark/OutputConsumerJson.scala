@@ -4,6 +4,7 @@ import holon.*
 import holon.Config.*
 import holon.Utils.RunThread
 import holon.backend.*
+import holon.backend.kafka.KafkaLogConsumer
 import upickle.default.*
 
 import scala.util.Try
