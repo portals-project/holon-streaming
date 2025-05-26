@@ -1,8 +1,8 @@
 package holon.backend
 
 import holon.*
-import holon.backend.messages.OwnershipEntry
 import Config.N_NODES
+import holon.messages.OwnershipEntry
 
 class PartitionOwnershipManager(nodeId: Int) {
     private val partitionToOwner: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()

@@ -2,8 +2,8 @@ package holon.backend.checkpointmanager
 
 import holon.*
 import upickle.default.writeBinary
-import holon.backend.messages.Checkpoint
 import Config.CHN_CONTROL
+import holon.messages.Checkpoint
 import org.slf4j.LoggerFactory
 
 import java.nio.file.{Files, Paths, StandardOpenOption}

@@ -3,8 +3,8 @@ package holon.backend.checkpointmanager
 import holon.*
 import holon.backend.cloud.GCSClient.bucketName
 import holon.backend.cloud.GCSClient
-import holon.backend.messages.Checkpoint
 import holon.Config.CHN_CONTROL
+import holon.messages.Checkpoint
 import upickle.default.writeBinary
 
 import scala.collection.immutable.Map

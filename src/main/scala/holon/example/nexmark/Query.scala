@@ -62,7 +62,7 @@ object Query {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
                 val j = job(partitions, KAFKA_HOST, KAFKA_PORT)
                 val holon = Holon(i)
-                holon.submitOrUpdate(j)
+                holon.submitOrUpdateJob(j)
             }
 
             Thread.sleep(RUNTIME)

@@ -42,7 +42,7 @@ object HolonNode {
             val kafkaPort = kafkaBootstrapServers.split(":").last.toInt
             val j = job(partitions, kafkaHost, kafkaPort)
             val holon = Holon(nodeId)
-            holon.submitOrUpdate(j)
+            holon.submitOrUpdateJob(j)
             Thread.sleep(RUNTIME)
         }
     }
