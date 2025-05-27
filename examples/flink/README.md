@@ -8,6 +8,7 @@ helm install prod-con ./prod-con-chart
 
 ## Execute query
 ```bash
+kubectl get pods
 kubectl exec -it jobmanager-7cdc88c8b4-n6cw6 -- /bin/bash
 chmod -R 777 /flink-checkpoints
 ./bin/sql-client.sh -Dparallelism.default=15  -f /opt/flink/queries/q7.sql
