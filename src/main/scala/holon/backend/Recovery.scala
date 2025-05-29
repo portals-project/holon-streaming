@@ -5,6 +5,7 @@ import holon.Utils.*
 import holon.backend.checkpointmanager.{CloudStorageCheckpointManager, DecentralizedCheckpointManager}
 import holon.backend.messages.*
 import Config.*
+import org.slf4j.LoggerFactory
 import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -32,7 +33,14 @@ class Recovery(nodeId: Int) {
     private val metricsIntervalMs = 500L
     private var lastMetricsLogTime = System.currentTimeMillis()
 
+    // at top of your Recovery class:
+    private val eventsPerSec = PROCESSING_RATE_LIMIT
+    private val intervalNs = 1_000_000_000L / eventsPerSec
+    @volatile private var lastEmitTime = System.nanoTime()
+    //------------------
+
     private val logger = Logger.apply("Recovery")
+    private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("Recovery", "INFO")
 
     RunThread(this.run())
@@ -175,6 +183,7 @@ class Recovery(nodeId: Int) {
 
         // 4) Log the result
         logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
+//        outputLog.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
     }
 
 
@@ -256,15 +265,35 @@ class Recovery(nodeId: Int) {
      */
     private def processOtherChannels(): Unit = {
         logger.debug(s"Node $nodeId is processing other channels with ${this.consumerPerPartition} consumers")
+
         for ((partitionId, (chn, consumer)) <- this.consumerPerPartition) {
             logger.debug(s"Node $nodeId is processing partition $partitionId with channel $chn")
+
             if (chn != CHN_CONTROL) {
                 try {
                     val records = consumer.poll()
 
-                    logger.debug(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn and will process them")
+                    logger.info(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn")
+
                     if (records.nonEmpty) {
+                        if ENABLE_RATE_LIMIT then
+                        // --- manual rate‐limit: sleep so we average 10k processed events/sec ---
+                            val batchSize = records.size
+                            val targetNs = batchSize * intervalNs
+                            val nowNs = System.nanoTime()
+                            val elapsed = nowNs - lastEmitTime
+                            if (elapsed < targetNs) {
+                                val toSleep = targetNs - elapsed
+//                                outputLog.info(s"[RateCheck] Node $nodeId sleeping for ${toSleep / 1_000_000} ms to maintain $eventsPerSec events/sec")
+                                logger.info(s"[RateCheck] Node $nodeId sleeping for ${toSleep / 1_000_000} ms to maintain $eventsPerSec events/sec")
+                                Thread.sleep(toSleep / 1_000_000, (toSleep % 1_000_000).toInt)
+                            }
+                            lastEmitTime = System.nanoTime()
+//                        outputLog.info(s"[RateCheck] Node $nodeId processed $batchSize records in the last poll for partition $partitionId")
+
+                        // --- now actually process them ---
                         processRecords(chn, partitionId, records)
+
                     } else if (pollsWithoutRecords >= WORK_STEALING_THRESHOLD) {
                         logger.debug(s"Node $nodeId - partition $partitionId received no records from channel $chn")
                         pollsWithoutRecords = 0
@@ -272,6 +301,7 @@ class Recovery(nodeId: Int) {
                     } else {
                         pollsWithoutRecords += 1
                     }
+
                 } catch {
                     case e: IllegalStateException =>
                         if (e.getMessage.contains("This consumer has already been closed.")) {
@@ -283,6 +313,7 @@ class Recovery(nodeId: Int) {
             }
         }
     }
+
 
     /**
      * Process records from channels other than Control channel.

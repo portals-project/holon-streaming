@@ -1,65 +1,84 @@
 package holon.crdt
 
 import holon.example.Nexmark
-import org.apache.pekko.cluster.ddata.{LWWMap, SelfUniqueAddress}
-import org.apache.pekko.cluster.ddata.LWWRegister.Clock
+import org.apache.pekko.cluster.ddata.{GSet, ReplicatedDelta, SelfUniqueAddress}
+import scala.jdk.CollectionConverters._
 
-/**
- * Keeps track of the highest bid per auction in a single LWWMap[auctionId -> price].  
- */
-object AuctionToHighestBidWrapper extends CRDTWrapper[LWWMap[Long, Long], Map[Long, Long]] {
+object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Long, Long]] {
 
   type EventType = Nexmark.Events.Bid
 
   // Only accept Bid events
   override def checkType(ts: Nexmark.Events.TimeStampedEvent): Option[EventType] =
-    ts.event match
+    ts.event match {
       case b: EventType => Some(b)
       case _            => None
+    }
 
-  // Use the event timestamp for the LWWRegister’s clock
+  // We still need a timestamp for watermarking, even though GSet ignores it
   override def timeStamp(event: EventType): Long = event.dateTime
 
-  // Start with an empty map
-  override def empty(address: SelfUniqueAddress): LWWMap[Long, Long] = LWWMap.empty[Long, Long]
+  // Start with an empty GSet
+  override def empty(address: SelfUniqueAddress): GSet[(Long, Long)] =
+    GSet.empty[(Long, Long)]
+
+  /** Full‐state update: just add the new (auctionId→price) pair */
+  override def update(
+                       crdt: GSet[(Long, Long)],
+                       address: SelfUniqueAddress,
+                       event: EventType
+                     ): GSet[(Long, Long)] =
+    // Check event.price against the current highest price for the auction
+    if (crdt.getElements().asScala.exists { case (auction, price) => auction == event.auction && price >= event.price}) {
+      // If the current price is higher or equal, do not update
+      crdt
+    } else
+      // Otherwise, add the new (auctionId, price) pair
+    crdt.add((event.auction, event.price))
 
   /**
-   * Update the map: for this auction, if this bid’s price is higher than the current value,
-   * overwrite it; otherwise leave it unchanged.  
+   * Delta‐aware update:
+   * 1) add locally,
+   * 2) grab its `.delta: Option[GSet[(Long,Long)]]`,
+   * 3) clear it with `.resetDelta`,
+   * 4) return (clearedState, deltaToBroadcast)
    */
-  override def update(
-                       crdt: LWWMap[Long, Long],
-                       address: SelfUniqueAddress,
-                       delta: EventType
-                     ): LWWMap[Long, Long] = {
-    
-    implicit val priceClock: Clock[Long] = new Clock[Long] {
-      override def apply(currentTimestamp: Long, value: Long): Long =
-        value
-    }
-    
-    val auctionId = delta.auction
-    val newPrice  = delta.price
-
-    // Fetch current highest (or 0 if none)
-    val currentMax = crdt.get(auctionId).getOrElse(0L)
-
-    if (newPrice > currentMax) {
-      // puts a new register value with timestamp=timeStamp(delta)
-      crdt.put(address, auctionId, newPrice)
-    } else crdt
+  override def updateWithDelta(
+                                crdt: GSet[(Long, Long)],
+                                address: SelfUniqueAddress,
+                                event: EventType
+                              ): (GSet[(Long, Long)], Option[ReplicatedDelta]) = {
+    val updated    = update(crdt, address, event)
+    val maybeDelta = updated.delta
+    val cleared    = updated.resetDelta
+    (cleared, maybeDelta)
   }
 
-  /**
-   * Merge two LWWMaps by taking, per key, the entry with the later timestamp.  
-   * This is just the built-in merge for ReplicatedData.  
-   */
-  override def merge(crdt1: LWWMap[Long, Long], crdt2: LWWMap[Long, Long]): LWWMap[Long, Long] =
+  /** Merge a received GSet‐delta back into our local GSet */
+  override def mergeDelta(
+                           crdt: GSet[(Long, Long)],
+                           delta: ReplicatedDelta
+                         ): GSet[(Long, Long)] = {
+    val op = delta.asInstanceOf[GSet[(Long, Long)]]
+    crdt.mergeDelta(op)
+  }
+
+  /** Full‐state merge (unused in delta mode) */
+  override def merge(
+                      crdt1: GSet[(Long, Long)],
+                      crdt2: GSet[(Long, Long)]
+                    ): GSet[(Long, Long)] =
     crdt1.merge(crdt2)
 
   /**
-   * Expose the underlying map of auctionId -> highestPrice.  
+   * At query time, collapse the set of (auction,price) pairs
+   * into a Map[auction→highestPrice].
    */
-  override def value(crdt: LWWMap[Long, Long]): Map[Long, Long] =
-    crdt.entries
+  override def value(crdt: GSet[(Long, Long)]): Map[Long, Long] = {
+    crdt.getElements().asScala
+      .groupMap(_._1)(_._2)            // Map[auction → Seq[prices]]
+      .view
+      .mapValues(_.max)                // pick the highest price
+      .toMap
+  }
 }

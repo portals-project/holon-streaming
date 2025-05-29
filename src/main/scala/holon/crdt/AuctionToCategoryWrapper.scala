@@ -1,44 +1,82 @@
 package holon.crdt
 
 import holon.example.Nexmark
-import org.apache.pekko.cluster.ddata.{GSet, SelfUniqueAddress}
+import org.apache.pekko.cluster.ddata.{GSet, ORSet, ReplicatedDelta, SelfUniqueAddress}
+import upickle.legacy.{readBinary, writeBinary}
+import scala.jdk.CollectionConverters._
 
-object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], java.util.Set[(Long, Long)]] {
+object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], Set[(Long, Long)]] {
+
   type EventType = Nexmark.Events.Auction
 
-  // Check if the event is a Bid.
   override def checkType(ts: Nexmark.Events.TimeStampedEvent): Option[EventType] =
-    ts.event match
-      case b: EventType => Some(b)
+    ts.event match {
+      case a: EventType => Some(a)
       case _            => None
+    }
 
   override def timeStamp(event: EventType): Long = event.dateTime
 
-  override def empty(address: SelfUniqueAddress): GSet[(Long, Long)] = GSet.empty[(Long, Long)]
+  override def empty(address: SelfUniqueAddress): GSet[(Long, Long)] =
+    GSet.empty[(Long, Long)]
 
-  // The increment method.
+  /** Full-state update: just add the new auction-category pair. */
   override def update(
                        crdt: GSet[(Long, Long)],
                        address: SelfUniqueAddress,
-                       delta: EventType): GSet[(Long, Long)] =
-  
-    val newAuction = (delta.id, delta.category)
-    // Add the new auction to the existing GSet.
-    crdt.add(newAuction)
+                       event: EventType
+                     ): GSet[(Long, Long)] =
+    crdt.add((event.id, event.category))
 
-  // Merging two maps of gsets.
+  /**
+   * Delta-aware update:
+   *
+   *  1. apply the add locally,
+   *  2. grab its delta (an ORSet.DeltaOp, which is a ReplicatedDelta),
+   *  3. resetDelta so next .delta is fresh,
+   *  4. return (clearedState, deltaToBroadcast).
+   */
+  override def updateWithDelta(
+                                crdt: GSet[(Long, Long)],
+                                address: SelfUniqueAddress,
+                                event: EventType
+                              ): (GSet[(Long, Long)], Option[ReplicatedDelta]) = {
+    // 1) apply
+    val updated = update(crdt, address, event)
+
+    // 2) grab its internal delta (if any)
+    val maybeDelta: Option[ReplicatedDelta] = updated.delta
+
+//    println(s"Delta for ${event.id} -> ${event.category}: $maybeDelta")
+
+    // 3) reset so future .delta only sees new changes
+    val cleared = updated.resetDelta
+
+    // 4) return the cleared state + the real delta op
+    (cleared, maybeDelta)
+  }
+
+  /**
+   * Merge a received delta back into our local GSet.
+   */
+  override def mergeDelta(
+                           crdt: GSet[(Long, Long)],
+                           delta: ReplicatedDelta
+                         ): GSet[(Long, Long)] = {
+    // The GSet itself is its delta type: cast back to GSet[(Long,Long)]
+    val op = delta.asInstanceOf[GSet[(Long, Long)]]
+    // Merge that delta‐op into your local state
+    crdt.mergeDelta(op)
+  }
+
+  /** Full-state merge (unchanged). */
   override def merge(
                       crdt1: GSet[(Long, Long)],
-                      crdt2: GSet[(Long, Long)]): GSet[(Long, Long)] = {
-    // Merge the two sets by taking the union of elements.
-    val allElements = crdt1.elements ++ crdt2.elements
-    allElements.foldLeft(GSet.empty[(Long, Long)]) { (merged, element) =>
-      merged.add(element)
-    }
-  }
+                      crdt2: GSet[(Long, Long)]
+                    ): GSet[(Long, Long)] =
+    crdt1.merge(crdt2)
 
-  // Return the CRDT value
-  override def value(crdt: GSet[(Long, Long)]): java.util.Set[(Long, Long)] = {
-    crdt.getElements()
-  }
+  /** Expose as a normal Scala Set. */
+  override def value(crdt: GSet[(Long, Long)]): Set[(Long, Long)] =
+    crdt.getElements().asScala.toSet
 }

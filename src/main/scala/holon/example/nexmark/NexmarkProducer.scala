@@ -4,13 +4,16 @@ import holon.*
 import holon.backend.*
 import holon.example.Nexmark
 import Config.*
+import org.slf4j.LoggerFactory
 import upickle.default.*
+
 import scala.collection.mutable
 
 object NexmarkProducer {
     private val FirestoreClient = holon.backend.cloud.FirestoreClient
 
-    private val logger = Logger("NexmarkProducer")
+    private val logger    = Logger("NexmarkProducer")
+    private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("NexmarkProducer", "INFO")
 
     def main(args: Array[String]): Unit = {
@@ -21,7 +24,8 @@ object NexmarkProducer {
         val port = kafkaBootstrapServers.split(":").last.toInt
         val PRODUCER_SLEEP_TIME_MS = sys.env.getOrElse("PRODUCER_SLEEP_TIME_MS", "100").toInt
 
-        logger.info(s"Set up the nexmark producer with these parameters: $host, $port, $PRODUCER_SLEEP_TIME_MS")
+        logger.info(s"Set up the nexmark producer with these parameters: $host, $port, sleep=${PRODUCER_SLEEP_TIME_MS}ms")
+
         while (!FirestoreClient.isStartFlagSet) {
             logger.info("Waiting for start flag to be set.")
             Thread.sleep(1_000)
@@ -32,37 +36,62 @@ object NexmarkProducer {
 
     def runProducer(kafkaHost: String, kafkaPort: Int, sleepTime: Int): Unit = {
         val producer = KafkaLogProducer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT)
-        val iter = Nexmark.iterator()
+        val iter     = Nexmark.iterator()
 
-        // TODO: Only used for benchmarking.
-        // Track the amount of input events per window (even if they are not the specific CRDT class).
+        // Track the amount of input events per window (for throughput logs)
         val inputEventsPerWindow = mutable.Map.empty[Long, Long]
+
+        // Track per-second production counts (for later plotting)
+        val perSecondProduced = mutable.Map.empty[Long, Long]
+
+        val startTimeMs      = System.currentTimeMillis()
+        var producedInWindow = 0L
+        var windowStartMs    = startTimeMs
 
         logger.debug("Starting Nexmark Producer with number of partitions: " + nrOfKafkaPartitions())
 
         while true do
+            // determine how big a batch we emit this iteration
+            val elapsedSec = (System.currentTimeMillis() - startTimeMs) / 1000
+//            val batchSize  = if (elapsedSec < 30) PRODUCER_BATCH_SIZE else PRODUCER_BATCH_SIZE * 200
+            val batchSize = PRODUCER_BATCH_SIZE
+
             for i <- 0 until nrOfKafkaPartitions() do
-                logger.debug("creating a batch for partition: " + i)
-                val batch = (0 until PRODUCER_BATCH_SIZE)
-                    .map(_ => iter.next())
-                    .map(x => {
-                        val window = defineWindow(x.timestamp)
-                        inputEventsPerWindow(window) = inputEventsPerWindow.getOrElse(window, 0L) + 1
-                        logger.debug(s"a batch has been created for partition: $i, where binary: ${writeBinary(i).mkString("Array(", ", ", ")")}, window: $window, event: ${x.toString}")
-                        (writeBinary(i), Nexmark.serialize(x))
-                    })
-                logger.debug(s"sending batch for partition: $i, where batch size: ${batch.size}, batch: ${batch.mkString("Array(", ", ", ")")}")
+                logger.info(s"creating a batch for partition: $i (batchSize=$batchSize)")
+                val batch = (0 until batchSize)
+                  .map(_ => iter.next())
+                  .map { x =>
+                      val window = defineWindow(x.timestamp)
+                      inputEventsPerWindow(window) = inputEventsPerWindow.getOrElse(window, 0L) + 1
+                      (writeBinary(i), Nexmark.serialize(x))
+                  }
+
+                logger.info(s"sending batch for partition: $i, batch size: ${batch.size}")
                 producer.send(batch)
+                producedInWindow += batch.size
 
             producer.flush()
 
-            // Get max key from inputEventsPerWindow
-            val currentMaxWindow = inputEventsPerWindow.keys.max
-            for ((k, v) <- inputEventsPerWindow) {
-                if (k < currentMaxWindow) {
-                    logger.info(s"[Throughput] window: $k, eventCount: ${inputEventsPerWindow.getOrElse(k, 0)}")
-                    inputEventsPerWindow -= k
-                }
+            // per-second producer rate log & recording
+            val nowMs = System.currentTimeMillis()
+            if (nowMs - windowStartMs >= 1000) {
+                // log how many we produced in the past second
+//                outputLog.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
+                logger.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
+                // store it keyed by the second since epoch
+                val secondKey = windowStartMs / 1000
+                perSecondProduced(secondKey) = producedInWindow
+
+                producedInWindow = 0
+                windowStartMs   += 1000
+            }
+
+            // existing throughput logging into outputLog
+            val currentMaxWindow = if (inputEventsPerWindow.nonEmpty) inputEventsPerWindow.keys.max else -1L
+            for ((k, v) <- inputEventsPerWindow if k < currentMaxWindow) {
+//                outputLog.info(s"[Throughput] window: $k, eventCount: $v")
+                logger.info(s"[Throughput] window: $k, eventCount: $v")
+                inputEventsPerWindow -= k
             }
 
             Thread.sleep(sleepTime)
@@ -73,7 +102,7 @@ object NexmarkProducer {
         Config.N_NODES = N_NODES
         val PARTITIONS_PER_NODE = sys.env.getOrElse("PARTITIONS_PER_NODE", "2").toInt
         Config.PARTITIONS_PER_NODE = PARTITIONS_PER_NODE
-        logger.info(s"Producer set up config with N_NODES: $N_NODES and $PARTITIONS_PER_NODE partitions per node" )
+        logger.info(s"Producer set up config with N_NODES: $N_NODES and $PARTITIONS_PER_NODE partitions per node")
     }
 
     def defineWindow(eventTime: Long): Long = {
@@ -81,4 +110,3 @@ object NexmarkProducer {
         if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
     }
 }
-

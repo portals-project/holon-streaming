@@ -3,6 +3,7 @@ package holon.example.nexmark
 import holon.*
 import holon.Config.*
 import holon.Utils.*
+import holon.example.nexmark.NexmarkProducer.logger
 
 object HolonNode {
 
@@ -21,6 +22,9 @@ object HolonNode {
             logger.info("Waiting for start flag to be set.")
             Thread.sleep(500)
         }
+
+//        logger.info("[HOLON-NODE] Waiting for 60 seconds before to fill the Kafka topic by the producers")
+//        Thread.sleep(180_000)
 
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
@@ -69,7 +73,7 @@ object HolonNode {
         val job = Job(
             consumers = consumers,
             producers = producers,
-            procFunFactory = new Q4Factory(),
+            procFunFactory = new Q7Factory(),
             partitions = partitions,
             )
         job

@@ -2,9 +2,9 @@ package holon.backend
 
 import holon.*
 import holon.Config.CHN_OUTPUT
-import holon.crdt.{CRDTWrapper, HighestBidLWWRegisterWrapper}
+import holon.crdt.{CRDTWrapper, HighestBidLWWMapWrapper}
 import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
-import org.apache.pekko.cluster.ddata.LWWRegister
+import org.apache.pekko.cluster.ddata.{LWWMap, LWWRegister}
 import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
 
@@ -17,6 +17,6 @@ class Q7ProcessFun(partition: Int, crdts: List[WindowedRecordProcFun[_, _]]) ext
 
   override protected def processWindow(window: Long, states: List[Any]): String = {
     // states.head is LWWRegister[Array[Byte]]
-    HighestBidLWWRegisterWrapper.value(states.head.asInstanceOf[LWWRegister[Array[Byte]]])
+    HighestBidLWWMapWrapper.value(states.head.asInstanceOf[LWWMap[String, Array[Byte]]])
   }
 }

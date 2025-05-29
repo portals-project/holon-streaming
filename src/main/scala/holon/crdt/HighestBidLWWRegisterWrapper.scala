@@ -2,48 +2,89 @@ package holon.crdt
 
 import holon.example.Nexmark
 import holon.example.Nexmark.Events.TimeStampedEvent
-import org.apache.pekko.cluster.ddata.{LWWRegister, SelfUniqueAddress}
+import org.apache.pekko.cluster.ddata.{LWWMap, ORMap, ReplicatedDelta, SelfUniqueAddress}
 import org.apache.pekko.cluster.ddata.LWWRegister.Clock
 import upickle.legacy.{readBinary, writeBinary}
 
-object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWRegister[Array[Byte]], String] {
+object HighestBidLWWMapWrapper extends CRDTWrapper[LWWMap[String, Array[Byte]], String] {
   type EventType = Nexmark.Events.Bid
 
-  // 1) Clock that extracts price from the serialized tuple
+  // our single map key
+  private val Key = "value"
+
+  // 1) A clock that uses the bid-price as the timestamp
   val customPriceClock: Clock[Array[Byte]] = new Clock[Array[Byte]] {
     override def apply(currentTimestamp: Long, value: Array[Byte]): Long = {
-      // decode to get (_, price)
       val (_, price) = readBinary[(Long, Long)](value)
       price
     }
   }
 
-  // 2) Check if event is a Bid
+  // 2) Only accept Bid events
   override def checkType(ts: TimeStampedEvent): Option[EventType] =
-    ts.event match
+    ts.event match {
       case b: EventType => Some(b)
-      case _      => None
-      
-  override def timeStamp(event: EventType): Long = event.dateTime
+      case _            => None
+    }
 
-  // 2) Empty register holds serialized (0L, 0L)
-  override def empty(address: SelfUniqueAddress): LWWRegister[Array[Byte]] =
-    LWWRegister.create(address, writeBinary((0L, 0L)), customPriceClock)
+  override def timeStamp(event: EventType): Long =
+    event.dateTime
 
-  // 3) On each Bid, decode current price and only replace if higher
-  override def update(crdt: LWWRegister[Array[Byte]], address: SelfUniqueAddress, delta: EventType): LWWRegister[Array[Byte]] =
-    val (_, currentPrice) = readBinary[(Long, Long)](crdt.value)
+  // 3) Start from bidder=0, price=0
+  override def empty(addr: SelfUniqueAddress): LWWMap[String, Array[Byte]] =
+    // empty map has no entries
+    LWWMap.empty[String, Array[Byte]]
+
+  // 4) Plain-CRDT update: only overwrite if new price is higher
+  override def update(
+                       crdt: LWWMap[String, Array[Byte]],
+                       address: SelfUniqueAddress,
+                       delta: EventType
+                     ): LWWMap[String, Array[Byte]] = {
+    val currentBytes = crdt.get(Key).getOrElse(writeBinary((0L, 0L)))
+    val (_, currentPrice) = readBinary[(Long, Long)](currentBytes)
+
     if (delta.price > currentPrice) {
       val newBytes = writeBinary((delta.bidder, delta.price))
-      crdt.withValue(address, newBytes, customPriceClock)
+      // use LWWMap.put with our custom clock
+      crdt.put(address, Key, newBytes, customPriceClock)
     } else crdt
+  }
 
-  // 4) Standard CRDT merge
-  override def merge(a: LWWRegister[Array[Byte]], b: LWWRegister[Array[Byte]]): LWWRegister[Array[Byte]] =
+  // 5) Delta‐CRDT update: return the new map + optional delta
+  override def updateWithDelta(
+                                crdt: LWWMap[String, Array[Byte]],
+                                address: SelfUniqueAddress,
+                                event: EventType
+                              ): (LWWMap[String, Array[Byte]], Option[ReplicatedDelta]) = {
+    val updated = update(crdt, address, event)
+    // peek at the delta
+    val maybeDelta = updated.delta
+    // reset so next time only new ops appear
+    val cleared = updated.resetDelta
+    (cleared, maybeDelta)
+  }
+
+  // 6) Full‐state merge (batch recovery)
+  override def merge(
+                      a: LWWMap[String, Array[Byte]],
+                      b: LWWMap[String, Array[Byte]]
+                    ): LWWMap[String, Array[Byte]] =
     a.merge(b)
 
-  // 5) Pretty‐print by decoding the tuple
-  override def value(crdt: LWWRegister[Array[Byte]]): String =
-    val (bidder, price) = readBinary[(Long, Long)](crdt.value)
-    s"Highest bid by bidder $bidder at price $price"
+  // 7) Single‐delta merge
+  override def mergeDelta(
+                           crdt: LWWMap[String, Array[Byte]],
+                           delta: ReplicatedDelta
+                         ): LWWMap[String, Array[Byte]] =
+    crdt.mergeDelta(delta.asInstanceOf[ORMap.DeltaOp])
+
+  // 8) Render for users
+  override def value(crdt: LWWMap[String, Array[Byte]]): String =
+    crdt.get(Key)
+      .map(readBinary[(Long, Long)](_))
+      .map { case (bidder, price) =>
+        s"Highest bid by bidder $bidder at price $price"
+      }
+      .getOrElse("no bids yet")
 }

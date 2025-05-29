@@ -8,7 +8,7 @@ object Config {
   final val PRODUCER_SLEEP_MS = 100
   final val CONSUMER_SLEEP_MS = 100
   var CHECKPOINT_INTERVAL = 10_000L
-  var PRODUCER_BATCH_SIZE = 1024
+  var PRODUCER_BATCH_SIZE: Int = 512
 
   final val CHN_INPUT = 0x00
   final val CHN_BROADCAST = 0x01
@@ -28,7 +28,7 @@ object Config {
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
-  var N_NODES = 4
+  var N_NODES = 10
   var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
@@ -37,13 +37,16 @@ object Config {
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  var WINDOW_LENGTH = 25_000L
+  var WINDOW_LENGTH = 20_000L
   // TODO: Test if this works, might need to be dynamic
   // Buffer size for garbage collection roughly equals the # of windows that will be kept in checkpointed
   val GARBAGE_COLLECTION_OFFSET = 10L
   // Offset for the window map that is broadcasted to all nodes, value == amount of windows that are kept in the map for broadcast
   // Increases message size
-  val BROADCAST_OFFSET = 1L
+  val BROADCAST_OFFSET = 0L
+  val FLUSH_THRESHOLD = 500 // How many messages to buffer before flushing to Kafka
+  val ENABLE_RATE_LIMIT = false // Enable rate limiting for the recovery module
+  val PROCESSING_RATE_LIMIT = 10_000 // Records should be processed by each node
 
   // Update locally
   val FIRESTORE_START_KEY = "flags_ruben"

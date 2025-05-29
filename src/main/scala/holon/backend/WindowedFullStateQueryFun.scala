@@ -7,7 +7,7 @@ import upickle.legacy.{readBinary, writeBinary}
 
 import scala.collection.mutable
 
-abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecordProcFun[_,_]]) extends ProcFun {
+abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[WindowedRecordProcFunFullState[_,_]]) extends ProcFun {
 
   private var queriedWindow = 1L
 
@@ -48,9 +48,8 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
 
           if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-//          if firstProcFun.logAppendTimePerWindow.contains(w) then outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-          
-//          outputLog.info(s"[WindowedQueryFun] - partition: $partition, emitting final value for window: $w, output: ${out.value} with vector clock: ${minVC.mkString(",")}")
+
+          outputLog.info(s"[WindowedQueryFun] - partition: $partition, emitting final value for window: $w, output: ${out.value} with vector clock: ${minVC.mkString(",")}")
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }
         queriedWindow = lastClosed

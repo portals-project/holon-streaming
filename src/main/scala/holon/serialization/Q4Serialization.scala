@@ -1,7 +1,7 @@
 package holon.serialization
 
 import holon.example.CRDT
-import org.apache.pekko.cluster.ddata.{GSet, LWWMap}
+import org.apache.pekko.cluster.ddata.{GSet, LWWMap, LWWRegister, ORMap}
 import upickle.legacy.{ReadWriter, readwriter}
 
 import scala.collection.mutable
@@ -104,3 +104,21 @@ implicit def rwLWWMap: ReadWriter[LWWMap[Long, Long]] = readwriter[Array[Byte]].
   lwwmap => CRDT.crdtToBinaryWithManifest("LWWMap", lwwmap),
   bytes => CRDT.crdtFromBinaryWithManifest(bytes)._2.asInstanceOf[LWWMap[Long, Long]]
 )
+
+
+// 1) Serialize/deserialize an ORMap[Long, LWWRegister[Long]] as a blob
+implicit def rwORMap: ReadWriter[ORMap[Long, LWWRegister[Long]]] =
+  readwriter[Array[Byte]].bimap[ORMap[Long, LWWRegister[Long]]](
+    ormap => CRDT.crdtToBinaryWithManifest("ORMap", ormap),
+    bytes  => CRDT.crdtFromBinaryWithManifest(bytes)._2
+      .asInstanceOf[ORMap[Long, LWWRegister[Long]]]
+  )
+
+// 2) And your windowMap: a mutable.Map[Window → (ORMap…, closedFlag)]
+implicit val windowORMapRW
+: ReadWriter[mutable.Map[Long, (ORMap[Long, LWWRegister[Long]], Boolean)]] =
+  readwriter[Map[Long, (ORMap[Long, LWWRegister[Long]], Boolean)]]
+    .bimap[mutable.Map[Long, (ORMap[Long, LWWRegister[Long]], Boolean)]](
+      m => m.toMap,
+      m => mutable.Map(m.toSeq: _*)
+    )

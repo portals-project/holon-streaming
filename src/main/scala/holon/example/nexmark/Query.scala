@@ -40,7 +40,7 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 120_000
+        val RUNTIME = 500_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")
@@ -52,8 +52,12 @@ object Query {
             RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
+//            logger.info("Started Nexmark Producers, waiting for 60 seconds before to fill the Kafka topic")
+//            Thread.sleep(60_000)
             RunThread(runOutputConsumer())
 
+            // Wait a minute before submitting the jobs to fill the Kafka topic
+            
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
                 val j = job(partitions, KAFKA_HOST, KAFKA_PORT)
