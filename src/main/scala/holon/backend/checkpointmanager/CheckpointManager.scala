@@ -2,9 +2,11 @@ package holon.backend.checkpointmanager
 
 import holon.Config.*
 import holon.*
+import holon.backend.ControlState
 
 import java.util.Base64
 import scala.collection.immutable.Map
+import scala.collection.mutable
 
 abstract class CheckpointManager {
 
@@ -19,15 +21,14 @@ abstract class CheckpointManager {
      * Checks if its time to create a checkpoint.
      * If so, creates a checkpoint for each partition.
      */
-    def createCheckpointIfRequired(nodeId: Int, procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+    def createCheckpointIfRequired(nodeId: Int, controlState: ControlState): Unit = {
 
         val t = System.currentTimeMillis()
         if (t - checkpointTime > CHECKPOINT_INTERVAL) {
             // Save snapshot for all partitions
-            val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
-            procFunctionPerPartition.foreach((partitionId, procFun) => {
-                val consumerOffset = consumerPerPartition(partitionId)._2.offsets().head._2
+            val partitionSnapshots = mutable.Map[Int, (Long, String)]()
+            controlState.procFunctionPerPartition.foreach((partitionId, procFun) => {
+                val consumerOffset = controlState.consumerPerPartition(partitionId)._2.offsets().head._2
                 val snapshotContent = createPartitionCheckpointContent(procFun)
                 partitionSnapshots.put(partitionId, (consumerOffset,snapshotContent))
             })
@@ -36,8 +37,8 @@ abstract class CheckpointManager {
             logger.info(s"Checkpoint created for partitions ${partitionSnapshots.keySet}")
 
             // Save broadcast & control channel offset for node.
-            val (broadcastChn, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
-            val (controlChn, controlConsumer) = consumerPerPartition(CONTROL_PARTITION_ID)
+            val (broadcastChn, broadcastConsumer) = controlState.consumerPerPartition(BROADCAST_PARTITION_ID)
+            val (controlChn, controlConsumer) = controlState.consumerPerPartition(CONTROL_PARTITION_ID)
             val broadcastOffset = broadcastConsumer.offsets().head
             val controlOffset = controlConsumer.offsets().head
 
@@ -54,7 +55,7 @@ abstract class CheckpointManager {
     def createCheckpointForPartition(nodeId: Int, partitionId: Int, procFun: ProcFun, consumer: LogConsumer): Unit = {
         val consumerOffset = consumer.offsets().head._2
         val checkpointContent = createPartitionCheckpointContent(procFun)
-        val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
+        val partitionSnapshots = mutable.Map[Int, (Long, String)]()
         partitionSnapshots.put(partitionId, (consumerOffset, checkpointContent))
         savePartitionSnapshots(nodeId, partitionSnapshots)
         logger.info(s"Checkpoint created for partition $partitionId")
@@ -72,15 +73,13 @@ abstract class CheckpointManager {
         Base64.getEncoder.encodeToString(procFun.snapshot())
     }
 
-    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit
+    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: mutable.Map[Int, (Long, String)]): Unit
 
     protected def saveNodeCheckpoint(nodeId: Int, nodeOffsets: String): Unit
 
     /** CHECKPOINT RECOVERY */
 
-    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int],
-                                procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
-                                consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit
+    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int], controlState: ControlState): Unit
 
     /**
      * Restore partition snapshot for processing function and consumer
@@ -102,12 +101,12 @@ abstract class CheckpointManager {
      * Restore broadcast & control channel offset for node
      * @return true if node file exisits
      */
-    def recoverNodeOffset(nodeId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Boolean
+    def recoverNodeOffset(nodeId: Int, consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): Boolean
 
     /**
      * Set broadcast & control channel offset for node
      */
-    protected def setNodeConsumerOffsets(offsetString: String, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+    protected def setNodeConsumerOffsets(offsetString: String, consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
         val Array(broadcastOffset, controlOffset) = offsetString.split(":")
         val (_, broadcastConsumer) = consumerPerPartition(BROADCAST_PARTITION_ID)
         val (_, controlConsumer) = consumerPerPartition(CONTROL_PARTITION_ID)

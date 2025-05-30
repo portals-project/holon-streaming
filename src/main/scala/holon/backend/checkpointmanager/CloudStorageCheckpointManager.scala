@@ -4,6 +4,7 @@ import holon.*
 import holon.backend.cloud.GCSClient.bucketName
 import holon.backend.cloud.GCSClient
 import holon.Config.CHN_CONTROL
+import holon.backend.ControlState
 import holon.messages.Checkpoint
 import upickle.default.writeBinary
 
@@ -33,13 +34,11 @@ class CloudStorageCheckpointManager(outputCollector: OutputCollector) extends Ch
     /**
      * Recover checkpoint for all partitions and reset broadcast channel offset for node.
      */
-    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int],
-        procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int], controlState: ControlState): Unit = {
 
         // Restore snapshot for all partitions
         partitionIds.foreach(partitionId => {
-            recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId), consumerPerPartition(partitionId)._2)
+            recoverCheckpointForPartition(partitionId, controlState.procFunctionPerPartition(partitionId), controlState.consumerPerPartition(partitionId)._2)
         })
     }
 

@@ -3,24 +3,26 @@ package holon.backend.checkpointmanager
 import holon.*
 import upickle.default.writeBinary
 import Config.CHN_CONTROL
+import holon.backend.ControlState
 import holon.messages.Checkpoint
 import org.slf4j.LoggerFactory
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import scala.collection.immutable.Map
+import scala.collection.mutable
 
 class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends CheckpointManager {
 
     private val directoryPath = "snapshots"
 
     // Stores (offsets, snapshots) for partitions of other nodes
-    private val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
+    private val partitionSnapshots = mutable.Map[Int, (Long, String)]()
 
     private val logger = Logger.apply("DecentralizedCheckpointManager")
     private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("DecentralizedCheckpointManager", "INFO")
 
-    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: scala.collection.mutable.Map[Int, (Long, String)]): Unit = {
+    protected def savePartitionSnapshots(nodeId: Int, partitionSnapshots: mutable.Map[Int, (Long, String)]): Unit = {
         this.partitionSnapshots ++= partitionSnapshots
         partitionSnapshots.foreach((partitionId, snapshotContent) => {
             saveLocalFile(partitionSnapshotPath(partitionId), snapshotContentFormat(snapshotContent))
@@ -55,17 +57,16 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
     /**
      * Recover checkpoint for all partitions and reset broadcast channel offset for node.
      */
-    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int],
-        procFunctionPerPartition: scala.collection.mutable.Map[Int, ProcFun],
-        consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Unit = {
+    def recoverPartitionCheckpoints(nodeId: Int, partitionIds: List[Int], controlState: ControlState): Unit = {
 
         // Restore snapshot for all partitions
         partitionIds.foreach(partitionId => {
-            recoverCheckpointForPartition(partitionId, procFunctionPerPartition(partitionId), consumerPerPartition(partitionId)._2)
+            recoverCheckpointForPartition(partitionId, controlState.procFunctionPerPartition(partitionId),
+                                          controlState.consumerPerPartition(partitionId)._2)
         })
     }
 
-    def recoverNodeOffset(nodeId: Int, consumerPerPartition: scala.collection.mutable.Map[Int, (Byte, LogConsumer)]): Boolean = {
+    def recoverNodeOffset(nodeId: Int, consumerPerPartition: mutable.Map[Int, (Byte, LogConsumer)]): Boolean = {
         val nodeFileExists = localFileExists(nodeSnapshotPath(nodeId))
         if (nodeFileExists) {
             val fileContent = readLocalFile(nodeSnapshotPath(nodeId))
