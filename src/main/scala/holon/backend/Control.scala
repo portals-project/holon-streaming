@@ -274,7 +274,7 @@ class Control(nodeId: Int) {
         val currentFailedNodes = this.failureDetector.checkNodeFailures()
         if (currentFailedNodes.isDefined) {
             // If all nodes suddenly fail at once, enter orphan state and wait x seconds to see if other nodes recover.
-            if (!isOrphanState && this.failedNodes.isEmpty && currentFailedNodes.get.length == N_NODES - 1) {
+            if (!isOrphanState && N_NODES > 2 && this.failedNodes.isEmpty && currentFailedNodes.get.length == N_NODES - 1) {
                 logger.info(s"Suddenly detected all other nodes as failed. Entering orphan state.")
                 this.setOrphanStateEnd
             } else if (!isOrphanState) {
