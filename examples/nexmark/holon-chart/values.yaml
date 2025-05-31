@@ -1,8 +1,8 @@
 holon:
   image: gcr.io/holon-458408/holon-node-ruben:latest
-  n_nodes: 4
+  n_nodes: 10
   partitions_per_node: 2
-  runtime: 300000
+  runtime: 900000
   sleep_between_polls: 0
   replicas: 1
   # Set resource limits for GKE
@@ -17,7 +17,7 @@ holon:
 nexmarkProducer:
   image: gcr.io/holon-458408/nexmark-producer-ruben:latest
   replicas: 1
-  sleepTimeMs: 200
+  sleepTimeMs: 100
 
 outputConsumer:
   image: gcr.io/holon-458408/output-consumer-ruben:latest

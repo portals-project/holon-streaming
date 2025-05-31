@@ -11,7 +11,7 @@ import scala.collection.immutable.Map
 
 class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends CheckpointManager {
 
-    private val directoryPath = "snapshots"
+    private val directoryPath = "/app/snapshots"
 
     // Stores (offsets, snapshots) for partitions of other nodes
     private val partitionSnapshots = scala.collection.mutable.Map[Int, (Long, String)]()
@@ -92,7 +92,7 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
     }
 
     private def partitionSnapshotPath(partitionId: Int): String = {
-        s"./$directoryPath/partition$partitionId.txt"
+        s"$directoryPath/partition$partitionId.txt"
     }
 
     private def snapshotContentFormat(snapshotContent: (Long, String)): String = {
@@ -101,7 +101,8 @@ class DecentralizedCheckpointManager(outputCollector: OutputCollector) extends C
     }
 
     private def nodeSnapshotPath(nodeId: Int): String = {
-        s"./$directoryPath/node$nodeId.txt"
+        s"$directoryPath/node$nodeId.txt"
+
     }
 
     private def saveLocalFile(filePath: String, content: String): Unit = {

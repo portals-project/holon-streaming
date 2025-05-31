@@ -30,10 +30,12 @@ class Recovery(nodeId: Int) {
     private var pollsWithoutRecords = 0
     private var lastWorkStealAttempt = 0L
 
-    private val metricsIntervalMs = 500L
+    // Broadcast topic metrics
+    private val metricsIntervalMs = TOPIC_METRICS_INTERVAL
     private var lastMetricsLogTime = System.currentTimeMillis()
-
-    // at top of your Recovery class:
+    //------------------
+    
+    // Rate limiting
     private val eventsPerSec = PROCESSING_RATE_LIMIT
     private val intervalNs = 1_000_000_000L / eventsPerSec
     @volatile private var lastEmitTime = System.nanoTime()
@@ -75,7 +77,8 @@ class Recovery(nodeId: Int) {
         sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
 
         // Recover node state from persistent storage
-        val nodeRecoveryFileExists = this.checkpointManager.recoverNodeOffset(nodeId, consumerPerPartition)
+//        val nodeRecoveryFileExists = this.checkpointManager.recoverNodeOffset(nodeId, consumerPerPartition)
+        val nodeRecoveryFileExists = false
         ownershipManager.setControlChannelConsumer(controlChannelConsumer)
 
         if (!nodeRecoveryFileExists) {
@@ -98,7 +101,7 @@ class Recovery(nodeId: Int) {
         ConsumerProducerSetup.setupPartitionConsumers(job.consumers, partitionsOwned, consumerPerPartition)
         setupProcFunctions(partitionsOwned)
         // Recover from the last checkpoint for each partition and node
-        this.checkpointManager.recoverPartitionCheckpoints(nodeId, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
+//        this.checkpointManager.recoverPartitionCheckpoints(nodeId, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
     }
 
     private def run(): Unit = {
@@ -153,7 +156,6 @@ class Recovery(nodeId: Int) {
     private def logBroadcastBytes(): Unit = {
         // 1) If the broadcast topic name isn't set, bail out early
         if (Option(KAFKA_TOPIC_BROADCAST).forall(_.trim.isEmpty)) {
-//            logger.warn(s"[MESSAGING-SIZE] $nodeId: KAFKA_TOPIC_BROADCAST is empty; skipping bytes-exchange log")
             return
         }
 
@@ -182,8 +184,10 @@ class Recovery(nodeId: Int) {
         }.sum
 
         // 4) Log the result
-        logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
-//        outputLog.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
+        if USE_LOG_FILE then
+            outputLog.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
+        else
+            logger.info(f"[MESSAGING-SIZE] timestamp: ${System.currentTimeMillis()}, $nodeId Bytes OUT: $bytesOut%,d, Bytes IN: $bytesIn%,d")
     }
 
 
@@ -273,7 +277,7 @@ class Recovery(nodeId: Int) {
                 try {
                     val records = consumer.poll()
 
-                    logger.info(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn")
+                    logger.debug(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn")
 
                     if (records.nonEmpty) {
                         if ENABLE_RATE_LIMIT then

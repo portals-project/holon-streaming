@@ -1,48 +1,71 @@
+version: "3.8"
+
+######### 1) Define each anchor separately #########
+
+# Base‐node settings
+x-base-node-env: &base-node-env
+  RUNTIME: "300000"       # 60 seconds
+  SLEEP_BETWEEN_POLLS: "0"
+
+# Shared Holon settings
 x-shared-holon-env: &shared-holon-env
-  N_NODES: "5"
+  N_NODES: "2"
   PARTITIONS_PER_NODE: "2"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
-x-base-node-env: &base-node-env
-  RUNTIME: "300000"
+x-combined-holon-env: &combined-holon-env
+  # Copy each key/value from base-node-env:
+  RUNTIME: "120000"
   SLEEP_BETWEEN_POLLS: "0"
 
+  # Copy each key/value from shared-holon-env:
+  N_NODES: "2"
+  PARTITIONS_PER_NODE: "2"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+
 services:
+
   kafka:
     image: bitnami/kafka:3.7.0
     ports:
-      - "9092:9092"  # Host access only needed for local dev
+      - "29092:9092"
     environment:
-      KAFKA_KRAFT_CLUSTER_ID: "kraft-cluster-id"
-      KAFKA_CFG_NODE_ID: 1
-      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_KRAFT_CLUSTER_ID:               "kraft-cluster-id"
+      KAFKA_CFG_NODE_ID:                   1
+      KAFKA_CFG_PROCESS_ROLES:             broker,controller
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CFG_LISTENERS: CONTROLLER://:9091,BROKER://0.0.0.0:9092,DOCKER://0.0.0.0:9093
-      KAFKA_CFG_ADVERTISED_LISTENERS: BROKER://localhost:9092,DOCKER://kafka:9093
+      KAFKA_CFG_LISTENERS:                 CONTROLLER://:9091,BROKER://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS:      BROKER://localhost:9092,DOCKER://kafka:9093
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,DOCKER:PLAINTEXT
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
-      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS:       1@localhost:9091
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME:    DOCKER
 
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest
     ports:
-      - 8080:8080
+      - "8080:8080"
     environment:
-      DYNAMIC_CONFIG_ENABLED: "true"
-      KAFKA_CLUSTERS_0_NAME: local
+      DYNAMIC_CONFIG_ENABLED:       "true"
+      KAFKA_CLUSTERS_0_NAME:        local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
       - kafka
 
   init-kafka:
-    image: confluentinc/cp-kafka:6.1.1
+    build:
+      context: ./docker/init-kafka
+      dockerfile: Dockerfile
     depends_on:
       - kafka
+
+    # — This is the *only* <<: in this mapping —
+    # By merging *combined-holon-env*, init-kafka now gets N_NODES=1 and PARTITIONS_PER_NODE=2.
     environment:
-      <<: *shared-holon-env
-    volumes:
-      - ./init-kafka.sh:/init-kafka.sh
-    entrypoint: [ "/bin/sh", "-c", "sh /init-kafka.sh" ]
+      <<: *combined-holon-env
+#    entrypoint:
+#      - "/bin/sh"
+#      - "-c"
+#      - "sh /init-kafka.sh"
 
   nexmark-producer-0:
     build:
@@ -50,9 +73,13 @@ services:
       dockerfile: ./examples/nexmark-local/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
+
     environment:
-      <<: *shared-holon-env
-      PRODUCER_SLEEP_TIME_MS: "500"
+      <<: *combined-holon-env
+      PRODUCER_SLEEP_TIME_MS: "100"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
 
   output-consumer:
     build:
@@ -60,8 +87,12 @@ services:
       dockerfile: ./examples/nexmark-local/docker/output-consumer/Dockerfile
     depends_on:
       - init-kafka
+
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+      <<: *combined-holon-env
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
 
   holon-node-0:
     build:
@@ -69,9 +100,13 @@ services:
       dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
+
     environment:
-      <<: [*base-node-env, *shared-holon-env]
+      <<: *combined-holon-env
       NODE_ID: "0"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
 
   holon-node-1:
     build:
@@ -79,36 +114,42 @@ services:
       dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
+
     environment:
-      <<: [*base-node-env, *shared-holon-env]
+      <<: *combined-holon-env
       NODE_ID: "1"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+#  holon-node-2:/
 
-  holon-node-2:
-    build:
-      context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-    depends_on:
-      - init-kafka
-    environment:
-      <<: [*base-node-env, *shared-holon-env]
-      NODE_ID: "2"
+#  holon-node-3:
+#    build:
+#      context: ../..
+#      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+#    depends_on:
+#      - init-kafka
+#
+#    environment:
+#      <<: *combined-holon-env
+#      NODE_ID: "3"
+#    volumes:
+#            - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+#      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+#
+#  holon-node-4:
+#    build:
+#      context: ../..
+#      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+#    depends_on:
+#      - init-kafka
+#
+#    environment:
+#      <<: *combined-holon-env
+#      NODE_ID: "4"
+#    volumes:
+#            - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+#      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
 
-  holon-node-3:
-    build:
-      context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-    depends_on:
-      - init-kafka
-    environment:
-      <<: [ *base-node-env, *shared-holon-env ]
-      NODE_ID: "3"
-
-  holon-node-4:
-    build:
-      context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-    depends_on:
-      - init-kafka
-    environment:
-      <<: [ *base-node-env, *shared-holon-env ]
-      NODE_ID: "4"
+# (Any additional holon-node-X would look the same:
+#   they all do “<<: *combined-holon-env” and then NODE_ID: "X".)

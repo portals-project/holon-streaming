@@ -1,61 +1,62 @@
-<configuration>
+    <configuration>
+<!-- 0) Throttle everything over 50 000 msgs/minute -->
+<!--    <turboFilter class="holon.ThrottleFilter">-->
+<!--        &lt;!&ndash; max 50 000 log events per interval &ndash;&gt;-->
+<!--        <maxMessages>50000</maxMessages>-->
+<!--        &lt;!&ndash; reset every 60 000 ms (1min) &ndash;&gt;-->
+<!--        <intervalMs>60000</intervalMs>-->
+<!--    </turboFilter>-->
 
-    <!-- 0) Throttle everything over 50 000 msgs/minute -->
-    <turboFilter class="holon.ThrottleFilter">
-        <!-- max 50 000 log events per interval -->
-        <maxMessages>50000</maxMessages>
-        <!-- reset every 60 000 ms (1min) -->
-        <intervalMs>60000</intervalMs>
-    </turboFilter>
+        <!-- suppress noisy libs -->
+        <logger name="io.grpc.netty.shaded.io.netty" level="WARN"/>
+        <logger name="org.apache.kafka" level="WARN"/>
 
-    <!-- suppress noisy libs -->
-    <logger name="io.grpc.netty.shaded.io.netty" level="WARN"/>
-    <logger name="org.apache.kafka"               level="WARN"/>
+        <!-- 1) File appender for metrics -->
+<!--        <appender name="METRICS" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--            <file>/app/logs/metrics.log</file>-->
+<!--            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--                &lt;!&ndash; Use the absolute host path, not a relative "logs/..." &ndash;&gt;-->
+<!--                <fileNamePattern>/app/logs/metrics.%d{yyyy-MM-dd}.log.gz</fileNamePattern>-->
+<!--                <maxHistory>7</maxHistory>-->
+<!--            </rollingPolicy>-->
+<!--            <encoder>-->
+<!--                <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>-->
+<!--            </encoder>-->
+<!--        </appender>-->
 
-    <!-- 1) File appender for metrics -->
-    <appender name="METRICS" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/metrics.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/metrics.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-            <maxHistory>7</maxHistory>
-        </rollingPolicy>
-        <encoder>
-            <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>
-        </encoder>
-    </appender>
+        <!-- 2) File appender for system output -->
+        <appender name="SYSOUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>/app/logs/output.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <!-- Again, point to the absolute path -->
+                <fileNamePattern>/app/logs/output.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                <maxHistory>7</maxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>
+            </encoder>
+        </appender>
 
-    <!-- 2) File appender for system output -->
-    <appender name="SYSOUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/output.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/output.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-            <maxHistory>7</maxHistory>
-        </rollingPolicy>
-        <encoder>
-            <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>
-        </encoder>
-    </appender>
+        <!-- 3) Console (still logs to stdout, if you need it) -->
+        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
 
-    <!-- 3) Console -->
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
+        <!-- Metric logger -->
+        <logger name="com.holon.metrics" level="INFO" additivity="false">
+            <appender-ref ref="METRICS"/>
+        </logger>
 
-    <!-- Metric logger -->
-    <logger name="com.holon.metrics" level="INFO" additivity="false">
-        <appender-ref ref="METRICS"/>
-    </logger>
+        <!-- System output logger -->
+        <logger name="com.holon.system.output" level="INFO" additivity="false">
+            <appender-ref ref="SYSOUT"/>
+        </logger>
 
-    <!-- System output logger -->
-    <logger name="com.holon.system.output" level="INFO" additivity="false">
-        <appender-ref ref="SYSOUT"/>
-    </logger>
+        <!-- Root goes to console -->
+        <root level="INFO">
+            <appender-ref ref="STDOUT"/>
+        </root>
 
-    <!-- Root goes to console -->
-    <root level="INFO">
-        <appender-ref ref="STDOUT"/>
-    </root>
-
-</configuration>
+    </configuration>

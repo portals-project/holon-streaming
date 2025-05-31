@@ -155,7 +155,7 @@ case class WindowedRecordProcFunFullState[T, V](
 
     // Wherever a window is closed, emit state size
     val serializedState: Array[Byte] = writeBinary(windowMap)
-    outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+    if USE_LOG_FILE then outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
 
     toFlush.foreach { w =>
       val (state, _) = windowMap(w)

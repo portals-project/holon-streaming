@@ -23,9 +23,6 @@ object HolonNode {
             Thread.sleep(500)
         }
 
-//        logger.info("[HOLON-NODE] Waiting for 60 seconds before to fill the Kafka topic by the producers")
-//        Thread.sleep(180_000)
-
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
             System.out.println(s" Node: $nodeId Partitions: $partitions")

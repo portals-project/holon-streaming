@@ -40,17 +40,17 @@ object Query {
     }
 
     def main(args: Array[String]): Unit = {
-        val RUNTIME = 500_000
+        val RUNTIME = 300_000
         SafeRun(RUNTIME) {
             val logger = Logger.apply("Nexmark Query")
             Logger.setLevel("Nexmark Query", "INFO")
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
-            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
+//            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
 //            logger.info("Started Nexmark Producers, waiting for 60 seconds before to fill the Kafka topic")
 //            Thread.sleep(60_000)

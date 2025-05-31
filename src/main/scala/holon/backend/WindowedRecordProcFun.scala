@@ -120,8 +120,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
               windowMap(window) = (crdt.empty(addr), false)
             }
 
-//            outputLog.info(s"partition: $partition, processing for window: $window with bitset: ${completionBits.getOrElse(window, new java.util.BitSet(nrOfKafkaPartitions()))}")
-
             // 1) delta‐aware update
             val (updated, maybeDelta) = crdt.updateWithDelta(windowMap(window)._1, addr, event)
             windowMap(window) = (updated, windowMap(window)._2)
@@ -129,13 +127,11 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             // only if a delta actually exists do we store/broadcast it
             maybeDelta.foreach { delta =>
               deltaMap.update(window, delta :: deltaMap.getOrElse(window, Nil))
-//              outputLog.info(s"partition: $partition, storing delta for window: $window, delta: $deltaMap")
             }
             eventsSinceLastFlush += 1
 
             // 3) periodic flush of intermediate deltas
             if (eventsSinceLastFlush >= flushThreshold) {
-//              outputLog.info(s"partition: $partition, flushing deltas for window: $windowMap, deltas: ${deltaMap.getOrElse(window, Nil).mkString(",")}")
               flushDeltas(outputFunction)
               eventsSinceLastFlush = 0
             }
@@ -153,7 +149,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
                 val (st, _) = windowMap.getOrElse(w, (crdt.empty(addr), false))
                 // mark closed & send final‐delta
                 windowMap(w) = (st, true)
-//                outputLog.info(s"partition: $partition, flushing final delta for window: $w with vector clock: ${vectorClock.mkString(",")}")
                 flushFinalDelta(w, outputFunction)
               }
               queriedWindow = locallyClosed
@@ -177,7 +172,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             wd.deltas.foreach { db =>
               val d = readBinary[ReplicatedDelta](db)
               val (st, flag) = windowMap.getOrElse(wd.window, (crdt.empty(addr), false))
-//              outputLog.info(s"partition: $partition, merging delta for window: ${wd.window}, with window values: ${(st, flag)} partition: ${wd.partition}, vectorClock: ${wd.vectorClock.mkString(",")}, isFinal: ${wd.isFinal}")
               windowMap(wd.window) = (crdt.mergeDelta(st, d), flag)
             }
             // merge vector clock
@@ -248,13 +242,15 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
     // Wherever a window is closed, emit state size
     val serializedState: Array[Byte] = writeBinary(windowMap)
-//    outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
-    logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+    if USE_LOG_FILE then
+      outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+    else
+      logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
 
     // grab whatever's left for this window
     val deltas = deltaMap.getOrElse(w, Nil)
     val msg = WindowDelta(partition, queryId, vectorClock.clone(), w, deltas.map(writeBinary), isFinal = true)
-//    outputLog.info(s"partition: $partition, flushing final delta for window: $w with vector clock: ${vectorClock.mkString(",")}, deltas: ${deltas.mkString(",")}")
+    if USE_LOG_FILE then outputLog.info(s"partition: $partition, flushing final delta for window: $w with vector clock: ${vectorClock.mkString(",")}, deltas: ${deltas.mkString(",")}")
     outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(msg))))
     // now only clear w
     deltaMap.remove(w)

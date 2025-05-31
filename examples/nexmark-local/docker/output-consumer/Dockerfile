@@ -14,8 +14,13 @@ RUN sbt update
 # Copy the source code
 COPY src /app/src
 
+# Create snapshots directory
+RUN mkdir -p /app/snapshots
+
+RUN mkdir -p /app/logs
+
 # Install dependencies and build the application
 RUN sbt compile
 
-# Run the HolonNode application
+## Run the HolonNode application
 CMD ["sbt", "runMain holon.example.nexmark.OutputConsumer"]

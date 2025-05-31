@@ -19,6 +19,10 @@ ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
 COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json
 COPY .gcp/firebase-user-account.json /app/.gcp/firebase-user-account.json
 
+# Create snapshots directory
+RUN mkdir -p /app/snapshots
+
+RUN mkdir -p /app/logs
 
 # Copy the source code
 COPY src /app/src

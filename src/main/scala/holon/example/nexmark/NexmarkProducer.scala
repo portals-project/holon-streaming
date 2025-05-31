@@ -57,7 +57,7 @@ object NexmarkProducer {
             val batchSize = PRODUCER_BATCH_SIZE
 
             for i <- 0 until nrOfKafkaPartitions() do
-                logger.info(s"creating a batch for partition: $i (batchSize=$batchSize)")
+                logger.debug(s"creating a batch for partition: $i (batchSize=$batchSize)")
                 val batch = (0 until batchSize)
                   .map(_ => iter.next())
                   .map { x =>
@@ -66,7 +66,7 @@ object NexmarkProducer {
                       (writeBinary(i), Nexmark.serialize(x))
                   }
 
-                logger.info(s"sending batch for partition: $i, batch size: ${batch.size}")
+                logger.debug(s"sending batch for partition: $i, batch size: ${batch.size}")
                 producer.send(batch)
                 producedInWindow += batch.size
 
@@ -76,8 +76,10 @@ object NexmarkProducer {
             val nowMs = System.currentTimeMillis()
             if (nowMs - windowStartMs >= 1000) {
                 // log how many we produced in the past second
-//                outputLog.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
-                logger.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
+                if USE_LOG_FILE then
+                    outputLog.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
+                else  
+                    logger.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
                 // store it keyed by the second since epoch
                 val secondKey = windowStartMs / 1000
                 perSecondProduced(secondKey) = producedInWindow
@@ -89,9 +91,11 @@ object NexmarkProducer {
             // existing throughput logging into outputLog
             val currentMaxWindow = if (inputEventsPerWindow.nonEmpty) inputEventsPerWindow.keys.max else -1L
             for ((k, v) <- inputEventsPerWindow if k < currentMaxWindow) {
-//                outputLog.info(s"[Throughput] window: $k, eventCount: $v")
+              if USE_LOG_FILE then
+                outputLog.info(s"[Throughput] window: $k, eventCount: $v")
+              else  
                 logger.info(s"[Throughput] window: $k, eventCount: $v")
-                inputEventsPerWindow -= k
+              inputEventsPerWindow -= k
             }
 
             Thread.sleep(sleepTime)

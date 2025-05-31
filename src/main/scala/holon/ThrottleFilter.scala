@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class ThrottleFilter extends TurboFilter {
   // these get injected from logback.xml
-  private var maxMessages: Long = 1000L
+  private var maxMessages: Long = 50000L
   private var intervalMs: Long = 60000L // 1 minute
 
   private val counter = new AtomicInteger(0)

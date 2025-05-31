@@ -36,47 +36,7 @@ class KafkaLogConsumer(
     // Internal buffer for holding polled records
     private val buffer = new ConcurrentLinkedQueue[(Array[Byte], Array[Byte], Long)]()
 
-    // Ramp parameters
-    private val stepDurationMs = 10_000L // 10s
-    private val startBatchSize = 500
-    private val batchIncrement = 100
-    private val maxBatchSize = 1_000_000 // 1 million
-    private val initWait = 90_000L // 1.5s initial wait before ramping up
-
-    private var currentBatchSize = startBatchSize
-    private var nextRampTime = System.currentTimeMillis() + initWait
-
     override def poll(): LogConsumerRecords = {
-        // Check if buffer needs refill
-//        if (buffer.size() < maxBatchSize / 2) {
-//            val newRecords = cons.poll(java.time.Duration.ofMillis(50)).asScala.map { rec =>
-//                (rec.key(), rec.value(), rec.timestamp())
-//            }
-//            newRecords.foreach(buffer.add)
-//        }
-//
-//        // Apply timed ramp-up logic
-//        val now = System.currentTimeMillis()
-//        if (now >= nextRampTime && currentBatchSize < maxBatchSize) {
-//            currentBatchSize = (currentBatchSize + batchIncrement).min(maxBatchSize)
-//            nextRampTime = now + stepDurationMs
-////            logger.info(s"[RampBuffer] Increased batch size to $currentBatchSize, next ramp in ${stepDurationMs} ms, current time: $now")
-//            outputLog.info(s"[RampBuffer] Increased batch size to $currentBatchSize, next ramp in ${stepDurationMs} ms, current time: $now")
-//        }
-//
-//        // Drain up to currentBatchSize from the buffer
-//        val result = mutable.ListBuffer.empty[(Array[Byte], Array[Byte], Long)]
-//        var i = 0
-//        while (i < currentBatchSize && !buffer.isEmpty) {
-//            val record = buffer.poll()
-//            if (record != null) {
-//                result += record
-//                i += 1
-//            }
-//        }
-//
-//        result.toList
-
         val records = cons.poll(java.time.Duration.ZERO).asScala.map { rec =>
             (rec.key(), rec.value(), rec.timestamp())
         }.toList

@@ -16,12 +16,8 @@ object OutputConsumer {
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
 
-//        println("[OUTPUT-CONSUMER] Waiting for 60 seconds before to fill the Kafka topic by the producers")
-//        Thread.sleep(180_000)
-
         consumeOutput(host, port)
     }
-
     def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
         val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
@@ -48,34 +44,35 @@ object OutputConsumer {
                             else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
                             
                         outputPerWindow(windowId) = outputPerWindow.getOrElse(windowId, Map.empty[Int, String]) + (partition -> outputValue)
-                        
-//                        systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
-//                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+
+                        if USE_LOG_FILE then
+                            systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+                        else
+                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
 
                         if (outputPerWindow(windowId).size == nrOfKafkaPartitions()) {
                             // if all strings for each partition are the same
                             val allSame = outputPerWindow(windowId).values.toSeq.distinct.size == 1
                             if allSame then
-                                logger.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
-//                                systemOutputLog.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
-                                //                                logger.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                if USE_LOG_FILE then
+                                    systemOutputLog.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                else
+                                    logger.info(s"[CORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
                                 outputPerWindow.remove(windowId)
                             else
-//                                systemOutputLog.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
-                                logger.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
-
-                            //                        logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
-                            //                        systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
+                                if USE_LOG_FILE then
+                                    systemOutputLog.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                else
+                                    logger.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
+                                systemOutputLog.info(s"[INCORRECT-OUTPUT]: partition: $partition window: $windowId, final value: $outputValue")
                         }
-
-                        // FOR Q0       
-//                        logger.info(s"[LagAppendOutput] - event: ${outputValue}, timestamp: $logAppendTime")
-//                        systemOutputLog.info(s"[LagAppendOutput] - event: ${outputValue}, timestamp: $logAppendTime")
                         val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                         windowsToOutput.foreach { winId =>
-                            logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-//                            systemOutputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-                            outputLagPerWindow.remove(winId)
+                             if USE_LOG_FILE then
+                                 systemOutputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                             else
+                                  logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                             outputLagPerWindow.remove(winId)
                         }
     }
 }

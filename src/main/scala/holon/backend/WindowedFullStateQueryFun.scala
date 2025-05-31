@@ -1,6 +1,6 @@
 package holon.backend
 
-import holon.Config.{CHN_OUTPUT, GARBAGE_COLLECTION_OFFSET}
+import holon.Config.{CHN_OUTPUT, GARBAGE_COLLECTION_OFFSET, USE_LOG_FILE}
 import holon.{LogConsumerRecords, LogProducerRecords, Logger, ProcFun}
 import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
@@ -24,31 +24,23 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
                                    chn: Byte,
                                    recs: LogConsumerRecords
                                  ): Unit = {
-    // TODO: see if the loop so be so deep
     for record <- recs do
-//      outputLog.info(s"[WindowedQueryFun] - partition: $partition, processing record: ${recs.size} records from channel $chn")
-      // Step 4: Process the input records for each procfun
       procfuns.foreach(_.processInput(outputFun, chn, Iterable(record)))
-
-      // Step 1: Compute the min vector-clock
+      
       val minVC = procfuns.map(_.vectorClock).reduce { (a, b) => a.zip(b).map { case (x,y) => math.min(x,y) } }
-
-      // Step 2: Find the last closed window
+      
       val lastClosed = if (!minVC.contains(0L)) defineWindow(minVC.min) - 1L else -1L
-
-      // Step 3: For each unprocessed window, process the states and output them
-      // TODO: Check if this logic is causing inconsistent results
+      
       if (lastClosed > queriedWindow) {
-//        outputLog.info(s"[WindowedQueryFun] - partition: $partition, found newly non emitted windows, lastClosed: $lastClosed, queriedWindow: $queriedWindow, this is the vector clock: ${minVC.mkString(",")}")
         for (w <- queriedWindow until lastClosed if procfuns.forall(_.isWindowComplete(w))) {
-//          outputLog.info(s"[WindowedQueryFun] - partition: $partition, processing window: $w with this vector clock: ${minVC.mkString(",")}")
-          // collect the raw CRDT states
           val crdtStates = procfuns.map(_.windowMap(w)._1)
-//          outputLog.info(s"[WindowedQueryFun] - partition: $partition, collected CRDT states for window: $w")
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
-
-          if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-
+          
+          if USE_LOG_FILE then 
+            if firstProcFun.logAppendTimePerWindow.contains(w) then outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+          else
+            if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+          
           outputLog.info(s"[WindowedQueryFun] - partition: $partition, emitting final value for window: $w, output: ${out.value} with vector clock: ${minVC.mkString(",")}")
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }
