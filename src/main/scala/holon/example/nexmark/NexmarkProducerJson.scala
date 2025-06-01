@@ -4,6 +4,7 @@ import holon.*
 import holon.Config.*
 import holon.backend.*
 import holon.example.Nexmark
+import org.slf4j.LoggerFactory
 import upickle.default.*
 
 import scala.collection.mutable
@@ -12,6 +13,7 @@ object NexmarkProducerJson {
     private val FirestoreClient = holon.backend.cloud.FirestoreClient
 
     private val logger = Logger("NexmarkProducer")
+    private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("NexmarkProducer", "INFO")
 
     def main(args: Array[String]): Unit = {
@@ -33,6 +35,7 @@ object NexmarkProducerJson {
 
     def runProducer(kafkaHost: String, kafkaPort: Int, sleepTime: Int): Unit = {
         logger.info(s"Starting Nexmark producer with Kafka host: $kafkaHost, port: $kafkaPort, sleep time: $sleepTime")
+        logger.info(s"outputting logs to ${if (USE_LOG_FILE) "log file" else s"console since USE_LOG_FILE is ${USE_LOG_FILE}"}")
 
         val producer = KafkaLogProducer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
@@ -60,7 +63,10 @@ object NexmarkProducerJson {
             val currentMaxWindow = inputEventsPerWindow.keys.max
             for ((k, v) <- inputEventsPerWindow) {
                 if (k < currentMaxWindow) {
-                    logger.info(s"[Throughput] window: $k, eventCount: ${inputEventsPerWindow.getOrElse(k, 0)}")
+                    if USE_LOG_FILE then
+                        outputLog.info(s"[Throughput] window: $k, eventCount: ${inputEventsPerWindow.getOrElse(k, 0)}")
+                    else
+                        logger.info(s"[Throughput] window: $k, eventCount: ${inputEventsPerWindow.getOrElse(k, 0)}")
                     inputEventsPerWindow -= k
                 }
             }
