@@ -21,6 +21,12 @@ object LagAppendOutputConsumer {
         extra: String
     )
 
+    case class OutputRecordQ4(
+         category: String,
+         avg_win_price: Double,
+         timestamp: Long                    
+   )
+
     case class InputRecord(
         eventType: String,
         timestamp: Long
@@ -82,7 +88,7 @@ object LagAppendOutputConsumer {
                                 val jsonString = new String(r._2, "UTF-8")
                                 Try(read[InputRecord](jsonString)) match {
                                     case scala.util.Success(inputRecord) =>
-                                        if (inputRecord.eventType.contains("Bid")) {
+                                        if (inputRecord.eventType.contains("Bid") || inputRecord.eventType.contains("Auction")) {
                                             val windowKey = defineWindow(inputRecord.timestamp)
 
                                             lastAppendPerWindow(windowKey) =
@@ -167,9 +173,9 @@ object LagAppendOutputConsumer {
                                     if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
                                     else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
-                                if USE_LOG_FILE then
-                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
-                                else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
+//                                if USE_LOG_FILE then
+//                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
+//                                else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
 
                                 val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                                 windowsToOutput.foreach { winId =>
