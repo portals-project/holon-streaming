@@ -21,6 +21,21 @@ docker exec -i flink-jobmanager bash -c "bin/sql-client.sh -Dparallelism.default
 # To clean up the logs/snapshots on the remote host
 rm -r /home/jonas_spenger/projects/holon/holon-experiments/logs/*
 rm -r /home/jonas_spenger/projects/holon/holon-experiments/snapshots/*
+
+# Send files to the remote host
+scp /path/to/local/file.txt jonas_spenger@croaker.eecs.kth.se:~/projects/
+# Send files to local machine
+scp jonas_spenger@croaker.eecs.kth.se:~/projects/ /path/to/local/docker-compose.yml
+
+# Command to send output logs to your local machine
+scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/holon-experiments/logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
+scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/flink-logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
+# Command to update queries on the remote host
+scp C:/Users/rvang/Documents/GitHub/holon-streaming-clone/examples/flink-remote/queries/q0.sql jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/queries/q0.sql
+
+
+# Give execute permissions to a file
+chmod +x <file-name>
 ```
 
 ## SSH Access & Key Setup (first time only)

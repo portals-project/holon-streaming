@@ -9,17 +9,17 @@ x-base-node-env: &base-node-env
 
 # Shared Holon settings
 x-shared-holon-env: &shared-holon-env
-  N_NODES: "2"
+  N_NODES: "5"
   PARTITIONS_PER_NODE: "2"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
 
 x-combined-holon-env: &combined-holon-env
   # Copy each key/value from base-node-env:
-  RUNTIME: "120000"
+  RUNTIME: "300000"
   SLEEP_BETWEEN_POLLS: "0"
 
   # Copy each key/value from shared-holon-env:
-  N_NODES: "2"
+  N_NODES: "5"
   PARTITIONS_PER_NODE: "2"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
@@ -57,15 +57,12 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - kafka
-
-    # — This is the *only* <<: in this mapping —
-    # By merging *combined-holon-env*, init-kafka now gets N_NODES=1 and PARTITIONS_PER_NODE=2.
     environment:
       <<: *combined-holon-env
-#    entrypoint:
-#      - "/bin/sh"
-#      - "-c"
-#      - "sh /init-kafka.sh"
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "sh /init-kafka.sh"
 
   nexmark-producer-0:
     build:
@@ -73,7 +70,6 @@ services:
       dockerfile: ./examples/nexmark-local/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
-
     environment:
       <<: *combined-holon-env
       PRODUCER_SLEEP_TIME_MS: "100"
@@ -87,7 +83,6 @@ services:
       dockerfile: ./examples/nexmark-local/docker/output-consumer/Dockerfile
     depends_on:
       - init-kafka
-
     environment:
       <<: *combined-holon-env
     volumes:
@@ -100,7 +95,6 @@ services:
       dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
-
     environment:
       <<: *combined-holon-env
       NODE_ID: "0"
@@ -114,42 +108,48 @@ services:
       dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
-
     environment:
       <<: *combined-holon-env
       NODE_ID: "1"
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
-#  holon-node-2:/
 
-#  holon-node-3:
-#    build:
-#      context: ../..
-#      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-#    depends_on:
-#      - init-kafka
-#
-#    environment:
-#      <<: *combined-holon-env
-#      NODE_ID: "3"
-#    volumes:
-#            - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
-#      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
-#
-#  holon-node-4:
-#    build:
-#      context: ../..
-#      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-#    depends_on:
-#      - init-kafka
-#
-#    environment:
-#      <<: *combined-holon-env
-#      NODE_ID: "4"
-#    volumes:
-#            - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
-#      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+  holon-node-2:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      NODE_ID: "2"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
 
-# (Any additional holon-node-X would look the same:
-#   they all do “<<: *combined-holon-env” and then NODE_ID: "X".)
+  holon-node-3:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      NODE_ID: "3"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  holon-node-4:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      NODE_ID: "4"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
