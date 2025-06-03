@@ -1,23 +1,18 @@
---------------------------------------------------------------------------------
--- 1) SOURCE TABLE: read raw Bid events from Kafka topic "input"
---------------------------------------------------------------------------------
-
-CREATE TABLE bids_in (
-                         event ROW<
-    `$type`   STRING,  -- e.g. "Bid"
-                         auction   BIGINT,  -- auction ID
-                         bidder    BIGINT,  -- bidder ID
-                         price     BIGINT,  -- bid price in USD
-                         dateTime  BIGINT,  -- event timestamp (epoch seconds)
-                         extra     STRING   -- any extra JSON field
-                             >,
-                         `timestamp` BIGINT,       -- Kafka log-append time (the broker timestamp)
-    -- Flattened columns (not strictly needed for pass-through, but useful for time-based watermark):
-                         auction AS event.auction,
-                         bidder  AS event.bidder,
-                         price   AS event.price,
-                         dateTime_ts AS TO_TIMESTAMP_LTZ(event.dateTime * 1000, 3),
-                         WATERMARK FOR dateTime_ts AS dateTime_ts - INTERVAL '4' SECOND
+CREATE TABLE bid
+(
+    event       ROW< `$type` STRING,
+    auction     BIGINT,
+    bidder      BIGINT,
+    price       BIGINT,
+    `dateTime`  BIGINT,
+    extra       STRING >,
+    `timestamp` BIGINT,
+    -- Flattened top-level fields for query access
+    auction AS event.auction,
+    bidder AS event.bidder,
+    price AS event.price,
+    `dateTime_ts` AS TO_TIMESTAMP_LTZ(event.dateTime * 1000, 3),
+    WATERMARK FOR `dateTime_ts` AS `dateTime_ts` - INTERVAL '4' SECOND
 )
     WITH (
         'connector' = 'kafka',
@@ -32,20 +27,18 @@ CREATE TABLE bids_in (
 
 
 --------------------------------------------------------------------------------
--- 2) SINK TABLE: write the identical Bid JSONs into Kafka topic "q0-output"
+-- 2) SINK TABLE: write flat fields into Kafka topic "output"
+--    (emit dateTime as TIMESTAMP(3) so that consumer sees a JSON string)
 --------------------------------------------------------------------------------
-
-CREATE TABLE bids_out (
-                          event ROW<
-    `$type`   STRING,
-                          auction   BIGINT,
-                          bidder    BIGINT,
-                          price     BIGINT,
-                          dateTime  BIGINT,
-                          extra     STRING
-                              >,
-                          `timestamp` BIGINT
-)
+CREATE TABLE nexmark_q0
+    (
+    auction    BIGINT,
+    price      BIGINT,
+    bidder     BIGINT,
+    `dateTime` TIMESTAMP(3),
+    `timestamp` BIGINT,
+    extra      STRING
+    )
     WITH (
         'connector' = 'kafka',
         'topic' = 'output',
@@ -55,11 +48,14 @@ CREATE TABLE bids_out (
 
 
 --------------------------------------------------------------------------------
--- 3) PASS-THROUGH INSERT: simply copy every record from bids_in → bids_out
+-- 3) PASS‐THROUGH INSERT: copy every record from bid → nexmark_q0
+--    casting epoch seconds → TIMESTAMP(3) for dateTime.
 --------------------------------------------------------------------------------
-
-INSERT INTO bids_out
-SELECT
-    event,
-    `timestamp`
-FROM bids_in;
+INSERT INTO nexmark_q0
+SELECT B.auction,
+       B.price,
+       B.bidder,
+       CAST(B.`dateTime_ts` AS TIMESTAMP(3)) AS `dateTime`,
+       B.`timestamp`,
+       B.event.extra
+FROM bid B
