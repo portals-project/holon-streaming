@@ -28,20 +28,28 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
       procfuns.foreach(_.processInput(outputFun, chn, Iterable(record)))
       
       val minVC = procfuns.map(_.vectorClock).reduce { (a, b) => a.zip(b).map { case (x,y) => math.min(x,y) } }
-      
+
       val lastClosed = if (!minVC.contains(0L)) defineWindow(minVC.min) - 1L else -1L
-      
+
+      // Check only the local logical clock, no broadcast for Q0
+//      val lastClosed = defineWindow(minVC(partition)) - 1L
+
       if (lastClosed > queriedWindow) {
-        for (w <- queriedWindow until lastClosed if procfuns.forall(_.isWindowComplete(w))) {
+        for (w <- queriedWindow until lastClosed  if procfuns.forall(_.isWindowComplete(w))) {
           val crdtStates = procfuns.map(_.windowMap(w)._1)
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
           
           if USE_LOG_FILE then 
-            if firstProcFun.logAppendTimePerWindow.contains(w) then outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+            if firstProcFun.logAppendTimePerWindow.contains(w) then
+              outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+//              val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
+//              outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
           else
-            if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-          
-          outputLog.info(s"[WindowedQueryFun] - partition: $partition, emitting final value for window: $w, output: ${out.value} with vector clock: ${minVC.mkString(",")}")
+            if firstProcFun.logAppendTimePerWindow.contains(w) then
+              logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+//              val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
+//              logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }
         queriedWindow = lastClosed

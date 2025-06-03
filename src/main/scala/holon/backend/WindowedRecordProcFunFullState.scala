@@ -31,18 +31,17 @@ case class WindowedRecordProcFunFullState[T, V](
                                                  queryId:   Int,
                                                  rw:        ReadWriter[T]
                                                ) extends ProcFun {
-  private val logger       = Logger("WindowedRecordProcFunFullState")
-  private val outputLog    = LoggerFactory.getLogger("com.holon.system.output")
+  private val logger = Logger("WindowedRecordProcFunFullState")
+  private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
   Logger.setLevel("WindowedRecordProcFunFullState", "INFO")
   logger.info(s"Starting WindowedRecordProcFunFullState for partition: $partition")
   import WindowFullState.given
 
-  // for upickle when we serialize T inside WindowFullState
   implicit val elementRW: ReadWriter[T] = rw
 
-  private val addr             : SelfUniqueAddress            = address(partition)
-  private val flushThreshold               = FLUSH_THRESHOLD
-  private var eventsSinceLastFlush         = 0
+  private val addr : SelfUniqueAddress = address(partition)
+  private val flushThreshold = FLUSH_THRESHOLD
+  private var eventsSinceLastFlush = 0
 
   // per-window raw CRDT state and "closed?" flag
   val windowMap = mutable.Map.empty[Long, (T, Boolean)]
@@ -72,16 +71,16 @@ case class WindowedRecordProcFunFullState[T, V](
           }
 
           // 3) full‐state update (no deltas used)
-          val (oldState, closed) = windowMap(window)
-          val newState = crdt.update(oldState, addr, event)
-          windowMap(window) = (newState, closed)
+//          val (oldState, closed) = windowMap(window)
+//          val newState = crdt.update(oldState, addr, event)
+//          windowMap(window) = (newState, closed)
 
           // 4) periodic full‐state flush
-          eventsSinceLastFlush += 1
-          if (eventsSinceLastFlush >= flushThreshold) {
-            flushFullStates(outputFunction, isFinal = false)
-            eventsSinceLastFlush = 0
-          }
+//          eventsSinceLastFlush += 1
+//          if (eventsSinceLastFlush >= flushThreshold) {
+//            flushFullStates(outputFunction, isFinal = false)
+//            eventsSinceLastFlush = 0
+//          }
 
           // 5) advance vector clock & detect local window‐close
           vectorClock(partition) = math.max(vectorClock(partition), ts)
@@ -116,14 +115,14 @@ case class WindowedRecordProcFunFullState[T, V](
         }
 
       case CHN_BROADCAST =>
-        // 6) on receipt, merge the remote full‐state
+//         6) on receipt, merge the remote full‐state
         try {
           val msg = readBinary[WindowFullState[T]](rec._2)
           if (msg.queryId == queryId) {
             // merge state
-            val (cur, closed) = windowMap.getOrElse(msg.window, (crdt.empty(addr), false))
-            val merged        = crdt.merge(cur, msg.state)
-            windowMap(msg.window) = (merged, closed)
+//            val (cur, closed) = windowMap.getOrElse(msg.window, (crdt.empty(addr), false))
+//            val merged = crdt.merge(cur, msg.state)
+//            windowMap(msg.window) = (merged, closed)
 
             // merge vector clock
             vectorClock(msg.partition) =
