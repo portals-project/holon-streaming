@@ -11,3 +11,4 @@ project/project/
 target/
 *.sc
 snapshots
+taxi-data/

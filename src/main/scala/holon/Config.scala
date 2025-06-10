@@ -26,7 +26,7 @@ object Config {
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var SLEEP_BETWEEN_POLLS = 0L
 
-  var N_NODES = 5
+  var N_NODES = 3
   var PARTITIONS_PER_NODE = 2
 
   var HEARTBEAT_INTERVAL = 500L
