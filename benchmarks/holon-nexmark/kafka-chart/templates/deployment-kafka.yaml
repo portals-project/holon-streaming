@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml --stdout
+    kompose.version: 1.35.0 (HEAD)
+  labels:
+    io.kompose.service: kafka
+  name: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: kafka
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml --stdout
+        kompose.version: 1.35.0 (HEAD)
+      labels:
+        io.kompose.service: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: {{ .Values.kafka.image }}
+          env:
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: BROKER://kafka:9092,DOCKER://kafka:9093
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: 1@localhost:9091
+            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
+              value: DOCKER
+            - name: KAFKA_CFG_LISTENERS
+              value: CONTROLLER://:9091,BROKER://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,DOCKER:PLAINTEXT
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: broker,controller
+            - name: KAFKA_KRAFT_CLUSTER_ID
+              value: kraft-cluster-id
+          ports:
+            - containerPort: 9092
+              protocol: TCP
+{{/*          resources:*/}}
+{{/*            requests:*/}}
+{{/*              cpu: "500m"*/}}
+{{/*              memory: "1Gi"*/}}
+{{/*            limits:*/}}
+{{/*              cpu: "1"*/}}
+{{/*              memory: "2Gi"*/}}
+      restartPolicy: Always

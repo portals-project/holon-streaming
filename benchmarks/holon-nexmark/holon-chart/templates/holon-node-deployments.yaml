@@ -1,0 +1,72 @@
+{{- range $i := until (.Values.holon.n_nodes | int) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: holon-node-{{ $i }}-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holon-node-{{ $i }}
+spec:
+  replicas: {{ $.Values.holon.replicas | int }}
+  selector:
+    matchLabels:
+      app: holon-node-{{ $i }}
+  template:
+    metadata:
+      labels:
+        app: holon-node-{{ $i }}
+    spec:
+      containers:
+        - name: holon-node-{{ $i }}
+          image: {{ $.Values.holon.image }}
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: NODE_ID
+              value: "{{ $i }}"
+            - name: N_NODES
+              value: "{{ $.Values.holon.n_nodes }}"
+            - name: PARTITIONS_PER_NODE
+              value: "{{ $.Values.holon.partitions_per_node }}"
+            - name: SLEEP_BETWEEN_POLLS
+              value: "{{ $.Values.holon.sleep_between_polls }}"
+            - name: RUNTIME
+              value: |-
+                {{- if eq $i 0 }}
+                {{ $.Values.holon.runtime_n0 }}
+                {{- else if eq $i 3 }}
+                {{ $.Values.holon.runtime_n3 }}
+                {{- else }}
+                {{ $.Values.holon.runtime }}
+                {{- end }}
+            - name: WINDOW_LENGTH
+              value: "{{ $.Values.holon.window_length }}"
+            - name: RECOVERY_SLEEPTIME
+              value: "{{ $.Values.holon.recovery_sleeptime }}"
+            - name: CHECKPOINT_INTERVAL
+              value: "{{ $.Values.holon.checkpoint_interval }}"
+            - name: FAILURE_DETECTION_THRESHOLD
+              value: "{{ $.Values.holon.failure_detection_threshold }}"
+            - name: HEARTBEAT_INTERVAL
+              value: "{{ $.Values.holon.heartbeat_interval }}"
+          volumeMounts:
+            - name: holon-storage
+              mountPath: /app/snapshots
+      volumes:
+        - name: holon-storage
+          persistentVolumeClaim:
+            claimName: holon-node-{{ $i }}-pvc
+{{- end }}

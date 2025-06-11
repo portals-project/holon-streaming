@@ -1,0 +1,57 @@
+<configuration>
+
+    <!-- suppress noisy libs -->
+    <logger name="io.grpc.netty.shaded.io.netty" level="WARN"/>
+    <logger name="org.apache.kafka"               level="WARN"/>
+
+    <!-- 1) File appender for metrics -->
+    <appender name="METRICS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!-- current metrics file -->
+        <file>logs/metrics.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily roll, gzipped -->
+            <fileNamePattern>logs/metrics.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <!-- keep one week -->
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="SYSOUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/output.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily roll, gzipped -->
+            <fileNamePattern>logs/output.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <!-- keep one week -->
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{ISO8601},%logger{0},%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.holon.metrics" level="INFO" additivity="false">
+        <appender-ref ref="METRICS"/>
+    </logger>
+
+    <logger name="com.holon.system.output" level="INFO" additivity="false">
+        <appender-ref ref="SYSOUT"/>
+    </logger>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+</configuration>

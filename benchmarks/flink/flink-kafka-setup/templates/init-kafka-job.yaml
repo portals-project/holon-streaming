@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-kafka
+spec:
+  backoffLimit: 4  # number of retries before failing permanently
+  template:
+    metadata:
+      labels:
+        job: init-kafka
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-kafka
+          image: {{ .Values.initKafka.image }}
+          command:
+            - /bin/sh
+            - -c
+            - sh /init-kafka.sh
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: N_NODES
+              value: "{{ .Values.holon.n_nodes }}"
+            - name: PARTITIONS_PER_NODE
+              value: "{{ .Values.holon.partitions_per_node }}"
+          volumeMounts:
+            - mountPath: /init-kafka.sh
+              name: init-kafka-cm0
+              subPath: init-kafka.sh
+      volumes:
+        - name: init-kafka-cm0
+          configMap:
+            name: init-kafka-cm0
+            items:
+              - key: init-kafka.sh
+                path: init-kafka.sh
