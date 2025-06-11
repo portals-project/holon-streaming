@@ -17,7 +17,7 @@ ThisBuild / scalacOptions ++= Seq(
   "-feature",
   "-unchecked",
   "-Wunused:all",
-  //  TODO: disabled to avoid compilation errors, to be fixed
+  //  TODO: Disabled to avoid compilation errors, to be fixed
   //  "-Xfatal-warnings"
 )
 

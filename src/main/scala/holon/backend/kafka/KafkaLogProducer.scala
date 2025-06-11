@@ -32,11 +32,6 @@ class KafkaLogProducer(
       producer.send(record)
     }
 
-  // TODO: Change this to something simpler
-  override def metrics(): scala.collection.immutable.Map[MetricName,Metric] = {
-    producer.metrics().asScala.toMap.view.toMap
-  }
-
   def flush(): Unit =
     producer.flush()
 }

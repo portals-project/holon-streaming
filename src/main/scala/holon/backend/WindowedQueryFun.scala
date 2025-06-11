@@ -38,8 +38,6 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
           // collect the raw CRDT states
           val crdtStates = procfuns.map(_.windowMap(w)._1)
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
-
-          if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
           
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }

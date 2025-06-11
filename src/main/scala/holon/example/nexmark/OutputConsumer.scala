@@ -24,8 +24,6 @@ object OutputConsumer {
         val systemOutputLog = LoggerFactory.getLogger("com.holon.system.output")
         Logger.setLevel("Consumer", "INFO")
 
-        val outputLagPerWindow = mutable.Map.empty[Long, Long]
-
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
@@ -38,18 +36,7 @@ object OutputConsumer {
                         val partition = outputState.partition
                         val windowId = outputState.window
                         val outputValue = outputState.value
-                        val logAppendTime = r._3
-                        // Take the minimum output log append time for the window
-                        outputLagPerWindow(windowId) =
-                            if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                            else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
                         logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue")
-
-                        val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
-                        windowsToOutput.foreach { winId =>
-                            logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-                            outputLagPerWindow.remove(winId)
-                        }
     }
 }

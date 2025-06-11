@@ -3,13 +3,12 @@ package holon.example.nexmark
 import holon.*
 import holon.Config.*
 import holon.Utils.*
+import holon.example.nexmark.queryfactories.Q4Factory
 
 import java.nio.file.{Files, Paths}
 
 
 object HolonNode {
-
-    private val FirestoreClient = holon.backend.cloud.FirestoreClient
 
     private val logger = Logger("HolonNode")
     Logger.setLevel("HolonNode", "INFO")
@@ -17,23 +16,9 @@ object HolonNode {
     def main(args: Array[String]): Unit = {
         setupConfig()
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
-        var RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
+        val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
         val RECOVERY_SLEEPTIME = sys.env.getOrElse("RECOVERY_SLEEPTIME", "0").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
-
-        while (!FirestoreClient.isStartFlagSet) {
-            logger.info("Waiting for start flag to be set.")
-            Thread.sleep(500)
-        }
-
-        // TODO: Only used for benchmarking.
-        val nodeSnapshotPath = s"./snapshots/node$nodeId.txt"
-        if (Files.exists(Paths.get(nodeSnapshotPath))) {
-            logger.info(s"Sleeping for $RECOVERY_SLEEPTIME")
-            Thread.sleep(RECOVERY_SLEEPTIME)
-            logger.info(s"Node $nodeId: Found existing snapshot. Recovering...")
-            RUNTIME = 120000
-        }
 
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList
