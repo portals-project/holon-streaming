@@ -11,7 +11,7 @@ import holon.example.taxi.OutputConsumer.consumeOutput
 import upickle.legacy.*
 
 /** Count the total number of bids. */
-object Query {
+object TaxiQuery {
     Logger.setRootLevel("ERROR")
 
     /** Run the Taxi producer */
