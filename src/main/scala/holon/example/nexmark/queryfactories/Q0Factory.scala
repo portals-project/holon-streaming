@@ -1,9 +1,6 @@
 package holon.example.nexmark.queryfactories
 
-import holon.backend.WindowedRecordProcFun
-import holon.crdt.HighestBidLWWRegisterWrapper
-import holon.example.nexmark.procfuns.{Q0ProcessFun, Q7ProcessFun}
-import holon.serialization.SerializationImplicits.lwwRegisterBytesRW
+import holon.example.nexmark.procfuns.Q0ProcessFun
 import holon.{ProcFun, ProcFunFactory}
 
 // This factory creates a Q0ProcessFun instance without any CRDTs

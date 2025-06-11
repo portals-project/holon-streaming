@@ -5,8 +5,6 @@ import holon.Config.*
 import holon.Utils.*
 import holon.example.nexmark.queryfactories.Q4Factory
 
-import java.nio.file.{Files, Paths}
-
 
 object HolonNode {
 
@@ -17,7 +15,6 @@ object HolonNode {
         setupConfig()
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
         val RUNTIME = sys.env.getOrElse("RUNTIME", "60000").toInt
-        val RECOVERY_SLEEPTIME = sys.env.getOrElse("RECOVERY_SLEEPTIME", "0").toInt
         val nodeId = sys.env.getOrElse("NODE_ID", "0").toInt
 
         SafeRun(RUNTIME) {

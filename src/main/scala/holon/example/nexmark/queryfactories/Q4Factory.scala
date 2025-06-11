@@ -2,7 +2,7 @@ package holon.example.nexmark.queryfactories
 
 import holon.{ProcFun, ProcFunFactory}
 import holon.backend.WindowedRecordProcFun
-import holon.crdt.{AuctionToCategoryWrapper, AuctionToHighestBidWrapper, HighestBidLWWRegisterWrapper}
+import holon.crdt.{AuctionToCategoryWrapper, AuctionToHighestBidWrapper}
 import holon.example.nexmark.procfuns.Q4ProcessFun
 import holon.serialization.*
 
