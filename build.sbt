@@ -73,6 +73,15 @@ libraryDependencies ++= Seq(
     "ch.qos.logback" % "logback-classic" % "1.2.11"
     )
 
+// Add sbt-assembly settings:\
+assembly / assemblyJarName := s"${name.value}-assembly-${version.value}.jar"
+
+// Optionally, merge strategy for conflicts—common defaults:
+assembly / assemblyMergeStrategy := {
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case x => MergeStrategy.first
+}
+
 enablePlugins(AssemblyPlugin)
 
 //assemblyMergeStrategy in assembly := {
