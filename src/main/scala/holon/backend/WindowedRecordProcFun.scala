@@ -120,6 +120,16 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
               windowMap(window) = (crdt.empty(addr), false)
             }
 
+            // Log state size every 5 seconds
+            if (System.currentTimeMillis() % 5000 < 100) {
+              // Wherever a window is closed, emit state size
+              val serializedState: Array[Byte] = writeBinary(windowMap)
+              if USE_LOG_FILE then
+                outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}, queryId: $queryId")
+              else
+                logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}, queryId: $queryId")
+            }
+
             // 1) delta‐aware update
             val (updated, maybeDelta) = crdt.updateWithDelta(windowMap(window)._1, addr, event)
             windowMap(window) = (updated, windowMap(window)._2)
@@ -215,7 +225,6 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     }
   }
 
-  /** Helper: broadcast all accumulated deltas (isFinal = false) */
   private def flushDeltas(outputFunction: (Int, Byte, LogProducerRecords) => Unit): Unit = {
     // snapshot the keys so we don't mutate while iterating
     val toFlush = deltaMap.keys.toList
@@ -240,17 +249,10 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     // 2) attempt to mark (won’t actually set until we’ve merged all our own deltas)
     tryMarkFinal(w)
 
-    // Wherever a window is closed, emit state size
-    val serializedState: Array[Byte] = writeBinary(windowMap)
-    if USE_LOG_FILE then
-      outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
-    else
-      logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
-
     // grab whatever's left for this window
     val deltas = deltaMap.getOrElse(w, Nil)
     val msg = WindowDelta(partition, queryId, vectorClock.clone(), w, deltas.map(writeBinary), isFinal = true)
-    if USE_LOG_FILE then outputLog.info(s"partition: $partition, flushing final delta for window: $w with vector clock: ${vectorClock.mkString(",")}, deltas: ${deltas.mkString(",")}")
+//    if USE_LOG_FILE then outputLog.info(s"partition: $partition, flushing final delta for window: $w with vector clock: ${vectorClock.mkString(",")}, deltas: ${deltas.mkString(",")}")
     outputFunction(partition, CHN_BROADCAST, Iterable.single((writeBinary(0), writeBinary(msg))))
     // now only clear w
     deltaMap.remove(w)
