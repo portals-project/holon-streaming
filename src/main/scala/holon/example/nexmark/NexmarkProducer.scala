@@ -18,7 +18,7 @@ object NexmarkProducer {
 
     def main(args: Array[String]): Unit = {
         setupConfig()
-
+      
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
@@ -54,11 +54,11 @@ object NexmarkProducer {
             // determine how big a batch we emit this iteration
             val elapsedSec = (System.currentTimeMillis() - startTimeMs) / 1000
 //            val batchSize  = if (elapsedSec < 30) PRODUCER_BATCH_SIZE else PRODUCER_BATCH_SIZE * 200
-            val batchSize = PRODUCER_BATCH_SIZE
+            val batchSize = PRODUCER_BATCH_SIZE.toLong
 
             for i <- 0 until nrOfKafkaPartitions() do
                 logger.debug(s"creating a batch for partition: $i (batchSize=$batchSize)")
-                val batch = (0 until batchSize)
+                val batch = (0L until batchSize)
                   .map(_ => iter.next())
                   .map { x =>
                       val window = defineWindow(x.timestamp)

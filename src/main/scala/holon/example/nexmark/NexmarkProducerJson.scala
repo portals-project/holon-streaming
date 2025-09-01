@@ -30,6 +30,11 @@ object NexmarkProducerJson {
         }
         Thread.sleep(2_000) // Let holon nodes start first
 
+        if USE_LOG_FILE then
+            outputLog.info(s"Starting Nexmark producer with Kafka host: $host, port: $port, sleep time: $PRODUCER_SLEEP_TIME_MS")
+        else
+            logger.info(s"Starting Nexmark producer with Kafka host: $host, port: $port, sleep time: $PRODUCER_SLEEP_TIME_MS")
+
         runProducer(host, port, PRODUCER_SLEEP_TIME_MS)
     }
 
@@ -40,13 +45,17 @@ object NexmarkProducerJson {
         val producer = KafkaLogProducer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT)
         val iter = Nexmark.iterator()
 
+        val startTimeMs = System.currentTimeMillis()
+        var producedInWindow = 0L
+        var windowStartMs = startTimeMs
+
         // TODO: Only used for benchmarking.
         // Track the amount of input events per window (even if they are not the specific CRDT class).
         val inputEventsPerWindow = mutable.Map.empty[Long, Long]
 
         while true do
             for i <- 0 until nrOfKafkaPartitions() do
-                val batch = (0 until PRODUCER_BATCH_SIZE)
+                val batch = (0L until PRODUCER_BATCH_SIZE.toLong)
                     .map(_ => iter.next())
                     .map(x => {
                         val window = defineWindow(x.timestamp)
@@ -55,9 +64,32 @@ object NexmarkProducerJson {
                         val value = write(x) // Serialize the event as JSON
                         (key, value.getBytes("UTF-8"))
                     })
+//                if USE_LOG_FILE then
+//                    outputLog.info(s"[NexmarkProducer] Sending batch of size: ${batch.size} to partition: $i")
+//                else
+//                    logger.info(s"[NexmarkProducer] Sending batch of size: ${batch.size} to partition: $i")
+
                 producer.send(batch)
+                producedInWindow += PRODUCER_BATCH_SIZE.toLong
 
             producer.flush()
+
+            // 3) Log per‐second production rate (including producerIndex):
+            val nowMs = System.currentTimeMillis()
+            if (nowMs - windowStartMs >= 1000) {
+                val elapsedWindowMs = nowMs - windowStartMs
+                val countThisSec = producedInWindow
+                val secondKey = windowStartMs / 1000
+
+                val msg =
+                    s"[ProducerRate] producer 0 produced $countThisSec events " +
+                      s"in last ${elapsedWindowMs}ms (partitions=${nrOfKafkaPartitions()}), second: $secondKey"
+
+                if (USE_LOG_FILE) outputLog.info(msg) else logger.info(msg)
+
+                producedInWindow = 0
+                windowStartMs += 1000
+            }
 
             // Get max key from inputEventsPerWindow
             val currentMaxWindow = inputEventsPerWindow.keys.max
