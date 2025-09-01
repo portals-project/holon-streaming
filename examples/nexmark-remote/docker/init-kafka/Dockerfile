@@ -4,7 +4,7 @@ FROM confluentinc/cp-kafka:6.1.1
 USER root
 
 # Copy the init script into /usr/local/bin (or /opt)
-COPY init-kafka.sh /init-kafka.sh
+COPY examples/nexmark-remote/docker/init-kafka.sh /init-kafka.sh
 RUN chmod +x /init-kafka.sh
 
 # Preserve whatever environment variables you need.

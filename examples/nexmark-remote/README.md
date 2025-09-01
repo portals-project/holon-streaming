@@ -33,6 +33,12 @@ scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-e
 # Command to update queries on the remote host
 scp C:/Users/rvang/Documents/GitHub/holon-streaming-clone/examples/flink-remote/queries/q0.sql jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/queries/q0.sql
 
+# Command to update Holon remote pull script to remote host
+scp C:/Users/rvang/Documents/GitHub/holon-streaming-clone/examples/nexmark-remote/remote-pull.sh jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/holon-experiments/holon-images/remote-pull.sh
+
+# Command to update Holon compose file to remote host
+scp C:/Users/rvang/Documents/GitHub/holon-streaming-clone/examples/nexmark-remote/docker-compose.remote.yml jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/holon-experiments/holon-images/docker-compose.remote.yml
+
 
 # Give execute permissions to a file
 chmod +x <file-name>

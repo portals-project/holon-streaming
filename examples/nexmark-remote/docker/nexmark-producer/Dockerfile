@@ -1,7 +1,6 @@
 # Use an official Scala SBT image as a parent image
 FROM hseeberger/scala-sbt:11.0.12_1.5.5_2.13.6
 
-# Set the working directory
 WORKDIR /app
 
 # Copy the build.sbt and project files
@@ -11,24 +10,23 @@ COPY project /app/project
 # Download dependencies
 RUN sbt update
 
-# Set the environment variable for the service account JSON file
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/.gcp/gcs-service-account.json
-ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
+# Copy the source code
+COPY src /app/src
 
 # Copy the service account JSON file
 COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json
 COPY .gcp/firebase-user-account.json /app/.gcp/firebase-user-account.json
 
-# Create snapshots directory
-RUN mkdir -p /app/snapshots
+# 2) Copy the startup script
+COPY examples/nexmark-remote/docker/start-producers.sh /app/start-producers.sh
+RUN chmod +x /app/start-producers.sh
 
-RUN mkdir -p /app/logs
+# inject the two env vars so FirestoreClient.scala picks up /app/.gcp/… instead of /Users/…
+# inject the two env vars so FirestoreClient.scala picks up /app/.gcp/… instead of /Users/…
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/.gcp/gcs-service-account.json
+ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
 
-# Copy the source code
-COPY src /app/src
+# 4) Create log/snapshot dirs
+RUN mkdir -p /app/logs /app/snapshots
 
-# Install dependencies and build the application
-RUN sbt compile
-
-# Run the HolonNode application
-CMD ["sbt", "runMain holon.example.nexmark.NexmarkProducer"]
+ENTRYPOINT ["/app/start-producers.sh"]

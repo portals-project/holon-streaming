@@ -1,24 +1,22 @@
-version: "3.8"
+#version: "3.8"
 
 ######### 1) Define each anchor separately #########
 
 # Base‐node settings
 x-base-node-env: &base-node-env
-  RUNTIME: "300000"       # 60 seconds
+  RUNTIME: "300000"       # 300 000 ms = 5 minutes
   SLEEP_BETWEEN_POLLS: "0"
 
 # Shared Holon settings
 x-shared-holon-env: &shared-holon-env
   N_NODES: "5"
   PARTITIONS_PER_NODE: "2"
-  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
 x-combined-holon-env: &combined-holon-env
-  # Copy each key/value from base-node-env:
   RUNTIME: "300000"
   SLEEP_BETWEEN_POLLS: "0"
 
-  # Copy each key/value from shared-holon-env:
   N_NODES: "5"
   PARTITIONS_PER_NODE: "2"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
@@ -67,12 +65,64 @@ services:
   nexmark-producer-0:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
       <<: *combined-holon-env
-      PRODUCER_SLEEP_TIME_MS: "100"
+      PRODUCER_INDEX: "0"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  nexmark-producer-1:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      PRODUCER_INDEX: "1"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  nexmark-producer-2:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      PRODUCER_INDEX: "2"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  nexmark-producer-3:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      PRODUCER_INDEX: "3"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  nexmark-producer-4:
+    build:
+      context: ../..
+      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      PRODUCER_INDEX: "4"
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
@@ -80,7 +130,7 @@ services:
   output-consumer:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/output-consumer/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/output-consumer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -92,12 +142,13 @@ services:
   holon-node-0:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
       <<: *combined-holon-env
       NODE_ID: "0"
+      # (any other Config.* variables your HolonNode needs)
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
@@ -105,7 +156,7 @@ services:
   holon-node-1:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -118,7 +169,7 @@ services:
   holon-node-2:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -131,7 +182,7 @@ services:
   holon-node-3:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -144,7 +195,7 @@ services:
   holon-node-4:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:

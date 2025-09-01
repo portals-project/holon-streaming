@@ -1,0 +1,90 @@
+version: "3.8"
+
+# common bits
+x-base-node-env: &base-node-env
+  RUNTIME:        "300000"
+  SLEEP_BETWEEN_POLLS: "0"
+
+x-shared-holon-env: &shared-holon-env
+  PARTITIONS_PER_NODE:    "2"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+
+x-combined-holon-env: &combined-holon-env
+  GOOGLE_APPLICATION_CREDENTIALS: /app/.gcp/gcs-service-account.json
+  GOOGLE_FIRESTORE_CREDENTIALS: /app/.gcp/firebase-user-account.json
+  RUNTIME: "300000"
+  SLEEP_BETWEEN_POLLS: "0"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
+  N_NODES:        "100"
+  PARTITIONS_PER_NODE: "2"
+
+services:
+
+  kafka:
+    image: bitnami/kafka:3.7.0
+    ports:
+      - "29092:9092"
+    environment:
+      KAFKA_KRAFT_CLUSTER_ID: "kraft-cluster-id"
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENERS: CONTROLLER://:9091,BROKER://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: BROKER://localhost:9092,DOCKER://kafka:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: DOCKER
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED:         "true"
+      KAFKA_CLUSTERS_0_NAME:          local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+    depends_on:
+      - kafka
+
+  init-kafka:
+    image: rubyies/init-kafka:latest
+    depends_on:
+      - kafka
+    environment:
+      <<: *combined-holon-env
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "sh /init-kafka.sh"
+
+  holon-nodes:
+    image: rubyies/holon-nodes:latest
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      NUM_NODES:     "100"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  nexmark-producers:
+    image: rubyies/nexmark-producers:latest
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+      PRODUCER_COUNT: "100"
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+  output-consumer:
+    image: rubyies/output-consumer:latest
+    depends_on:
+      - init-kafka
+    environment:
+      <<: *combined-holon-env
+    volumes:
+      - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
+      - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots

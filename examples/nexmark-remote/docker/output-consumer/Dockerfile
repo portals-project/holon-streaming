@@ -1,7 +1,6 @@
 # Use an official Scala SBT image as a parent image
 FROM hseeberger/scala-sbt:11.0.12_1.5.5_2.13.6
 
-# Set the working directory
 WORKDIR /app
 
 # Copy the build.sbt and project files
@@ -14,13 +13,20 @@ RUN sbt update
 # Copy the source code
 COPY src /app/src
 
-# Create snapshots directory
-RUN mkdir -p /app/snapshots
+# Copy the service account JSON file
+COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json
+COPY .gcp/firebase-user-account.json /app/.gcp/firebase-user-account.json
 
-RUN mkdir -p /app/logs
+# 2) Copy the startup script
+COPY examples/nexmark-remote/docker/start-consumer.sh /app/start-consumer.sh
+RUN chmod +x /app/start-consumer.sh
 
-# Install dependencies and build the application
-RUN sbt compile
+# inject the two env vars so FirestoreClient.scala picks up /app/.gcp/… instead of /Users/…
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/.gcp/gcs-service-account.json
+ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
 
-## Run the HolonNode application
-CMD ["sbt", "runMain holon.example.nexmark.OutputConsumer"]
+# 4) Create the shared logs & snapshots directories
+RUN mkdir -p /app/logs /app/snapshots
+
+# 5) Launch the consumer script by default
+ENTRYPOINT ["/app/start-consumer.sh"]
