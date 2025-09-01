@@ -10,6 +10,7 @@ import upickle.default.{readBinary, writeBinary}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.immutable.List
+import scala.collection.mutable
 
 class Recovery(nodeId: Int) {
 
@@ -41,6 +42,10 @@ class Recovery(nodeId: Int) {
     @volatile private var lastEmitTime = System.nanoTime()
     //------------------
 
+    // New fields to track per‐partition processing rates:
+    private val processedInWindow = mutable.Map.empty[Int, Long]
+    private val processWindowStart = mutable.Map.empty[Int, Long]
+
     private val logger = Logger.apply("Recovery")
     private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("Recovery", "INFO")
@@ -71,6 +76,14 @@ class Recovery(nodeId: Int) {
         consumerPerPartition.clear()
         val (controlChannelConsumer, _) = ConsumerProducerSetup.setupInternalConsumers(job.consumers, consumerPerPartition)
         ConsumerProducerSetup.setupProducers(job.producers, this.producers)
+
+        // new Initialize per‐partition rate trackers
+        processedInWindow.clear()
+        processWindowStart.clear()
+        for (partitionId <- basePartitions) {
+            processedInWindow(partitionId) = 0L
+            processWindowStart(partitionId) = System.currentTimeMillis()
+        }
 
         // Set initial ownership of partitions (with timestamp as 0)
         ownershipManager.initializePartitionOwnership(basePartitions)
@@ -280,24 +293,45 @@ class Recovery(nodeId: Int) {
                     logger.debug(s"Node $nodeId - partition $partitionId received ${records.size} records from channel $chn")
 
                     if (records.nonEmpty) {
-                        if ENABLE_RATE_LIMIT then
-                        // --- manual rate‐limit: sleep so we average 10k processed events/sec ---
-                            val batchSize = records.size
-                            val targetNs = batchSize * intervalNs
-                            val nowNs = System.nanoTime()
-                            val elapsed = nowNs - lastEmitTime
+                        if (ENABLE_RATE_LIMIT) {
+                            // --- manual rate‐limit: sleep so we average 10k processed events/sec ---
+                            val targetNs = records.size * intervalNs
+                            val elapsed = System.nanoTime() - lastEmitTime
                             if (elapsed < targetNs) {
                                 val toSleep = targetNs - elapsed
-//                                outputLog.info(s"[RateCheck] Node $nodeId sleeping for ${toSleep / 1_000_000} ms to maintain $eventsPerSec events/sec")
+                                //                                outputLog.info(s"[RateCheck] Node $nodeId sleeping for ${toSleep / 1_000_000} ms to maintain $eventsPerSec events/sec")
                                 logger.info(s"[RateCheck] Node $nodeId sleeping for ${toSleep / 1_000_000} ms to maintain $eventsPerSec events/sec")
                                 Thread.sleep(toSleep / 1_000_000, (toSleep % 1_000_000).toInt)
                             }
                             lastEmitTime = System.nanoTime()
-//                        outputLog.info(s"[RateCheck] Node $nodeId processed $batchSize records in the last poll for partition $partitionId")
+                        }
 
-                        // --- now actually process them ---
+                        // Increment the “processedInWindow” counter for this partition
+                        val prevCount = processedInWindow.getOrElse(partitionId, 0L)
+                        processedInWindow(partitionId) = prevCount + records.size
+
+                        // Check if at least 1 second has passed since last log for this partition
+                        val nowMs = System.currentTimeMillis()
+                        val startMs = processWindowStart.getOrElse(partitionId, nowMs)
+                        if (nowMs - startMs >= 1000) {
+                            val countThisSec = processedInWindow(partitionId)
+                            val elapsedMs = nowMs - startMs
+                            val secondKey = startMs / 1000
+
+                            val msg =
+                                s"[ProcessRate] partition $partitionId processed $countThisSec events " +
+                                  s"in last ${elapsedMs}ms, second: $secondKey"
+
+                            if (USE_LOG_FILE) outputLog.info(msg)
+                            else logger.info(msg)
+
+                            // reset for next second
+                            processedInWindow(partitionId) = 0L
+                            processWindowStart(partitionId) = startMs + 1000
+                        }
+
+                        // Actually process the records now
                         processRecords(chn, partitionId, records)
-
                     } else if (pollsWithoutRecords >= WORK_STEALING_THRESHOLD) {
                         logger.debug(s"Node $nodeId - partition $partitionId received no records from channel $chn")
                         pollsWithoutRecords = 0
