@@ -181,11 +181,11 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
-  nexmark-producer-json:
+  nexmark-producer-json1:
     build:
       context: ../..                      # adjust if needed
-      dockerfile: ./examples/flink/docker/nexmark-producer-json/Dockerfile
-    container_name: nexmark-producer-json
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json1
 #    entrypoint:
 #      - /bin/sh
 #      - -c
@@ -201,16 +201,77 @@ services:
       - kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      PRODUCER_SLEEP_TIME_MS: "100"
-      N_NODES: "10"
-      PARTITIONS_PER_NODE: "1"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+#      N_NODES: "10"
+#      PARTITIONS_PER_NODE: "1"
+      PRODUCER_INDEX: "0"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json2:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json2
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "1"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json3:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json3
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "2"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json4:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json4
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "3"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json5:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json5
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "4"
     volumes:
       - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
 
   output-consumer:
     build:
       context: ../..                       # adjust if needed
-      dockerfile: ./examples/flink/docker/output-consumer-json/Dockerfile
+      dockerfile: ./examples/flink-remote/docker/output-consumer-json/Dockerfile
     container_name: output-consumer
     depends_on:
       - init-kafka
@@ -223,15 +284,13 @@ services:
   lag-consumer:
     build:
       context: ../..
-      dockerfile: ./examples/flink/docker/log-append-output-consumer/Dockerfile   # (see step 3 below)
+      dockerfile: ./examples/flink-remote/docker/log-append-output-consumer/Dockerfile   # (see step 3 below)
     container_name: lag-consumer
     depends_on:
       - init-kafka
       - kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      N_NODES: "10"
-      PARTITIONS_PER_NODE: "1"
       WINDOW_LENGTH: "10000"
     volumes:
       - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
