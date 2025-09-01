@@ -116,77 +116,77 @@ object OutputConsumerJson {
                 case records =>
                     records.foreach: r =>
                         val jsonString = new String(r._2, "UTF-8")
+                        if WORKLOAD != 4 then
+                            Try(read[OutputRecord](jsonString)) match {
+                                case scala.util.Success(inputRecord) =>
+                                    val partition = r._1
+                                    val windowId = defineWindow(inputRecord.timestamp)
+                                    val logAppendTime = r._3
 
-//                        Try(read[OutputRecord](jsonString)) match {
-//                            case scala.util.Success(inputRecord) =>
-//                                val partition = r._1
-//                                val windowId = defineWindow(inputRecord.timestamp)
-//                                val logAppendTime = r._3
-//
-//                                outputLagPerWindow(windowId) =
-//                                    if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-//                                    else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
-//
-//                                //                                if USE_LOG_FILE then
-//                                //                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
-//                                //                                else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
-//
-//                                val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
-//                                windowsToOutput.foreach { winId =>
-//                                    if USE_LOG_FILE then
-//                                        outputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-//                                    else logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
-//                                    outputLagPerWindow.remove(winId)
-//                                }
-//                            case scala.util.Failure(exception) =>
-//                                logger.error(s"Failed to parse JSON: $jsonString, error: ${exception.getMessage}")
-//                        }
+                                    outputLagPerWindow(windowId) =
+                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
+                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
-                        Try(read[OutputRecordQ4](jsonString)) match {
-                            case scala.util.Success(inputRecord) =>
-                                val partition     = r._1
-                                val windowId      = defineWindow(inputRecord.ts)
-                                val logAppendTime = r._3
+                                    //                                if USE_LOG_FILE then
+                                    //                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
+                                    //                                else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
 
-                                // Optional: print every Q4 record if you still want to see them
-//                                 if USE_LOG_FILE then
-//                                   outputLog.info(
-//                                     s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}, windowID: ${windowId} outputLagPerWindow: ${outputLagPerWindow.getOrElse(windowId, "N/A")}"
-//                                   )
-//                                 else
-//                                   logger.info(
-//                                     s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}"
-//                                   )
-
-                                // Update to the LATEST append time for this window
-//                                outputLagPerWindow(windowId) =
-//                                    outputLagPerWindow.get(windowId) match {
-//                                        case None                    => logAppendTime
-//                                        case Some(previousAppendTime) =>
-//                                            math.max(previousAppendTime, logAppendTime)
-//                                    }
-
-                                outputLagPerWindow(windowId) =
-                                    if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                                    else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
-
-
-                                // Now see if any “old” windows have finished (current windowId - 1)
-                                val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
-//                                outputLog.info(s"Windows to output: ${outputLagPerWindow.keys.mkString(", ")}")
-                                windowsToOutput.foreach { winId =>
-                                    val finalAppendTs = outputLagPerWindow(winId)
-                                    // Log one line per completed window:
-                                    if USE_LOG_FILE then
-                                        outputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
-                                    else
-                                        logger.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
-
-                                    outputLagPerWindow.remove(winId)
-                                }
-                            case scala.util.Failure(exception) =>
-                                logger.error(s"Failed to parse JSON: $jsonString, error: ${exception.getMessage}")
-                        }
+                                    val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
+                                    windowsToOutput.foreach { winId =>
+                                        if USE_LOG_FILE then
+                                            outputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                                        else logger.info(s"[LagAppendOutput] - window: $winId, timestamp: ${outputLagPerWindow(winId)}")
+                                        outputLagPerWindow.remove(winId)
+                                    }
+                                case scala.util.Failure(exception) =>
+                                    logger.error(s"Failed to parse JSON: $jsonString, error: ${exception.getMessage}")
+                            }
+                        else
+                            Try(read[OutputRecordQ4](jsonString)) match {
+                                case scala.util.Success(inputRecord) =>
+                                    val partition     = r._1
+                                    val windowId      = defineWindow(inputRecord.ts)
+                                    val logAppendTime = r._3
+    
+//                                     Optional: print every Q4 record if you still want to see them
+                                     if USE_LOG_FILE then
+                                       outputLog.info(
+                                         s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}, windowID: ${windowId} outputLagPerWindow: ${outputLagPerWindow.getOrElse(windowId, "N/A")}"
+                                       )
+                                     else
+                                       logger.info(
+                                         s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}"
+                                       )
+    
+//                                     Update to the LATEST append time for this window
+                                    outputLagPerWindow(windowId) =
+                                        outputLagPerWindow.get(windowId) match {
+                                            case None                    => logAppendTime
+                                            case Some(previousAppendTime) =>
+                                                math.max(previousAppendTime, logAppendTime)
+                                        }
+    
+                                    outputLagPerWindow(windowId) =
+                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
+                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+    
+    
+                                    // Now see if any “old” windows have finished (current windowId - 1)
+                                    val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
+    //                                outputLog.info(s"Windows to output: ${outputLagPerWindow.keys.mkString(", ")}")
+                                    windowsToOutput.foreach { winId =>
+                                        val finalAppendTs = outputLagPerWindow(winId)
+                                        // Log one line per completed window:
+                                        if USE_LOG_FILE then
+                                            outputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
+                                        else
+                                            logger.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
+    
+                                        outputLagPerWindow.remove(winId)
+                                    }
+                                case scala.util.Failure(exception) =>
+                                    logger.error(s"Failed to parse JSON: $jsonString, error: ${exception.getMessage}")
+                            }
     }
 
     def setupConfig(): Unit = {
