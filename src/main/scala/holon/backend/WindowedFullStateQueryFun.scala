@@ -29,13 +29,15 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
       
       val minVC = procfuns.map(_.vectorClock).reduce { (a, b) => a.zip(b).map { case (x,y) => math.min(x,y) } }
 
-      val lastClosed = if (!minVC.contains(0L)) defineWindow(minVC.min) - 1L else -1L
+//      val lastClosed = if (!minVC.contains(0L)) defineWindow(minVC.min) - 1L else -1L
 
       // Check only the local logical clock, no broadcast for Q0
-//      val lastClosed = defineWindow(minVC(partition)) - 1L
+      val lastClosed = defineWindow(minVC(partition)) - 1L
 
       if (lastClosed > queriedWindow) {
-        for (w <- queriedWindow until lastClosed  if procfuns.forall(_.isWindowComplete(w))) {
+          // no need to check isWindowComplete here, since we are not using broadcast
+//        for (w <- queriedWindow until lastClosed if procfuns.forall(_.isWindowComplete(w))) {
+        for (w <- queriedWindow until lastClosed) {
           val crdtStates = procfuns.map(_.windowMap(w)._1)
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
           
