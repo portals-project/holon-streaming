@@ -45,10 +45,10 @@ object OutputConsumer {
                             
                         outputPerWindow(windowId) = outputPerWindow.getOrElse(windowId, Map.empty[Int, String]) + (partition -> outputValue)
 
-                        if USE_LOG_FILE then
-                            systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
-                        else
-                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+//                        if USE_LOG_FILE then
+//                            systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+//                        else
+//                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
 
                         if (outputPerWindow(windowId).size == nrOfKafkaPartitions()) {
                             // if all strings for each partition are the same

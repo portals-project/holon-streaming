@@ -63,9 +63,9 @@ object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], Set[(Lon
                            crdt: GSet[(Long, Long)],
                            delta: ReplicatedDelta
                          ): GSet[(Long, Long)] = {
-    // The GSet itself is its delta type: cast back to GSet[(Long,Long)]
+    // the GSet itself is its delta type: cast back to GSet[(Long,Long)]
     val op = delta.asInstanceOf[GSet[(Long, Long)]]
-    // Merge that delta‐op into your local state
+    // merge that delta‐op into your local state
     crdt.mergeDelta(op)
   }
 

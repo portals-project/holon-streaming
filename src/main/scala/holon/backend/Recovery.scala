@@ -31,18 +31,18 @@ class Recovery(nodeId: Int) {
     private var pollsWithoutRecords = 0
     private var lastWorkStealAttempt = 0L
 
-    // Broadcast topic metrics
+    // broadcast topic metrics
     private val metricsIntervalMs = TOPIC_METRICS_INTERVAL
     private var lastMetricsLogTime = System.currentTimeMillis()
     //------------------
-    
-    // Rate limiting
+
+    // rate limiting
     private val eventsPerSec = PROCESSING_RATE_LIMIT
     private val intervalNs = 1_000_000_000L / eventsPerSec
     @volatile private var lastEmitTime = System.nanoTime()
     //------------------
 
-    // New fields to track per‐partition processing rates:
+    // new fields to track per‐partition processing rates:
     private val processedInWindow = mutable.Map.empty[Int, Long]
     private val processWindowStart = mutable.Map.empty[Int, Long]
 
@@ -71,7 +71,7 @@ class Recovery(nodeId: Int) {
         logger.debug(s"Setting up job $job for node $nodeId")
         val basePartitions = job.partitions
 
-        // Setup procFunFactory, consumers and producers
+        // setup procFunFactory, consumers and producers
         this.procFunFactory = job.procFunFactory
         consumerPerPartition.clear()
         val (controlChannelConsumer, _) = ConsumerProducerSetup.setupInternalConsumers(job.consumers, consumerPerPartition)
@@ -85,11 +85,11 @@ class Recovery(nodeId: Int) {
             processWindowStart(partitionId) = System.currentTimeMillis()
         }
 
-        // Set initial ownership of partitions (with timestamp as 0)
+        // set initial ownership of partitions (with timestamp as 0)
         ownershipManager.initializePartitionOwnership(basePartitions)
         sendControlMessage(OwnershipState(ownershipManager.getOwnershipMap, nodeId))
 
-        // Recover node state from persistent storage
+        // recover node state from persistent storage
 //        val nodeRecoveryFileExists = this.checkpointManager.recoverNodeOffset(nodeId, consumerPerPartition)
         val nodeRecoveryFileExists = false
         ownershipManager.setControlChannelConsumer(controlChannelConsumer)
@@ -97,7 +97,7 @@ class Recovery(nodeId: Int) {
         if (!nodeRecoveryFileExists) {
             logger.info(s"Node $nodeId is starting fresh")
         } else {
-            // Request partition ownership state from other nodes
+            // request partition ownership state from other nodes
             sendControlMessage(OwnershipStateRequest(nodeId))
             waitForOwnershipStateMessage()
 
@@ -113,7 +113,7 @@ class Recovery(nodeId: Int) {
         logger.info(s"Node $nodeId is responsible for partitions: $partitionsOwned")
         ConsumerProducerSetup.setupPartitionConsumers(job.consumers, partitionsOwned, consumerPerPartition)
         setupProcFunctions(partitionsOwned)
-        // Recover from the last checkpoint for each partition and node
+        // recover from the last checkpoint for each partition and node
 //        this.checkpointManager.recoverPartitionCheckpoints(nodeId, partitionsOwned, procFunctionPerPartition, consumerPerPartition)
     }
 
@@ -121,7 +121,7 @@ class Recovery(nodeId: Int) {
         var lastJobQueueCheckTime = 0L
 
         while (running) {
-            // Check the job queue every 1_000 milliseconds
+            // check the job queue every 1_000 milliseconds
             val t = System.currentTimeMillis()
             if ((t - lastJobQueueCheckTime) > 1_000) {
                 lastJobQueueCheckTime = t
@@ -131,7 +131,7 @@ class Recovery(nodeId: Int) {
             this.checkpointManager.createCheckpointIfRequired(nodeId, procFunctionPerPartition, consumerPerPartition)
             LagManager.calculateCurrentLagIfRequired(consumerPerPartition)
 
-            // Check for failed nodes & handle failures
+            // check for failed nodes & handle failures
             val currentFailedNodes = failureDetector.checkNodeFailures()
             if (currentFailedNodes.isDefined) {
                 handleFailedNodes(currentFailedNodes.get.diff(failedNodes))
@@ -162,7 +162,7 @@ class Recovery(nodeId: Int) {
         } else {
            attemptWorkSteal()
         }
-        // Flush all producers
+        // flush all producers
         for ((chn, producer) <- producers) do producer.flush()
     }
 

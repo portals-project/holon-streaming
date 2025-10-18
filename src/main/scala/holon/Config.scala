@@ -3,7 +3,7 @@ package holon
 object Config {
   final val CONSUMER_SLEEP_MS = 100
   var SLEEP_BETWEEN_POLLS = 0L
-  
+
   final val WORK_STEALING_THRESHOLD = 10_0000000   // was 10!! Determines how many (empty) polls a node should perform before it starts work stealing.
   var WORK_STEAL_ATTEMPT_COOLDOWN = 2000 // How long to wait before trying to steal work again.
   var HEARTBEAT_INTERVAL = 500L
@@ -12,39 +12,26 @@ object Config {
 
   var RUN_FLINK_PRODUCER: Boolean = sys.env.get("RUN_FLINK_PRODUCER").map(_.toBoolean).getOrElse(true)
 
-  // HOLON cluster size
+  // holon cluster size
   var N_NODES: Int = sys.env.get("N_NODES").map(_.toInt).getOrElse(10)
-
   var PARTITIONS_PER_NODE: Int = sys.env.get("PARTITIONS_PER_NODE").map(_.toInt).getOrElse(5)
-  
   var WORKLOAD: Int = sys.env.get("WORKLOAD").map(_.toInt).getOrElse(0) // 0 = Q0, 4 = Q4, 7 = Q7
 
-  // PRODUCER configuration
-  var PRODUCER_SLEEP_MS: Int = sys.env.get("PRODUCER_SLEEP_MS").map(_.toInt).getOrElse(100)
+  // producer configuration
+  var PRODUCER_SLEEP_MS: Int = sys.env.get("PRODUCER_SLEEP_MS").map(_.toInt).getOrElse(100) // default: 100ms
+  var PRODUCER_BATCH_SIZE: Long = sys.env.get("PRODUCER_BATCH_SIZE").map(_.toLong).getOrElse(1024L) // default: 1024
+  var PRODUCER_COUNT: Int = sys.env.get("PRODUCER_COUNT").map(_.toInt).getOrElse(1) // default: 1
+  var EVENTS_PER_SECOND: Long = sys.env.get("EVENTS_PER_SECOND").map(_.toLong).getOrElse(10_000L) // default: 10_000
+  var WINDOW_LENGTH: Long = sys.env.get("WINDOW_LENGTH").map(_.toLong).getOrElse(10_000L) // default: 10_000
+  var GARBAGE_COLLECTION_OFFSET: Long = sys.env.get("GARBAGE_COLLECTION_OFFSET").map(_.toLong).getOrElse(10L) // default: 10
+  var FLUSH_THRESHOLD: Int = sys.env.get("FLUSH_THRESHOLD").map(_.toInt).getOrElse(500) // default: 500
+  var ENABLE_RATE_LIMIT: Boolean = sys.env.get("ENABLE_RATE_LIMIT").map(_.toBoolean).getOrElse(false) // default: false
+  var PROCESSING_RATE_LIMIT: Int = sys.env.get("PROCESSING_RATE_LIMIT").map(_.toInt).getOrElse(10_000) // default: 10_000
+  var TOPIC_METRICS_INTERVAL: Long = sys.env.get("TOPIC_METRICS_INTERVAL").map(_.toLong).getOrElse(5_000L) // default: 5_000
+  var USE_LOG_FILE: Boolean = sys.env.get("USE_LOG_FILE").map(_.toBoolean).getOrElse(false) // default: false
+  var RUN_MAX_THROUGHPUT_PRODUCER: Boolean = sys.env.get("RUN_MAX_THROUGHPUT_PRODUCER").map(_.toBoolean).getOrElse(false) // default: false
 
-  var PRODUCER_BATCH_SIZE: Long = sys.env.get("PRODUCER_BATCH_SIZE").map(_.toLong).getOrElse(1024L)
-
-  var PRODUCER_COUNT: Int = sys.env.get("PRODUCER_COUNT").map(_.toInt).getOrElse(50)
-
-  var EVENTS_PER_SECOND: Long = sys.env.get("EVENTS_PER_SECOND").map(_.toLong).getOrElse(10_000L)
-
-  var WINDOW_LENGTH: Long = sys.env.get("WINDOW_LENGTH").map(_.toLong).getOrElse(10_000L)
-
-  var GARBAGE_COLLECTION_OFFSET: Long = sys.env.get("GARBAGE_COLLECTION_OFFSET").map(_.toLong).getOrElse(10L)
-
-  var FLUSH_THRESHOLD: Int = sys.env.get("FLUSH_THRESHOLD").map(_.toInt).getOrElse(500)
-
-  var ENABLE_RATE_LIMIT: Boolean = sys.env.get("ENABLE_RATE_LIMIT").map(_.toBoolean).getOrElse(false)
-
-  var PROCESSING_RATE_LIMIT: Int = sys.env.get("PROCESSING_RATE_LIMIT").map(_.toInt).getOrElse(10_000)
-
-  var TOPIC_METRICS_INTERVAL: Long = sys.env.get("TOPIC_METRICS_INTERVAL").map(_.toLong).getOrElse(5_000L)
-
-  var USE_LOG_FILE: Boolean = sys.env.get("USE_LOG_FILE").map(_.toBoolean).getOrElse(true)
-  
-  var RUN_MAX_THROUGHPUT_PRODUCER: Boolean = sys.env.get("RUN_MAX_THROUGHPUT_PRODUCER").map(_.toBoolean).getOrElse(false)
-
-// KAFKA AND CHANNELS   
+// kafka and channels
   final val KAFKA_TOPIC_INPUT = "input"
   final val KAFKA_TOPIC_BROADCAST = "broadcast"
   final val KAFKA_TOPIC_CONTROL = "control"
@@ -59,12 +46,12 @@ object Config {
   var KAFKA_HOST = "localhost"
   var KAFKA_PORT = 9092
 
-  // GOOGLE CLOUD STORAGE
+  // google cloud storage
   final val USE_CLOUD_STORAGE_CHECKPOINTS = false
   final val GCS_BUCKET_NAME = "failure-recovery-dev"
-  // Update locally
+  // update locally
   final val GC_CREDENTIALS_FILE_PATH = "C:/Users/rvang/Documents/GitHub/holon-streaming-clone/.gcp/gcs-service-account.json"
-  // Firestore key
+  // firestore key (update locally)
   val FIRESTORE_START_KEY = "flags_ruben"
 
   def nrOfKafkaPartitions(): Int = {

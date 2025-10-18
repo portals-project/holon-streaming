@@ -15,10 +15,10 @@ object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Lo
       case _            => None
     }
 
-  // We still need a timestamp for watermarking, even though GSet ignores it
+  // we still need a timestamp for watermarking, even though GSet ignores it
   override def timeStamp(event: EventType): Long = event.dateTime
 
-  // Start with an empty GSet
+  // start with an empty GSet
   override def empty(address: SelfUniqueAddress): GSet[(Long, Long)] =
     GSet.empty[(Long, Long)]
 
@@ -28,13 +28,13 @@ object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Lo
                        address: SelfUniqueAddress,
                        event: EventType
                      ): GSet[(Long, Long)] =
-    // Check event.price against the current highest price for the auction
+    // check event.price against the current highest price for the auction
     if (crdt.getElements().asScala.exists { case (auction, price) => auction == event.auction && price >= event.price}) {
-      // If the current price is higher or equal, do not update
+      // if the current price is higher or equal, do not update
       crdt
     } else
-      // Otherwise, add the new (auctionId, price) pair
-    crdt.add((event.auction, event.price))
+      // otherwise, add the new (auctionId, price) pair
+      crdt.add((event.auction, event.price))
 
   /**
    * Delta‐aware update:
@@ -48,9 +48,9 @@ object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Lo
                                 address: SelfUniqueAddress,
                                 event: EventType
                               ): (GSet[(Long, Long)], Option[ReplicatedDelta]) = {
-    val updated    = update(crdt, address, event)
-    val maybeDelta = updated.delta
-    val cleared    = updated.resetDelta
+    val updated = update(crdt, address, event)
+    val maybeDelta = updated.delta // get the delta of the update if present
+    val cleared = updated.resetDelta // reset the delta to clear it
     (cleared, maybeDelta)
   }
 
@@ -76,9 +76,9 @@ object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Lo
    */
   override def value(crdt: GSet[(Long, Long)]): Map[Long, Long] = {
     crdt.getElements().asScala
-      .groupMap(_._1)(_._2)            // Map[auction → Seq[prices]]
+      .groupMap(_._1)(_._2) // Group the elements by auction and collect the prices
       .view
-      .mapValues(_.max)                // pick the highest price
+      .mapValues(_.max) // Pick the highest price for each auction
       .toMap
   }
 }

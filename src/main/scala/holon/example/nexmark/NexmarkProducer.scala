@@ -18,7 +18,7 @@ object NexmarkProducer {
 
     def main(args: Array[String]): Unit = {
         setupConfig()
-      
+
         val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093")
         val host = kafkaBootstrapServers.split(":").head
         val port = kafkaBootstrapServers.split(":").last.toInt
@@ -38,10 +38,10 @@ object NexmarkProducer {
         val producer = KafkaLogProducer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT)
         val iter     = Nexmark.iterator()
 
-        // Track the amount of input events per window (for throughput logs)
+        // track the amount of input events per window (for throughput logs)
         val inputEventsPerWindow = mutable.Map.empty[Long, Long]
 
-        // Track per-second production counts (for later plotting)
+        // track per-second production counts (for later plotting)
         val perSecondProduced = mutable.Map.empty[Long, Long]
 
         val startTimeMs      = System.currentTimeMillis()
@@ -53,7 +53,6 @@ object NexmarkProducer {
         while true do
             // determine how big a batch we emit this iteration
             val elapsedSec = (System.currentTimeMillis() - startTimeMs) / 1000
-//            val batchSize  = if (elapsedSec < 30) PRODUCER_BATCH_SIZE else PRODUCER_BATCH_SIZE * 200
             val batchSize = PRODUCER_BATCH_SIZE.toLong
 
             for i <- 0 until nrOfKafkaPartitions() do
@@ -78,7 +77,7 @@ object NexmarkProducer {
                 // log how many we produced in the past second
                 if USE_LOG_FILE then
                     outputLog.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
-                else  
+                else
                     logger.info(s"[ProducerRate] Produced $producedInWindow events in last ${nowMs - windowStartMs} ms")
                 // store it keyed by the second since epoch
                 val secondKey = windowStartMs / 1000
@@ -93,7 +92,7 @@ object NexmarkProducer {
             for ((k, v) <- inputEventsPerWindow if k < currentMaxWindow) {
               if USE_LOG_FILE then
                 outputLog.info(s"[Throughput] window: $k, eventCount: $v")
-              else  
+              else
                 logger.info(s"[Throughput] window: $k, eventCount: $v")
               inputEventsPerWindow -= k
             }

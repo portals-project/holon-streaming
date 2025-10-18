@@ -87,8 +87,7 @@ case class WindowedRecordProcFunFullState[T, V](
           pendingFinal.keys.foreach(tryMarkFinal)
 
           val locallyClosed = defineWindow(vectorClock(partition)) - 1
-          for (w <- queriedWindow until locallyClosed
-             if !windowMap.get(w).exists(_._2)) {
+          for (w <- queriedWindow until locallyClosed if !windowMap.get(w).exists(_._2)) {
                 // a) ensure a state exists (empty if needed) & mark closed
                 val st = windowMap.get(w).map(_._1).getOrElse(crdt.empty(addr))
                 windowMap(w) = (st, true)
@@ -103,7 +102,7 @@ case class WindowedRecordProcFunFullState[T, V](
                   bs.set(partition)
                 }
                 // c) broadcast final full‐state for window w
-                flushFullStates(outputFunction, isFinal = true, targetWindow = w)
+//                flushFullStates(outputFunction, isFinal = true, targetWindow = w)
           }
           queriedWindow = locallyClosed
 
@@ -176,7 +175,6 @@ case class WindowedRecordProcFunFullState[T, V](
     }
   }
 
-  /** Same window‐numbering logic */
   def defineWindow(eventTime: Long): Long = {
     // Stream event time increases by 10
     val time = eventTime / 10

@@ -45,7 +45,7 @@ object OutputConsumerJson {
             )
     }
 
-    // Define the implicit ReadWriter for InputRecord
+    // define the implicit ReadWriter for InputRecord
     implicit val outputRecordRW: ReadWriter[OutputRecord] = macroRW
     implicit val outputRecordQ4RW: ReadWriter[OutputRecordQ4] = macroRW
     val outputLog = LoggerFactory.getLogger("com.holon.system.output")
@@ -102,7 +102,7 @@ object OutputConsumerJson {
     def consumeOutput(kafkaHost: String, kafkaPort: Int): Unit = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
-        
+
         logger.info(s"Starting Output Consumer with Kafka host: $kafkaHost, port: $kafkaPort")
         logger.info(s"outputting logs to ${if (USE_LOG_FILE) "log file" else s"console since USE_LOG_FILE is ${USE_LOG_FILE}"}")
 
@@ -127,9 +127,9 @@ object OutputConsumerJson {
                                         if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
                                         else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
 
-                                    //                                if USE_LOG_FILE then
-                                    //                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
-                                    //                                else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
+                                    // if USE_LOG_FILE then
+                                    // outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
+                                    // else logger.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
 
                                     val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
                                     windowsToOutput.foreach { winId =>
@@ -147,8 +147,8 @@ object OutputConsumerJson {
                                     val partition     = r._1
                                     val windowId      = defineWindow(inputRecord.ts)
                                     val logAppendTime = r._3
-    
-//                                     Optional: print every Q4 record if you still want to see them
+
+//                                     optional: print every Q4 record if you still want to see them
                                      if USE_LOG_FILE then
                                        outputLog.info(
                                          s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}, windowID: ${windowId} outputLagPerWindow: ${outputLagPerWindow.getOrElse(windowId, "N/A")}"
@@ -157,31 +157,31 @@ object OutputConsumerJson {
                                        logger.info(
                                          s"[OUTPUT] category=${inputRecord.category}, avg=${inputRecord.avg_win_price}, ts=${inputRecord.ts}"
                                        )
-    
-//                                     Update to the LATEST append time for this window
+
+//                                     update to the LATEST append time for this window
                                     outputLagPerWindow(windowId) =
                                         outputLagPerWindow.get(windowId) match {
                                             case None                    => logAppendTime
                                             case Some(previousAppendTime) =>
                                                 math.max(previousAppendTime, logAppendTime)
                                         }
-    
+
                                     outputLagPerWindow(windowId) =
                                         if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
                                         else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
-    
-    
-                                    // Now see if any “old” windows have finished (current windowId - 1)
+
+
+                                    // now see if any "old" windows have finished (current windowId - 1)
                                     val windowsToOutput = outputLagPerWindow.keys.filter(_ < windowId - 1).toList.sorted
     //                                outputLog.info(s"Windows to output: ${outputLagPerWindow.keys.mkString(", ")}")
                                     windowsToOutput.foreach { winId =>
                                         val finalAppendTs = outputLagPerWindow(winId)
-                                        // Log one line per completed window:
+                                        // log one line per completed window:
                                         if USE_LOG_FILE then
                                             outputLog.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
                                         else
                                             logger.info(s"[LagAppendOutput] - window: $winId, timestamp: $finalAppendTs")
-    
+
                                         outputLagPerWindow.remove(winId)
                                     }
                                 case scala.util.Failure(exception) =>

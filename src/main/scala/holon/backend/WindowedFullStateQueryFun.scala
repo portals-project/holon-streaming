@@ -26,37 +26,38 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
                                  ): Unit = {
     for record <- recs do
       procfuns.foreach(_.processInput(outputFun, chn, Iterable(record)))
-      
+
       val minVC = procfuns.map(_.vectorClock).reduce { (a, b) => a.zip(b).map { case (x,y) => math.min(x,y) } }
 
-//      val lastClosed = if (!minVC.contains(0L)) defineWindow(minVC.min) - 1L else -1L
-
-      // Check only the local logical clock, no broadcast for Q0
+      // check only the local logical clock, no broadcast for Q0
       val lastClosed = defineWindow(minVC(partition)) - 1L
 
       if (lastClosed > queriedWindow) {
-          // no need to check isWindowComplete here, since we are not using broadcast
-//        for (w <- queriedWindow until lastClosed if procfuns.forall(_.isWindowComplete(w))) {
+        // no need to check isWindowComplete here, since we are not using broadcast
         for (w <- queriedWindow until lastClosed) {
           val crdtStates = procfuns.map(_.windowMap(w)._1)
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
-          
-          if USE_LOG_FILE then 
+
+          if USE_LOG_FILE then
             if firstProcFun.logAppendTimePerWindow.contains(w) then
               outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-//              val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
-//              outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+
+              // optional: Log state size
+              // val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
+              // outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
           else
             if firstProcFun.logAppendTimePerWindow.contains(w) then
               logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
-//              val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
-//              logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
+
+              // optional: Log state size
+              // val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
+              // logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
 
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }
         queriedWindow = lastClosed
 
-        // Garbage collection
+        // garbage collection
         procfuns.foreach { pf =>
           pf.windowMap.keys
             .filter(_ <= lastClosed - GARBAGE_COLLECTION_OFFSET)
@@ -69,7 +70,7 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
 
   def snapshot(): Array[Byte] = {
     logger.info(s"partition: $partition, snapshotting with: queriedWindow: $queriedWindow")
-    // Snapshot each procFun in the list
+    // snapshot each procFun in the list
     val snaps: List[Array[Byte]] = writeBinary(queriedWindow) :: procfuns.map(_.snapshot())
     writeBinary(snaps)
   }
@@ -78,6 +79,7 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
     val snaps: List[Array[Byte]] = readBinary[List[Array[Byte]]](allBytes)
     queriedWindow = readBinary[Long](snaps.head)
 
+    // restore each procFun in the list
     for ((procFun, index) <- snaps.tail.zipWithIndex) {
       procfuns(index).restore(procFun)
     }

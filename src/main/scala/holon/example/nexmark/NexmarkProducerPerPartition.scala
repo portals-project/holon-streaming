@@ -11,25 +11,25 @@ import scala.collection.mutable
 
 object NexmarkProducerPerPartition {
   private val FirestoreClient = holon.backend.cloud.FirestoreClient
-  private val logger          = Logger("NexmarkProducerPerPartition")
-  private val outputLog       = LoggerFactory.getLogger("com.holon.system.output")
+  private val logger = Logger("NexmarkProducerPerPartition")
+  private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
   Logger.setLevel("NexmarkProducerPerPartition", "INFO")
 
   def main(args: Array[String]): Unit = {
     val kafkaBootstrapServers = sys.env.getOrElse("KAFKA_BOOTSTRAP_SERVERS", s"$KAFKA_HOST:$KAFKA_PORT")
-    val host                  = kafkaBootstrapServers.split(":").head
-    val port                  = kafkaBootstrapServers.split(":").last.toInt
+    val host = kafkaBootstrapServers.split(":").head
+    val port = kafkaBootstrapServers.split(":").last.toInt
 
-    // Read only PRODUCER_INDEX from environment; everything else comes from Config.scala
+    // read only PRODUCER_INDEX from environment; everything else comes from Config.scala
     val producerIndex: Int =
       args.headOption.map(_.toInt)
         .orElse(sys.env.get("PRODUCER_INDEX").map(_.toInt))
         .getOrElse {
           throw new IllegalArgumentException("Must supply producer-index as first arg or via PRODUCER_INDEX")
         }
-    val producerCount      = Config.PRODUCER_COUNT                 // same on every JVM
-    val eventsPerPartition = Config.PRODUCER_BATCH_SIZE            // same on every JVM
-    val sleepTimeMs        = Config.PRODUCER_SLEEP_MS               // same on every JVM
+    val producerCount = Config.PRODUCER_COUNT
+    val eventsPerPartition = Config.PRODUCER_BATCH_SIZE
+    val sleepTimeMs = Config.PRODUCER_SLEEP_MS
 
     logger.info(
       s"Starting NexmarkProducer: host=$host, port=$port, " +
@@ -39,13 +39,13 @@ object NexmarkProducerPerPartition {
         s"producerIndex=${producerIndex}"
     )
 
-    // Wait until Firestore “start” flag is set
+    // wait until Firestore "start" flag is set
     while (!FirestoreClient.isStartFlagSet) {
       logger.info(s"producer: ${producerIndex} Waiting for start flag to be set.")
       Thread.sleep(1_000)
     }
 
-    // Compute total number of Kafka partitions (N_NODES * PARTITIONS_PER_NODE)
+    // compute total number of Kafka partitions (N_NODES * PARTITIONS_PER_NODE)
     val totalPartitions = nrOfKafkaPartitions()
 
     val (myStart, myEnd) = computePartitionRange(totalPartitions, producerCount, producerIndex)
@@ -60,10 +60,17 @@ object NexmarkProducerPerPartition {
       )
     else logger.info(s"Producer #$producerIndex will produce to partitions [$myStart .. ${myEnd - 1}], " + s"myPartitions: ${myPartitions.mkString(",")}. max total events per second: $maxEps events/sec")
 
-    // Pass producerIndex into runProducer:
+    // pass producerIndex into runProducer:
     runProducer(host, port, sleepTimeMs, eventsPerPartition, myPartitions, producerIndex)
   }
 
+/**
+ * Compute the partition range for the current producer.
+ * @param totalPartitions The total number of Kafka partitions.
+ * @param producerCount The number of producers.
+ * @param producerIndex The index of the current producer.
+ * @return A tuple containing the start and end partition indices.
+ */
   private def computePartitionRange(totalPartitions: Int, producerCount: Int, producerIndex:Int): (Int, Int) = {
     val perProd = totalPartitions / producerCount
     val extra   = totalPartitions % producerCount
@@ -86,15 +93,15 @@ object NexmarkProducerPerPartition {
   /**
    * Main loop: for each partition in myPartitions, generate `eventsPerPartition` events,
    * send them to Kafka, then sleep for `sleepTimeMs`.
-   * Also log per‐second and per‐window stats—now including `producerIndex` in the per‐second log.
+   * Also log per‐second and per‐window stats.
    */
   private def runProducer(
-                           kafkaHost:          String,
-                           kafkaPort:          Int,
-                           sleepTimeMs:        Int,
+                           kafkaHost: String,
+                           kafkaPort: Int,
+                           sleepTimeMs: Int,
                            eventsPerPartition: Long,
-                           myPartitions:       Vector[Int],
-                           producerIndex:      Int    // ← newly added parameter
+                           myPartitions: Vector[Int],
+                           producerIndex: Int
                          ): Unit = {
 
     if USE_LOG_FILE then
@@ -110,10 +117,10 @@ object NexmarkProducerPerPartition {
     val producer = KafkaLogProducer(kafkaHost, kafkaPort, KAFKA_TOPIC_INPUT)
     val iter = Nexmark.iterator()
 
-    // Track per‐window event counts for throughput logging:
+    // track per‐window event counts for throughput logging:
     val inputEventsPerWindow = mutable.Map.empty[Long, Long]
-    // Track per‐second production counts (for external aggregation/monitoring):
-    val perSecondProduced    = mutable.Map.empty[Long, Long]
+    // track per‐second production counts (for external aggregation/monitoring):
+    val perSecondProduced = mutable.Map.empty[Long, Long]
 
     val startTimeMs = System.currentTimeMillis()
     var producedInWindow = 0L
@@ -126,13 +133,16 @@ object NexmarkProducerPerPartition {
     var currentBatchSize = eventsPerPartition
 
     while true do
+
+      // used for max throughput experiments.
       if (RUN_MAX_THROUGHPUT_PRODUCER) {
         val elapsedSeconds = (System.currentTimeMillis() - startTimeMs) / 1000
         val newMultiplier = (elapsedSeconds / 30).toInt
+
         if newMultiplier > currentMultiplier then
           currentMultiplier = newMultiplier
           currentBatchSize = eventsPerPartition * math.pow(2, currentMultiplier).toInt
-          if (USE_LOG_FILE) outputLog.info(s"💡 [BatchSize Update] At ${elapsedSeconds}s: batch size doubled to $currentBatchSize events per partition") else logger.info(s"💡 [BatchSize Update] At ${elapsedSeconds}s: batch size doubled to $currentBatchSize events per partition")
+          if (USE_LOG_FILE) outputLog.info(s"[BatchSize Update] At ${elapsedSeconds}s: batch size doubled to $currentBatchSize events per partition") else logger.info(s"[BatchSize Update] At ${elapsedSeconds}s: batch size doubled to $currentBatchSize events per partition")
       }
 
       if (RUN_FLINK_PRODUCER) {
@@ -161,21 +171,16 @@ object NexmarkProducerPerPartition {
               (writeBinary(partitionId), Nexmark.serialize(event))
             )
 
-//          if (USE_LOG_FILE) {
-//            outputLog.info(s"[Producer] producer $producerIndex produced batch: ${batch.size} fo partition: $partitionId")
-//          }
-
           producer.send(batch)
           producedInWindow += currentBatchSize
         }
       }
 
-      // 1) Build and send batches:
 
-      // 2) Flush all outstanding writes:
+      // flush all outstanding writes:
       producer.flush()
 
-      // 3) Log per‐second production rate (including producerIndex):
+      // log per‐second production rate (including producerIndex):
       val nowMs = System.currentTimeMillis()
       if (nowMs - windowStartMs >= 1000) {
         val elapsedWindowMs = nowMs - windowStartMs
@@ -192,7 +197,7 @@ object NexmarkProducerPerPartition {
         windowStartMs += 1000
       }
 
-      // 4) Log per‐window throughput (unchanged):
+      // 4) Log per‐window throughput:
       val currentMaxWindow =
         if (inputEventsPerWindow.nonEmpty) inputEventsPerWindow.keys.max else -1L
 

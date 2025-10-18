@@ -46,7 +46,7 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
         }
         queriedWindow = lastClosed
 
-        // Garbage collection
+        // garbage collection
         procfuns.foreach { pf =>
           pf.windowMap.keys
             .filter(_ <= lastClosed - GARBAGE_COLLECTION_OFFSET)
@@ -59,7 +59,7 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
 
   def snapshot(): Array[Byte] = {
     logger.info(s"partition: $partition, snapshotting with: queriedWindow: $queriedWindow")
-    // Snapshot each procFun in the list
+    // snapshot each procFun in the list
     val snaps: List[Array[Byte]] = writeBinary(queriedWindow) :: procfuns.map(_.snapshot())
     writeBinary(snaps)
   }

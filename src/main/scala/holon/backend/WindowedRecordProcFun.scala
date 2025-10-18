@@ -10,9 +10,10 @@ import org.slf4j.LoggerFactory
 import upickle.legacy.{ReadWriter, macroRW, readBinary, readwriter, writeBinary}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.time.LocalDateTime
 import scala.collection.mutable
 
-// Generic implicit for mutable maps
+// generic implicit for mutable maps
 implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[mutable.Map[K, V]] =
   readwriter[Map[K, V]].bimap[mutable.Map[K, V]](
     _.toMap,
@@ -49,7 +50,7 @@ case class WindowDelta(
                       )
 object WindowDelta { given ReadWriter[WindowDelta] = macroRW }
 
-// Not used anymore
+// not used anymore
 case class WindowState[T](
                            partition: Int,
                            queryId: Int,
@@ -75,7 +76,7 @@ object OutputState {
   given ReadWriter[OutputState] = macroRW
 }
 
-// This processing function maps bids to auctions and aggregates per window.
+// this processing function maps bids to auctions and aggregates per window.
 case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, queryId: Int = 0, rw:ReadWriter[T]) extends ProcFun {
   private val logger = Logger("WindowedRecordProcFun")
   private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
@@ -93,7 +94,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
   val logAppendTimePerWindow = mutable.Map.empty[Long, Long]
 
-  // DELTA SUPPORT
+  // delta support
   private val deltaMap = mutable.Map.empty[Long, List[ReplicatedDelta]]
   private val completionBits = mutable.Map.empty[Long, java.util.BitSet]
   private val flushThreshold = FLUSH_THRESHOLD
@@ -120,9 +121,9 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
               windowMap(window) = (crdt.empty(addr), false)
             }
 
-            // Log state size every 5 seconds
+            // log state size every 5 seconds
             if (System.currentTimeMillis() % 5000 < 100) {
-              // Wherever a window is closed, emit state size
+              // wherever a window is closed, emit state size
               val serializedState: Array[Byte] = writeBinary(windowMap)
               if USE_LOG_FILE then
                 outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}, queryId: $queryId")
@@ -130,7 +131,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
                 logger.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}, queryId: $queryId")
             }
 
-            // 1) delta‐aware update
+            // delta‐aware update
             val (updated, maybeDelta) = crdt.updateWithDelta(windowMap(window)._1, addr, event)
             windowMap(window) = (updated, windowMap(window)._2)
 
@@ -140,18 +141,18 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             }
             eventsSinceLastFlush += 1
 
-            // 3) periodic flush of intermediate deltas
+            // periodic flush of intermediate deltas
             if (eventsSinceLastFlush >= flushThreshold) {
               flushDeltas(outputFunction)
               eventsSinceLastFlush = 0
             }
 
-            // 4) advance vector clock
+            // advance vector clock
             vectorClock(partition) = math.max(vectorClock(partition), eventTimestamp)
 
             pendingFinal.keys.foreach(tryMarkFinal)
 
-            // 5) local window‐close detection & final‐delta
+            // local window‐close detection & final‐delta
             val locallyClosed = defineWindow(vectorClock(partition)) - 1L
             if (locallyClosed > queriedWindow) {
               for (w <- queriedWindow until locallyClosed if !windowMap.get(w).exists(_._2)) {
@@ -258,7 +259,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     deltaMap.remove(w)
   }
 
-  /** Initialize per-window BitSet */
+  // initialize per-window BitSet
   private def ensureCompletionBits(w: Long): Unit = {
     if (!completionBits.contains(w)) {
       val bs = new java.util.BitSet(nrOfKafkaPartitions())
@@ -266,7 +267,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     }
   }
 
-  /** Expose completeness for WindowedQueryFun */
+  // expose completeness for WindowedQueryFun
   def isWindowComplete(w: Long): Boolean =
     // outputLog.info(s"partition: $partition, checking completion for window: $w, completionBits: ${completionBits.getOrElse(w, new java.util.BitSet(nrOfKafkaPartitions()))}, nrOfKafkaPartitions: ${nrOfKafkaPartitions()}")
     completionBits.get(w).exists(_.cardinality == nrOfKafkaPartitions())
@@ -295,8 +296,15 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     logAppendTimePerWindow.remove(windowKey)
   }
 
-  def defineWindow(eventTime: Long): Long = {
-    val time = eventTime / 10
-    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
-  }
+  // Used for the taxi dataset
+  // def defineWindow(eventTime: Long): Long = {
+  //   val startTime = LocalDateTime.parse("2013-01-01T00:00:00").atZone(java.time.ZoneId.of("UTC")).toInstant.toEpochMilli
+  //   val windowSizeMillis = 15 * 60 * 1000 // 15 minutes in milliseconds
+  //   (eventTime - startTime) / windowSizeMillis
+  // }
+
+ def defineWindow(eventTime: Long): Long = {
+   val time = eventTime / 10
+   if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
+ }
 }
