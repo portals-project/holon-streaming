@@ -16,7 +16,7 @@ CREATE TABLE auction (
                          dateTime      BIGINT, -- auction start (epoch seconds)
                          expires       BIGINT  -- auction end   (epoch seconds)
                              >,
-                         `timestamp`        BIGINT,  -- Kafka log-append time
+                         `timestamp`        BIGINT,  -- Kafka lag-append time
 
     -- flatten:
                          auction_id   AS event.id,
@@ -43,7 +43,7 @@ CREATE TABLE bid (
                      dateTime   BIGINT,  -- bid time (epoch seconds)
                      extra      STRING   -- any extra JSON
                          >,
-                     `timestamp`        BIGINT,  -- Kafka log-append time
+                     `timestamp`        BIGINT,  -- Kafka lag-append time
 
     -- flatten:
                      bid_auction_id AS event.auction,

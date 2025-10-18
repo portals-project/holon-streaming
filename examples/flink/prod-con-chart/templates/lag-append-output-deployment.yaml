@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: log-append-output-consumer
+  name: lag-append-output-consumer
 spec:
   replicas: {{ .Values.outputConsumer.replicas }}
   selector:
     matchLabels:
-      io.kompose.service: log-append-output-consumer
+      io.kompose.service: lag-append-output-consumer
   template:
     metadata:
       annotations:
         kompose.cmd: kompose convert -f docker-compose.yml --stdout
         kompose.version: 1.35.0 (HEAD)
       labels:
-        io.kompose.service: log-append-output-consumer
+        io.kompose.service: lag-append-output-consumer
     spec:
 {{/*      nodeSelector:*/}}
 {{/*        node-type: basic*/}}
@@ -32,5 +32,5 @@ spec:
             requests:
               memory: "8Gi"
               cpu: "5"
-          name: log-append-output-consumer
+          name: lag-append-output-consumer
       restartPolicy: Always

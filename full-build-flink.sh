@@ -23,8 +23,8 @@ docker build \
 
 # 4) output-consumer log append
 docker build \
-  -f examples/flink-remote-java/docker/log-append-output-consumer/Dockerfile \
-  -t rubyies/flink-log-append-output-consumer-full-deployment:latest \
+  -f examples/flink-remote-java/docker/lag-append-output-consumer/Dockerfile \
+  -t rubyies/flink-lag-append-output-consumer-full-deployment:latest \
   .
 
 docker build \
@@ -38,7 +38,7 @@ docker login
 echo "Pushing…"
 docker push rubyies/flink-init-kafka-full-deployment:latest
 docker push rubyies/flink-nexmark-producers-full-deployment:latest
-docker push rubyies/flink-log-append-output-consumer-full-deployment:latest
+docker push rubyies/flink-lag-append-output-consumer-full-deployment:latest
 docker push rubyies/flink-json-output-consumer-full-deployment:latest
 
 echo "Done!"

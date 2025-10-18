@@ -149,7 +149,7 @@ services:
       - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
 
   log-consumer:
-    image: rubyies/flink-log-append-output-consumer-full-deployment:latest
+    image: rubyies/flink-lag-append-output-consumer-full-deployment:latest
     container_name: log-consumer
     depends_on:
       - init-kafka

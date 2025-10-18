@@ -30,10 +30,10 @@ docker build -t gcr.io/holon-458408/nexmark-producer-json:latest -f examples/fli
 docker push gcr.io/holon-458408/nexmark-producer-json:latest
 docker build -t gcr.io/holon-458408/output-consumer-json:latest -f examples/flink/docker/output-consumer-json/Dockerfile .
 docker push gcr.io/holon-458408/output-consumer-json:latest
-docker build -t gcr.io/holon-458408/log-append-output-consumer:latest -f examples/flink/docker/log-append-output-consumer/Dockerfile .
-docker push gcr.io/holon-458408/log-append-output-consumer:latest
-docker build -t gcr.io/holon-458408/log-append-output-consumer-threaded:latest -f examples/flink/docker/log-append-output-consumer/Dockerfile .
-docker push gcr.io/holon-458408/log-append-output-consumer-threaded:latest
+docker build -t gcr.io/holon-458408/lag-append-output-consumer:latest -f examples/flink/docker/lag-append-output-consumer/Dockerfile .
+docker push gcr.io/holon-458408/lag-append-output-consumer:latest
+docker build -t gcr.io/holon-458408/lag-append-output-consumer-threaded:latest -f examples/flink/docker/lag-append-output-consumer/Dockerfile .
+docker push gcr.io/holon-458408/lag-append-output-consumer-threaded:latest
 ```
 
 ## Install flink chart
@@ -41,7 +41,7 @@ docker push gcr.io/holon-458408/log-append-output-consumer-threaded:latest
 helm install flink-chart oci://registry-1.docker.io/bitnamicharts/flink -f flink-chart-values.yaml
 ```
 
-## Port forwarding for Flink & Kafka UI 
+## Port forwarding for Flink & Kafka UI
 ```bash
 kubectl port-forward service/jobmanager 8081:8081
 kubectl port-forward service/kafka-ui-service 8080:8080
@@ -54,7 +54,7 @@ kubectl port-forward service/kafka-ui-service 8080:8080
 2. Create service account with storage admin role
 
 ```bash
-kubectl create secret generic gcs-key \                                    
+kubectl create secret generic gcs-key \
   --from-file=key.json=../../.gcp/flink-gcs-holon.json
 
 ```

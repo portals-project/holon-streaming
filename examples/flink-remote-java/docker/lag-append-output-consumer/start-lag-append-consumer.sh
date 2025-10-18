@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Launching log append OutputConsumer…"
+echo "Launching lag append OutputConsumer…"
 java \
   -Dpekko.remote.artery.canonical.port=0 \
   -Dpekko.remote.artery.bind.port=0 \

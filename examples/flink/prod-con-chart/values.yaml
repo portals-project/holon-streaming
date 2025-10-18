@@ -23,4 +23,4 @@ outputConsumer:
   replicas: 1
 
 logAppendOutputConsumer:
-  image: gcr.io/holon-458408/log-append-output-consumer-threaded:latest
+  image: gcr.io/holon-458408/lag-append-output-consumer-threaded:latest
