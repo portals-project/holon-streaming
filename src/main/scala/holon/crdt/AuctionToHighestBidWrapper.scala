@@ -8,11 +8,12 @@ object AuctionToHighestBidWrapper extends CRDTWrapper[GSet[(Long, Long)], Map[Lo
 
   type EventType = Nexmark.Events.Bid
 
-  // Only accept Bid events
-  override def checkType(ts: Nexmark.Events.TimeStampedEvent): Option[EventType] =
-    ts.event match {
-      case b: EventType => Some(b)
-      case _            => None
+  // only accept Bid events
+  override def checkType(ts: Any): Option[EventType] =
+    val timeStampedValue = ts.asInstanceOf[Nexmark.Events.TimeStampedEvent]
+    timeStampedValue.event match {
+      case a: EventType => Some(a)
+      case _ => None
     }
 
   // we still need a timestamp for watermarking, even though GSet ignores it

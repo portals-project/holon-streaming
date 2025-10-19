@@ -21,10 +21,11 @@ object HighestBidLWWMapWrapper extends CRDTWrapper[LWWMap[String, Array[Byte]], 
   }
 
   // 2) Only accept Bid events
-  override def checkType(ts: TimeStampedEvent): Option[EventType] =
-    ts.event match {
-      case b: EventType => Some(b)
-      case _            => None
+  override def checkType(ts: Any): Option[EventType] =
+    val timeStampedValue = ts.asInstanceOf[Nexmark.Events.TimeStampedEvent]
+    timeStampedValue.event match {
+      case a: EventType => Some(a)
+      case _ => None
     }
 
   override def timeStamp(event: EventType): Long =

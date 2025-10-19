@@ -7,7 +7,7 @@ import org.apache.pekko.cluster.ddata.{DeltaReplicatedData, SelfUniqueAddress, R
 trait CRDTWrapper[T, V] {
   type EventType
   
-  def checkType(tsEvent: Nexmark.Events.TimeStampedEvent): Option[EventType]
+  def checkType(tsEvent: Any): Option[EventType]
   
   def timeStamp(event: EventType): Long
   

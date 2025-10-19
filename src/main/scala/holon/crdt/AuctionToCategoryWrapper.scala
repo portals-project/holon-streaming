@@ -9,10 +9,11 @@ object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], Set[(Lon
 
   type EventType = Nexmark.Events.Auction
 
-  override def checkType(ts: Nexmark.Events.TimeStampedEvent): Option[EventType] =
-    ts.event match {
+  override def checkType(ts: Any): Option[EventType] =
+    val timeStampedValue = ts.asInstanceOf[Nexmark.Events.TimeStampedEvent]
+    timeStampedValue.event match {
       case a: EventType => Some(a)
-      case _            => None
+      case _ => None
     }
 
   override def timeStamp(event: EventType): Long = event.dateTime
