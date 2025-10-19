@@ -8,7 +8,7 @@ import org.apache.pekko.cluster.ddata.{LWWMap, LWWRegister}
 import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
 
-// Highest Bid Price
+// highest bid price
 class Q0ProcessFun(partition: Int, crdts: List[WindowedRecordProcFunFullState[_, _]]) extends WindowedFullStateQueryFun(partition, crdts) {
   private val logger = Logger("Q7ProcessFun")
   private val metricsLog = LoggerFactory.getLogger("com.holon.metrics")

@@ -8,15 +8,15 @@ import Config.*
 import holon.example.nexmark.OutputConsumer.consumeOutput
 import holon.example.nexmark.NexmarkProducer.runProducer
 
-/** Count the total number of bids. */
 object Query {
     Logger.setRootLevel("ERROR")
 
-    /** Run the Nexmark producer */
+    // run Nexmark producer
     def runNexmarkProducer(): Unit = {
         runProducer(KAFKA_HOST, KAFKA_PORT, PRODUCER_SLEEP_MS)
     }
 
+    // run Output Consumer
     def runOutputConsumer(): Unit = {
         val logger = Logger.apply("Consumer")
         Logger.setLevel("Consumer", "INFO")
@@ -25,6 +25,7 @@ object Query {
         consumeOutput(KAFKA_HOST, KAFKA_PORT)
     }
 
+    // setup Kafka
     def setupKafka(): Unit = {
         val logger = Logger.apply("Kafka")
         Logger.setLevel("Kafka", "INFO")
@@ -54,15 +55,14 @@ object Query {
             RunThread(runNexmarkProducer())
 //            logger.info("Started Nexmark Producers, waiting for 60 seconds before to fill the Kafka topic")
 //            Thread.sleep(60_000)
-            RunThread(runOutputConsumer())
+//            RunThread(runOutputConsumer())
             RunThread(runOutputConsumer())
 
-            // Wait a minute before submitting the jobs to fill the Kafka topic
-            
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
                 val j = job(partitions, KAFKA_HOST, KAFKA_PORT)
                 val holon = Holon(i)
+                // submit job to Holon
                 holon.submitOrUpdate(j)
             }
 

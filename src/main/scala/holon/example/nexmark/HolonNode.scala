@@ -22,7 +22,7 @@ object HolonNode {
               .getOrElse {
                   throw new IllegalArgumentException("Must supply node-id as first arg or via NODE_ID")
               }
-        
+
         while (!FirestoreClient.isStartFlagSet) {
             logger.info("Node: ${NodeId} Waiting for start flag to be set.")
             Thread.sleep(500)
@@ -71,14 +71,13 @@ object HolonNode {
             producerRef(CHN_CONTROL, KAFKA_TOPIC_CONTROL, kafkaHost, kafkaPort),
             producerRef(CHN_OUTPUT, KAFKA_TOPIC_OUTPUT, kafkaHost, kafkaPort),
             )
-        
+
         var procFunFactory: ProcFunFactory = null
         if WORKLOAD == 0 then
             procFunFactory = new Q0Factory()
         else if WORKLOAD == 4 then
             procFunFactory = new Q4Factory()
         else if WORKLOAD == 7 then
-            // Q7 is the default workload
             procFunFactory = new Q7Factory()
 
         val job = Job(
