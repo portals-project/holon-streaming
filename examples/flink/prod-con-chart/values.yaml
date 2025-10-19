@@ -22,5 +22,5 @@ outputConsumer:
   image: gcr.io/holon-458408/output-consumer-json:latest
   replicas: 1
 
-logAppendOutputConsumer:
+lagAppendOutputConsumer:
   image: gcr.io/holon-458408/lag-append-output-consumer-threaded:latest

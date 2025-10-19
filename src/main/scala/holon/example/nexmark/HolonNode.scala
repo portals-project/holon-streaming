@@ -24,7 +24,7 @@ object HolonNode {
               }
 
         while (!FirestoreClient.isStartFlagSet) {
-            logger.info("Node: ${NodeId} Waiting for start flag to be set.")
+            logger.info(s"Node: $nodeId Waiting for start flag to be set.")
             Thread.sleep(500)
         }
 

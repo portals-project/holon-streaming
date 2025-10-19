@@ -12,7 +12,7 @@ import scala.collection.mutable
 object NexmarkProducer {
     private val FirestoreClient = holon.backend.cloud.FirestoreClient
 
-    private val logger    = Logger("NexmarkProducer")
+    private val logger = Logger("NexmarkProducer")
     private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
     Logger.setLevel("NexmarkProducer", "INFO")
 
@@ -44,9 +44,9 @@ object NexmarkProducer {
         // track per-second production counts (for later plotting)
         val perSecondProduced = mutable.Map.empty[Long, Long]
 
-        val startTimeMs      = System.currentTimeMillis()
+        val startTimeMs = System.currentTimeMillis()
         var producedInWindow = 0L
-        var windowStartMs    = startTimeMs
+        var windowStartMs = startTimeMs
 
         logger.debug("Starting Nexmark Producer with number of partitions: " + nrOfKafkaPartitions())
 
@@ -84,7 +84,7 @@ object NexmarkProducer {
                 perSecondProduced(secondKey) = producedInWindow
 
                 producedInWindow = 0
-                windowStartMs   += 1000
+                windowStartMs += 1000
             }
 
             // existing throughput logging into outputLog

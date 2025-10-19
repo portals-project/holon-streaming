@@ -59,40 +59,32 @@ case class WindowedRecordProcFunFullState[T, V](
     val rec = recs.head
     chn match {
       case CHN_INPUT =>
-        // 1) deserialize & filter
+        // deserialize & filter
         val tsEvent = Nexmark.deserialize(rec._2)
         crdt.checkType(tsEvent).foreach { event =>
           val ts = crdt.timeStamp(event)
           val window = defineWindow(ts)
 
-          // 2) init window state if needed
+          // init window state if needed
           if (!windowMap.contains(window)) {
             windowMap(window) = (crdt.empty(addr), false)
           }
 
-          // 3) full‐state update (no deltas used)
-//          val (oldState, closed) = windowMap(window)
-//          val newState = crdt.update(oldState, addr, event)
-//          windowMap(window) = (newState, closed)
 
-          // 4) periodic full‐state flush
-//          eventsSinceLastFlush += 1
-//          if (eventsSinceLastFlush >= flushThreshold) {
-//            flushFullStates(outputFunction, isFinal = false)
-//            eventsSinceLastFlush = 0
-//          }
+          // No updates, only pass through the event
 
-          // 5) advance vector clock & detect local window‐close
+
+          // advance vector clock & detect local window
           vectorClock(partition) = math.max(vectorClock(partition), ts)
           pendingFinal.keys.foreach(tryMarkFinal)
 
           val locallyClosed = defineWindow(vectorClock(partition)) - 1
           for (w <- queriedWindow until locallyClosed if !windowMap.get(w).exists(_._2)) {
-                // a) ensure a state exists (empty if needed) & mark closed
+                // ensure a state exists (empty if needed) & mark closed
                 val st = windowMap.get(w).map(_._1).getOrElse(crdt.empty(addr))
                 windowMap(w) = (st, true)
 
-                // b) self‐mark completion bit BEFORE broadcast
+                // self‐mark completion bit BEFORE broadcast
                 val pfMap = pendingFinal.getOrElseUpdate(w, mutable.Map.empty)
                 pfMap(partition) = vectorClock(partition)
                 val bs = completionBits.getOrElseUpdate(
@@ -176,7 +168,6 @@ case class WindowedRecordProcFunFullState[T, V](
   }
 
   def defineWindow(eventTime: Long): Long = {
-    // Stream event time increases by 10
     val time = eventTime / 10
     if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH
     else (time / WINDOW_LENGTH) + 1
@@ -195,15 +186,15 @@ case class WindowedRecordProcFunFullState[T, V](
   override def snapshot(): Array[Byte] = {
     // snapshot queriedWindow, vectorClock and windowMap
     val snapPart = writeBinary((queriedWindow, vectorClock))
-    val windows  = windowMap.map { case (w, (s, _)) => (w, s) }.toMap
-    val snapMap  = writeBinary(windows)
+    val windows = windowMap.map { case (w, (s, _)) => (w, s) }.toMap
+    val snapMap = writeBinary(windows)
     writeBinary((snapPart, snapMap))
   }
 
   override def restore(snapshot: Array[Byte]): Unit = {
     val (queried, vc) = readBinary[(Long, Array[Long])](snapshot)
     queriedWindow = queried
-    vectorClock   = vc
+    vectorClock = vc
 
     // restore windowMap
     val windows = readBinary[Map[Long, T]](snapshot.drop(writeBinary((queried, vc)).length))

@@ -1,6 +1,32 @@
 # HOLON Streaming System Wiki
 
-A comprehensive guide to the Holon decentralized exactly-once streaming platform powered by Conflict-free Replicated Data Types (CRDTs).
+## ⚠️ Setup Requirements
+
+**Before working with this project, ensure you have completed the following setup steps:**
+
+### 1. Google Cloud Services Configuration
+- **Firestore Database**: The `FirestoreClient.scala` is used to sync all producers via a flag stored in a Firestore database
+  - Update the Firestore collection key in `Config.scala` (line 55: `FIRESTORE_START_KEY`)
+  - Set up Firestore database and obtain credentials
+  - Update the credentials path in `FirestoreClient.scala` (line 19)
+- **Google Cloud Storage**: Update the GCS service account key path in `Config.scala` (line 53: `GC_CREDENTIALS_FILE_PATH`)
+  - Obtain a service account key for Google Cloud Storage
+  - Update the path to point to your credentials file
+
+### 2. Docker Hub Configuration
+- **Docker Hub Account**: Create a free Docker Hub account for pushing/pulling images
+- **Build Scripts**: Update the build scripts to use your Docker Hub username
+  - Modify deployment scripts in `examples/` directories
+  - Update image names and registry references
+  - Configure authentication for Docker Hub
+
+### 3. Environment Setup
+- **Credentials**: Ensure all Google Cloud credentials are properly configured
+- **Docker**: Set up Docker and Docker Hub authentication
+- **Network**: Configure any necessary network access for remote deployments
+- **Config**: Check the [`src\main\scala\holon\Config.scala`](src\main\scala\holon\Config.scala) for `WORK_STEALING_THRESHOLD` and `FAILURE_DETECTION_THRESHOLD`, these are turned off for large scale performance testing by increasing values
+
+**Note**: Without these configurations, the system will not be able to sync producers via Firestore or deploy images to remote environments.
 
 ## Table of Contents
 
@@ -30,10 +56,8 @@ Holon Streaming is a decentralized exactly-once streaming platform inspired by t
 ### Key Features
 
 - **CRDT-Powered**: Uses Conflict-free Replicated Data Types for consistency
-- **Kafka-Based**: Built on Apache Kafka for message streaming
 - **Scalable**: Supports multiple nodes with dynamic partition assignment
 - **Recovery**: Automatic failure detection and state recovery
-- **Cloud Integration**: Google Cloud Storage and Firestore support
 
 ### Technology Stack
 
@@ -304,6 +328,8 @@ docker compose up --build
 
 ### 3. Remote Docker Deployment (KTH Server)
 
+**ReadMe**: [`examples\nexmark-remote\README.md`](examples\nexmark-remote\README.md)
+
 **Directory**: [`examples/nexmark-remote/`](examples/nexmark-remote/)
 
 **Best for**: Production-like testing on dedicated hardware
@@ -419,7 +445,7 @@ docker compose up --build
 
 **Directory**: [`examples/flink-remote/`](examples/flink-remote/)
 
-**Status**: This deployment is outdated and no longer maintained.
+**Status**: This deployment is outdated
 
 #### Remote Flink Java (Current)
 
@@ -446,9 +472,6 @@ bash deploy.sh
 ```bash
 # Build the project
 sbt compile
-
-# Run tests
-sbt test
 
 # Create assembly JAR (Needed for large scale testing)
 sbt assembly
@@ -716,7 +739,7 @@ grep "CRDT update" logs/output.log
 
 ### Performance Optimization
 
-#### 1. Tuning Parameters
+#### Tuning Parameters
 
 ```bash
 # For high throughput
@@ -729,26 +752,6 @@ SLEEP_BETWEEN_POLLS=1
 PRODUCER_BATCH_SIZE=1024
 ENABLE_RATE_LIMIT=true
 PROCESSING_RATE_LIMIT=5000
-```
-
-#### 2. Kafka Optimization
-
-```yaml
-# In docker-compose.yml
-environment:
-  KAFKA_CFG_NUM_PARTITIONS: "50"  # Increase partitions
-  KAFKA_CFG_REPLICATION_FACTOR: "1"  # Single replica for performance
-```
-
-#### 3. Memory Tuning
-
-```bash
-# JVM options in build.sbt
-javaOptions ++= Seq(
-  "-Xmx4g",           # Increase heap size
-  "-XX:+UseG1GC",     # Use G1 garbage collector
-  "-XX:MaxGCPauseMillis=200"  # Target GC pause time
-)
 ```
 
 ## Quick Start

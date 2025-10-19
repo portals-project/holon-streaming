@@ -27,7 +27,7 @@ spec:
               value: "{{ $.Values.holon.partitions_per_node }}"
             - name: WINDOW_LENGTH
               value: "{{ $.Values.holon.window_length }}"
-          image: {{ .Values.logAppendOutputConsumer.image }}
+          image: {{ .Values.lagAppendOutputConsumer.image }}
           resources:
             requests:
               memory: "8Gi"

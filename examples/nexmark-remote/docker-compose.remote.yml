@@ -15,7 +15,7 @@ x-combined-holon-env: &combined-holon-env
   RUNTIME: "300000"
   SLEEP_BETWEEN_POLLS: "0"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
-  N_NODES:        "100"
+  N_NODES:        "3"
   PARTITIONS_PER_NODE: "2"
 
 services:

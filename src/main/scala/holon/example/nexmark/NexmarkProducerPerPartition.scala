@@ -176,7 +176,6 @@ object NexmarkProducerPerPartition {
         }
       }
 
-
       // flush all outstanding writes:
       producer.flush()
 

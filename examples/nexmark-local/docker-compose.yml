@@ -1,5 +1,5 @@
 x-shared-holon-env: &shared-holon-env
-  N_NODES: "5"
+  N_NODES: "3"
   PARTITIONS_PER_NODE: "2"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
@@ -92,23 +92,3 @@ services:
     environment:
       <<: [*base-node-env, *shared-holon-env]
       NODE_ID: "2"
-
-  holon-node-3:
-    build:
-      context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-    depends_on:
-      - init-kafka
-    environment:
-      <<: [ *base-node-env, *shared-holon-env ]
-      NODE_ID: "3"
-
-  holon-node-4:
-    build:
-      context: ../..
-      dockerfile: ./examples/nexmark-local/docker/holon-node/Dockerfile
-    depends_on:
-      - init-kafka
-    environment:
-      <<: [ *base-node-env, *shared-holon-env ]
-      NODE_ID: "4"
