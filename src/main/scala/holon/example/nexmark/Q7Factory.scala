@@ -4,7 +4,7 @@ import holon.ProcFun
 import holon.ProcFunFactory
 import holon.backend.{Q7ProcessFun, WindowedRecordProcFun}
 import holon.crdt.HighestBidLWWMapWrapper
-import holon.serialization.SerializationImplicits.lwwMapBytesRW
+import holon.serialization.NexmarkQ7Serialization.lwwMapBytesRW
 
 // this factory creates WindowedRecordProcFun's with a HighestBidLWWRegisterWrapper
 class Q7Factory extends ProcFunFactory {

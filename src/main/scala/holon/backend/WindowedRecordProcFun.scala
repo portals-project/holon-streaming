@@ -5,6 +5,7 @@ import holon.crdt.CRDTWrapper
 import holon.example.{CRDT, Nexmark}
 import holon.example.CRDT.address
 import holon.Config.*
+import holon.serialization.{DeltaCRDTSerialization, WindowStateSerialization}
 import org.apache.pekko.cluster.ddata.{DeltaReplicatedData, ReplicatedDelta, SelfUniqueAddress}
 import org.slf4j.LoggerFactory
 import upickle.legacy.{ReadWriter, macroRW, readBinary, readwriter, writeBinary}
@@ -13,68 +14,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, 
 import java.time.LocalDateTime
 import scala.collection.mutable
 
-// generic implicit for mutable maps
-implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]: ReadWriter[mutable.Map[K, V]] =
-  readwriter[Map[K, V]].bimap[mutable.Map[K, V]](
-    _.toMap,
-    m => mutable.Map.empty[K, V] ++ m
-  )
-
-  // === custom ReadWriter for DeltaReplicatedData via Java serialization ===
-implicit val deltaRW: ReadWriter[ReplicatedDelta] =
-  readwriter[Array[Byte]].bimap[ReplicatedDelta](
-    delta => {
-      val baos = new ByteArrayOutputStream()
-      val oos = new ObjectOutputStream(baos)
-      oos.writeObject(delta)
-      oos.close()
-      baos.toByteArray
-    },
-    bytes => {
-      val bais = new ByteArrayInputStream(bytes)
-      val ois = new ObjectInputStream(bais)
-      val obj = ois.readObject().asInstanceOf[ReplicatedDelta]
-      ois.close()
-      obj
-    }
-  )
-// =====================================================================
-
-case class WindowDelta(
-                        partition: Int,
-                        queryId:  Int,
-                        vectorClock: Array[Long],
-                        window: Long,
-                        deltas: List[Array[Byte]],
-                        isFinal: Boolean
-                      )
-object WindowDelta { given ReadWriter[WindowDelta] = macroRW }
-
-// not used anymore
-case class WindowState[T](
-                           partition: Int,
-                           queryId: Int,
-                           vectorClock: Array[Long],
-                           windowMap: mutable.Map[Long, (T, Boolean)]
-                         )
-object WindowState { given windowStateRW[T: ReadWriter]: ReadWriter[WindowState[T]] = macroRW }
-
-case class SnapShotState[T](
-                             emittedWindows: Long,
-                             vectorClock: Array[Long],
-                             windowMap: mutable.Map[Long, (T, Boolean)]
-                           )
-object SnapShotState { given snapShotStateRW[T: ReadWriter]: ReadWriter[SnapShotState[T]] = macroRW }
-
-case class OutputState(
-                        partition: Int,
-                        window: Long,
-                        value: String
-                      )
-
-object OutputState {
-  given ReadWriter[OutputState] = macroRW
-}
+// Import general serializations
+import DeltaCRDTSerialization.deltaRW
+import WindowStateSerialization.{WindowDelta, WindowState, SnapShotState, OutputState, mutableMapReadWriter}
 
 // this processing function maps bids to auctions and aggregates per window.
 case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, queryId: Int = 0, rw:ReadWriter[T]) extends ProcFun {
@@ -303,7 +245,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
   //   (eventTime - startTime) / windowSizeMillis
   // }
 
- def defineWindow(eventTime: Long): Long = {
+  def defineWindow(eventTime: Long): Long = {
    val time = eventTime / 10
    if (time % WINDOW_LENGTH == 0) time / WINDOW_LENGTH else (time / WINDOW_LENGTH) + 1
  }

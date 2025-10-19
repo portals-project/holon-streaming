@@ -4,6 +4,7 @@ import holon.*
 import holon.Config.*
 import holon.backend.*
 import holon.example.nexmark.HolonNode.logger
+import holon.serialization.WindowStateSerialization.OutputState
 import org.slf4j.LoggerFactory
 import upickle.legacy.*
 
@@ -24,7 +25,7 @@ object OutputConsumer {
         Logger.setLevel("Consumer", "INFO")
         val outputLagPerWindow = mutable.Map.empty[Long, Long]
         val outputPerWindow = mutable.Map.empty[Long, Map[Int, String]]
-        
+
         val output = KafkaLogConsumer(kafkaHost, kafkaPort, KAFKA_TOPIC_OUTPUT, (0 until nrOfKafkaPartitions()).toList)
         while true do
             output.poll() match
@@ -42,7 +43,7 @@ object OutputConsumer {
                         outputLagPerWindow(windowId) =
                             if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
                             else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
-                            
+
                         outputPerWindow(windowId) = outputPerWindow.getOrElse(windowId, Map.empty[Int, String]) + (partition -> outputValue)
 
 //                        if USE_LOG_FILE then

@@ -7,9 +7,13 @@ import upickle.legacy.readwriter
 
 import scala.collection.mutable
 
-object SerializationImplicits {
+/**
+ * Serialization for Nexmark Query 7 (Q7) - Highest bid tracking.
+ * Uses HighestBidLWWMapWrapper with LWWMap[String, Array[Byte]] serialization.
+ */
+object NexmarkQ7Serialization {
 
-  // 1) LWWRegister[Array[Byte]] → Array[Byte]
+  // LWWRegister[Array[Byte]] → Array[Byte]
   implicit val lwwRegisterBytesRW: ReadWriter[LWWRegister[Array[Byte]]] =
     readwriter[Array[Byte]].bimap[LWWRegister[Array[Byte]]](
       crdt  => CRDT.crdtToBinaryWithManifest("LWWRegister", crdt),
@@ -28,7 +32,7 @@ object SerializationImplicits {
         .asInstanceOf[ORSet[Array[Byte]]]
     )
 
-  // 2) window‐map: Map[windowTimestamp → (LWWRegister[Array[Byte]], closedFlag)]
+  // Window‐map: Map[windowTimestamp → (LWWRegister[Array[Byte]], closedFlag)]
   implicit val windowMapBytesRW
   : ReadWriter[mutable.Map[Long, (LWWRegister[Array[Byte]], Boolean)]] = {
 
@@ -42,7 +46,7 @@ object SerializationImplicits {
     )
   }
 
-  // 1) Serialize an LWWMap[String, Array[Byte]] via our CRDT manifest helpers
+  // Serialize an LWWMap[String, Array[Byte]] via our CRDT manifest helpers
   implicit val lwwMapBytesRW: ReadWriter[LWWMap[String, Array[Byte]]] =
     readwriter[Array[Byte]].bimap[LWWMap[String, Array[Byte]]](
       crdt => CRDT.crdtToBinaryWithManifest("LWWMap", crdt),
@@ -50,28 +54,13 @@ object SerializationImplicits {
         .asInstanceOf[LWWMap[String, Array[Byte]]]
     )
 
-  // 2) window-map: Map[windowKey → (LWWMap[String,Array[Byte]], closedFlag)]
-  implicit val windowMapLwwMapRW
-  : ReadWriter[mutable.Map[Long, (LWWMap[String, Array[Byte]], Boolean)]] = {
-
-    // intermediate immutable type
+  // Window-map: Map[windowKey → (LWWMap[String,Array[Byte]], closedFlag)]
+  implicit val windowLWWMapBytesRW: ReadWriter[mutable.Map[Long, (LWWMap[String, Array[Byte]], Boolean)]] = {
     type M = Map[Long, (LWWMap[String, Array[Byte]], Boolean)]
 
     readwriter[M].bimap[mutable.Map[Long, (LWWMap[String, Array[Byte]], Boolean)]](
-      // to JSON: treat it as an immutable Map
       m => m.toMap,
-      // from JSON: rebuild a mutable.Map
-      m => mutable.Map.empty[Long, (LWWMap[String, Array[Byte]], Boolean)] ++ m
+      m => mutable.Map(m.toSeq: _*)
     )
   }
-  
-  
-
-  // 3) (Optional) generic mutable‐map ReadWriter for other cases
-//  implicit def mutableMapReadWriter[K: ReadWriter, V: ReadWriter]
-//  : ReadWriter[mutable.Map[K, V]] =
-//    readwriter[Map[K, V]].bimap[mutable.Map[K, V]](
-//      _.toMap,
-//      m => mutable.Map(m.toSeq: _*)
-//    )
 }

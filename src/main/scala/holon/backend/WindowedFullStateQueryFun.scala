@@ -2,6 +2,7 @@ package holon.backend
 
 import holon.Config.{CHN_OUTPUT, GARBAGE_COLLECTION_OFFSET, USE_LOG_FILE}
 import holon.{LogConsumerRecords, LogProducerRecords, Logger, ProcFun}
+import holon.serialization.WindowStateSerialization.OutputState
 import org.slf4j.LoggerFactory
 import upickle.legacy.{readBinary, writeBinary}
 
