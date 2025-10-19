@@ -39,9 +39,9 @@ abstract class WindowedQueryFun(partition: Int, val procfuns: List[WindowedRecor
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
 
           if USE_LOG_FILE then
-            if firstProcFun.logAppendTimePerWindow.contains(w) then outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+            if firstProcFun.lagAppendTimePerWindow.contains(w) then outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.lagAppendTimePerWindow(w)}")
           else
-            if firstProcFun.logAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+            if firstProcFun.lagAppendTimePerWindow.contains(w) then logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.lagAppendTimePerWindow(w)}")
 
           outputFun(partition, CHN_OUTPUT, Iterable.single((writeBinary(0), writeBinary[OutputState](out))))
         }

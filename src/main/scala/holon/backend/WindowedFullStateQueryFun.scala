@@ -40,15 +40,15 @@ abstract class WindowedFullStateQueryFun(partition: Int, val procfuns: List[Wind
           val out: OutputState = OutputState(partition, w, processWindow(w, crdtStates))
 
           if USE_LOG_FILE then
-            if firstProcFun.logAppendTimePerWindow.contains(w) then
-              outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+            if firstProcFun.lagAppendTimePerWindow.contains(w) then
+              outputLog.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.lagAppendTimePerWindow(w)}")
 
               // optional: Log state size
               // val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)
               // outputLog.info(s"[STATE-SIZE]: partition: $partition, size: ${serializedState.length}, timestamp: ${System.currentTimeMillis()}")
           else
-            if firstProcFun.logAppendTimePerWindow.contains(w) then
-              logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.logAppendTimePerWindow(w)}")
+            if firstProcFun.lagAppendTimePerWindow.contains(w) then
+              logger.info(s"[LagAppendInput] - window: $w, timestamp: ${firstProcFun.lagAppendTimePerWindow(w)}")
 
               // optional: Log state size
               // val serializedState: Array[Byte] = writeBinary(firstProcFun.windowMap)

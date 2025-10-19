@@ -34,7 +34,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
   private var emittedWindows = 0L
   var queriedWindow: Long = 1L
 
-  val logAppendTimePerWindow = mutable.Map.empty[Long, Long]
+  val lagAppendTimePerWindow = mutable.Map.empty[Long, Long]
 
   // delta support
   private val deltaMap = mutable.Map.empty[Long, List[ReplicatedDelta]]
@@ -109,7 +109,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
 
             // optional benchmark logging
             if (queryId == 0) {
-              logAppendTimePerWindow(window) = math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
+              lagAppendTimePerWindow(window) = math.max(lagAppendTimePerWindow.getOrElse(window, 0L), rec._3)
             }
 
           case None =>
@@ -235,7 +235,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
     windowMap.remove(windowKey)
     deltaMap.remove(windowKey)
     completionBits.remove(windowKey)
-    logAppendTimePerWindow.remove(windowKey)
+    lagAppendTimePerWindow.remove(windowKey)
   }
 
   // Used for the taxi dataset

@@ -24,7 +24,7 @@ object LagAppendOutputConsumer {
     case class OutputRecordQ4(
          category: String,
          avg_win_price: Double,
-         timestamp: Long                    
+         timestamp: Long
    )
 
     case class InputRecord(
@@ -167,11 +167,11 @@ object LagAppendOutputConsumer {
                             case scala.util.Success(inputRecord) =>
                                 val partition = r._1
                                 val windowId = defineWindow(inputRecord.timestamp)
-                                val logAppendTime = r._3
+                                val lagAppendTime = r._3
 
                                 outputLagPerWindow(windowId) =
-                                    if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                                    else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+                                    if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then lagAppendTime
+                                    else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), lagAppendTime)
 
 //                                if USE_LOG_FILE then
 //                                    outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")

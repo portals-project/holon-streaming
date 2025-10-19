@@ -49,7 +49,7 @@ case class WindowedRecordProcFunFullState[T, V](
   var vectorClock = Array.fill(nrOfKafkaPartitions())(0L)
   private val pendingFinal  = mutable.Map.empty[Long, mutable.Map[Int, Long]]
   private val completionBits = mutable.Map.empty[Long, java.util.BitSet]
-  val logAppendTimePerWindow = mutable.Map.empty[Long, Long]
+  val lagAppendTimePerWindow = mutable.Map.empty[Long, Long]
 
   override def processInput(
                              outputFunction: (Int, Byte, LogProducerRecords) => Unit,
@@ -108,8 +108,8 @@ case class WindowedRecordProcFunFullState[T, V](
 
           // benchmark logging
           if (queryId == 0) {
-            logAppendTimePerWindow(window) =
-              math.max(logAppendTimePerWindow.getOrElse(window, 0L), rec._3)
+            lagAppendTimePerWindow(window) =
+              math.max(lagAppendTimePerWindow.getOrElse(window, 0L), rec._3)
           }
         }
 
@@ -189,7 +189,7 @@ case class WindowedRecordProcFunFullState[T, V](
     logger.debug(s"partition: $partition, GC window: $windowKey")
     windowMap.remove(windowKey)
     completionBits.remove(windowKey)
-    logAppendTimePerWindow.remove(windowKey)
+    lagAppendTimePerWindow.remove(windowKey)
   }
 
   override def snapshot(): Array[Byte] = {

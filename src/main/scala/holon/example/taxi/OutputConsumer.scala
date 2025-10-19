@@ -38,18 +38,18 @@ object OutputConsumer {
                         val partition = outputState.partition
                         val windowId = outputState.window
                         val outputValue = outputState.value
-                        val logAppendTime = r._3
+                        val lagAppendTime = r._3
                         // Take the minimum output log append time for the window
                         outputLagPerWindow(windowId) =
-                            if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                            else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+                            if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then lagAppendTime
+                            else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), lagAppendTime)
 
                         outputPerWindow(windowId) = outputPerWindow.getOrElse(windowId, Map.empty[Int, String]) + (partition -> outputValue)
 
 //                        if USE_LOG_FILE then
-//                            systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+//                            systemOutputLog.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, lagAppendTime: $lagAppendTime")
 //                        else
-//                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, logAppendTime: $logAppendTime")
+//                            logger.info(s"[OUTPUT]: partition: $partition window: $windowId, value: $outputValue, lagAppendTime: $lagAppendTime")
 
                         if (outputPerWindow(windowId).size == nrOfKafkaPartitions()) {
                             // if all strings for each partition are the same

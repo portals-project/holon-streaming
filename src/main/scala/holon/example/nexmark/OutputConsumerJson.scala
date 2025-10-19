@@ -121,11 +121,11 @@ object OutputConsumerJson {
                                 case scala.util.Success(inputRecord) =>
                                     val partition = r._1
                                     val windowId = defineWindow(inputRecord.timestamp)
-                                    val logAppendTime = r._3
+                                    val lagAppendTime = r._3
 
                                     outputLagPerWindow(windowId) =
-                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then lagAppendTime
+                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), lagAppendTime)
 
                                     // if USE_LOG_FILE then
                                     // outputLog.info(s"[OUTPUT]: partition: $partition, window: $windowId, record: ${inputRecord.price}")
@@ -146,7 +146,7 @@ object OutputConsumerJson {
                                 case scala.util.Success(inputRecord) =>
                                     val partition     = r._1
                                     val windowId      = defineWindow(inputRecord.ts)
-                                    val logAppendTime = r._3
+                                    val lagAppendTime = r._3
 
 //                                     optional: print every Q4 record if you still want to see them
                                      if USE_LOG_FILE then
@@ -161,14 +161,14 @@ object OutputConsumerJson {
 //                                     update to the LATEST append time for this window
                                     outputLagPerWindow(windowId) =
                                         outputLagPerWindow.get(windowId) match {
-                                            case None                    => logAppendTime
+                                            case None                    => lagAppendTime
                                             case Some(previousAppendTime) =>
-                                                math.max(previousAppendTime, logAppendTime)
+                                                math.max(previousAppendTime, lagAppendTime)
                                         }
 
                                     outputLagPerWindow(windowId) =
-                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then logAppendTime
-                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), logAppendTime)
+                                        if outputLagPerWindow.getOrElse(windowId, Long.MaxValue) == 0L then lagAppendTime
+                                        else math.min(outputLagPerWindow.getOrElse(windowId, Long.MaxValue), lagAppendTime)
 
 
                                     // now see if any "old" windows have finished (current windowId - 1)
