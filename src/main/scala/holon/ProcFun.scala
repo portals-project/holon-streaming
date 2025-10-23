@@ -7,9 +7,7 @@ abstract class ProcFun {
       rec: LogConsumerRecords,
   ): Unit
 
-  // function to take a snapshot of the current state
   def snapshot(): Array[Byte]
 
-  // function to restore the state from a snapshot
   def restore(snapshot: Array[Byte]): Unit
 }
