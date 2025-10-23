@@ -48,21 +48,13 @@ object Query {
             logger.info("Starting Nexmark Query")
             setupKafka()
 
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
-//            RunThread(runNexmarkProducer())
             RunThread(runNexmarkProducer())
-//            logger.info("Started Nexmark Producers, waiting for 60 seconds before to fill the Kafka topic")
-//            Thread.sleep(60_000)
-//            RunThread(runOutputConsumer())
             RunThread(runOutputConsumer())
 
             for (i <- 0 until N_NODES) {
                 val partitions = (i * PARTITIONS_PER_NODE until (i + 1) * PARTITIONS_PER_NODE).toList
                 val j = job(partitions, KAFKA_HOST, KAFKA_PORT)
                 val holon = Holon(i)
-                // submit job to Holon
                 holon.submitOrUpdate(j)
             }
 

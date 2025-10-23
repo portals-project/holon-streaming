@@ -50,11 +50,6 @@ object TaxiQuery {
             setupKafka()
 
             RunThread(runTaxiDataProducer())
-//            RunThread(runTaxiDataProducer())
-//            RunThread(runTaxiDataProducer())
-//            RunThread(runTaxiDataProducer())
-//            RunThread(runTaxiDataProducer())
-//            RunThread(runOutputConsumer())
             RunThread(runOutputConsumer())
 
             for (i <- 0 until N_NODES) {
