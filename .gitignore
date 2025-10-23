@@ -10,6 +10,6 @@ metals.sbt
 project/project/
 target/
 *.sc
-taxi-data/
-logs/
+taxi-data/*
+logs/*
 snapshots
