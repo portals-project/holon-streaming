@@ -42,18 +42,9 @@ object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], Set[(Lon
                                 address: SelfUniqueAddress,
                                 event: EventType
                               ): (GSet[(Long, Long)], Option[ReplicatedDelta]) = {
-    // 1) apply
     val updated = update(crdt, address, event)
-
-    // 2) grab its internal delta (if any)
     val maybeDelta: Option[ReplicatedDelta] = updated.delta
-
-//    println(s"Delta for ${event.id} -> ${event.category}: $maybeDelta")
-
-    // 3) reset so future .delta only sees new changes
     val cleared = updated.resetDelta
-
-    // 4) return the cleared state + the real delta op
     (cleared, maybeDelta)
   }
 
@@ -64,9 +55,7 @@ object AuctionToCategoryWrapper extends CRDTWrapper[GSet[(Long, Long)], Set[(Lon
                            crdt: GSet[(Long, Long)],
                            delta: ReplicatedDelta
                          ): GSet[(Long, Long)] = {
-    // the GSet itself is its delta type: cast back to GSet[(Long,Long)]
     val op = delta.asInstanceOf[GSet[(Long, Long)]]
-    // merge that delta‐op into your local state
     crdt.mergeDelta(op)
   }
 
