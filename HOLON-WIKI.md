@@ -1,4 +1,4 @@
-# HOLON Streaming System Wiki
+# HOLON Streaming Syste
 
 ## ⚠️ Setup Requirements
 
@@ -24,22 +24,23 @@
 - **Credentials**: Ensure all Google Cloud credentials are properly configured
 - **Docker**: Set up Docker and Docker Hub authentication
 - **Network**: Configure any necessary network access for remote deployments
-- **Config**: Check the [`src\main\scala\holon\Config.scala`](src\main\scala\holon\Config.scala) for `WORK_STEALING_THRESHOLD` and `FAILURE_DETECTION_THRESHOLD`, these are turned off for large scale performance testing by increasing values
+- **Config**: Check the [`src/main/scala/holon/core/Config.scala`](src/main/scala/holon/core/Config.scala) for `WORK_STEALING_THRESHOLD` and `FAILURE_DETECTION_THRESHOLD`, these are turned off for large scale performance testing by increasing values
 
 **Note**: Without these configurations, the system will not be able to sync producers via Firestore or deploy images to remote environments.
 
 ## Table of Contents
 
 1. [System Overview](#system-overview)
-2. [Architecture](#architecture)
-3. [Core Components](#core-components)
-4. [CRDT System](#crdt-system)
-5. [Deployment Scenarios](#deployment-scenarios)
-6. [Development Guide](#development-guide)
-7. [Configuration](#configuration)
-8. [Examples and Use Cases](#examples-and-use-cases)
-9. [Troubleshooting](#troubleshooting)
-10. [Quick Start](#quick-start)
+2. [Project Structure](#project-structure)
+3. [Architecture](#architecture)
+4. [Core Components](#core-components)
+5. [CRDT System](#crdt-system)
+6. [Deployment Scenarios](#deployment-scenarios)
+7. [Development Guide](#development-guide)
+8. [Configuration](#configuration)
+9. [Examples and Use Cases](#examples-and-use-cases)
+10. [Troubleshooting](#troubleshooting)
+11. [Quick Start](#quick-start)
 
 ## System Overview
 
@@ -68,6 +69,225 @@ Holon Streaming is a decentralized exactly-once streaming platform inspired by t
 - **Cloud**: Google Cloud Storage, Firestore
 - **Containerization**: Docker, Kubernetes
 - **Benchmarking**: Nexmark benchmark suite
+
+## Project Structure
+
+The Holon streaming projec organises code into distinct packages based on functionality:
+
+### Core Package (`holon.core`)
+**Location**: [`src/main/scala/holon/core/`](src/main/scala/holon/core/)
+
+Contains the fundamental interfaces and configuration:
+- **`Holon.scala`**: Main Holon interface defining the core API
+- **`HolonImpl.scala`**: Default implementation of the Holon interface
+- **`Config.scala`**: System configuration and environment variables
+- **`Job.scala`**: Job definition with consumers, producers, and processing functions
+- **`Context.scala`**: Base context interface for logging
+- **`Utils.scala`**: Core utility functions
+
+### Streaming Package (`holon.streaming`)
+**Location**: [`src/main/scala/holon/streaming/`](src/main/scala/holon/streaming/)
+
+Contains all streaming-related functionality organized by subsystem:
+
+#### Recovery System (`holon.streaming.recovery`)
+- **`Recovery.scala`**: Main recovery system orchestrating failure detection and partition management
+- **`FailureDetector.scala`**: Heartbeat-based failure detection
+- **`PartitionOwnershipManager.scala`**: Partition ownership tracking and transfer
+
+#### Messaging System (`holon.streaming.messaging`)
+- **`KafkaSystem.scala`**: Kafka infrastructure management
+- **`KafkaLogConsumer.scala`**: Kafka consumer implementation
+- **`KafkaLogProducer.scala`**: Kafka producer implementation
+- **`KafkaSerdes.scala`**: Serialization/deserialization utilities
+- **`messages/`**: Control and broadcast message definitions
+
+#### Checkpointing System (`holon.streaming.checkpointing`)
+- **`CheckpointManager.scala`**: Base checkpoint management interface
+- **`DecentralizedCheckpointManager.scala`**: Local checkpoint management
+- **`CloudStorageCheckpointManager.scala`**: Cloud-based checkpoint management
+
+#### Processing System (`holon.streaming.processing`)
+- **`ProcFun.scala`**: Base processing function interface
+- **`ProcFunFactory.scala`**: Factory for creating processing functions
+
+#### Windowing System (`holon.streaming.windowing`)
+- **`WindowedQueryFun.scala`**: Windowed query processing
+- **`WindowedRecordProcFun.scala`**: Record-level windowed processing
+
+#### Output System (`holon.streaming.output`)
+- **`OutputCollector.scala`**: Output collection interface
+- **`OutputCollectorImpl.scala`**: Output collection implementation
+- **`LagManager.scala`**: Lag tracking and work stealing
+
+### CRDT Package (`holon.crdt`)
+**Location**: [`src/main/scala/holon/crdt/`](src/main/scala/holon/crdt/)
+
+Contains CRDT implementations and serialization:
+- **`CRDT.scala`**: CRDT utilities and serialization
+- **`CRDTWrapper.scala`**: Base CRDT wrapper interface
+- **`wrappers/`**: Specific CRDT implementations (AuctionToCategory, AuctionToHighestBid, etc.)
+- **`serialization/`**: CRDT serialization utilities and query-specific serializers
+
+### Examples Package (`holon.examples`)
+**Location**: [`src/main/scala/holon/examples/`](src/main/scala/holon/examples/)
+
+Contains specific implementations and use cases:
+
+#### Nexmark Implementation (`holon.examples.nexmark`)
+- **`nodes/HolonNode.scala`**: Nexmark-specific node implementation
+- **`data/`**: Nexmark data models and producers
+- **`factories/`**: Query-specific factory implementations
+- **`queries/`**: Query processing functions
+- **`consumers/`**: Output consumers for Nexmark
+
+#### Taxi Implementation (`holon.examples.taxi`) Unfinished
+- **`nodes/HolonNode.scala`**: Taxi-specific node implementation
+- **`data/`**: Taxi data models and producers
+- **`factories/`**: Taxi query factory implementations
+- **`queries/`**: Taxi query processing functions
+- **`consumers/`**: Output consumers for taxi queries
+
+### Utilities Package (`holon.utils`)
+**Location**: [`src/main/scala/holon/utils/`](src/main/scala/holon/utils/)
+
+Contains shared utilities and cloud integrations:
+- **`cloud/`**: Cloud service clients (Firestore, GCS)
+- **`Logger.scala`**: Logging utilities
+- **`ConsumerProducerSetup.scala`**: Kafka setup utilities
+- **`KafkaDebugger.scala`**: Kafka debugging tools
+- **`ThrottleFilter.scala`**: Rate limiting utilities
+
+### Project Directory Structure
+
+```
+holon-streaming-clone/
+├── src/main/scala/holon/
+│   ├── core/                           # Core interfaces and configuration
+│   │   ├── Config.scala
+│   │   ├── Context.scala
+│   │   ├── Holon.scala
+│   │   ├── HolonImpl.scala
+│   │   ├── Job.scala
+│   │   └── Utils.scala
+│   │
+│   ├── streaming/                      # Streaming functionality
+│   │   ├── recovery/                   # Failure detection and recovery
+│   │   │   ├── Recovery.scala          # Main recovery system
+│   │   │   ├── FailureDetector.scala
+│   │   │   └── PartitionOwnershipManager.scala
+│   │   │
+│   │   ├── messaging/                  # Kafka messaging system
+│   │   │   ├── KafkaSystem.scala
+│   │   │   ├── KafkaLogConsumer.scala
+│   │   │   ├── KafkaLogProducer.scala
+│   │   │   ├── KafkaSerdes.scala
+│   │   │   └── messages/
+│   │   │       ├── BroadcastMessage.scala
+│   │   │       └── ControlMessage.scala
+│   │   │
+│   │   ├── checkpointing/              # State checkpointing
+│   │   │   ├── CheckpointManager.scala
+│   │   │   ├── DecentralizedCheckpointManager.scala
+│   │   │   └── CloudStorageCheckpointManager.scala
+│   │   │
+│   │   ├── processing/                 # Stream processing
+│   │   │   ├── ProcFun.scala
+│   │   │   └── ProcFunFactory.scala
+│   │   │
+│   │   ├── windowing/                  # Windowing operations
+│   │   │   ├── WindowedQueryFun.scala
+│   │   │   ├── WindowedRecordProcFun.scala
+│   │   │   └── WindowedFullStateQueryFun.scala
+│   │   │
+│   │   └── output/                     # Output collection
+│   │       ├── OutputCollector.scala
+│   │       ├── OutputCollectorImpl.scala
+│   │       └── LagManager.scala
+│   │
+│   ├── crdt/                          # CRDT implementations
+│   │   ├── CRDT.scala                  # CRDT utilities
+│   │   ├── CRDTWrapper.scala           # Base CRDT wrapper
+│   │   ├── wrappers/                   # CRDT implementations
+│   │   │   ├── AuctionToCategoryWrapper.scala
+│   │   │   ├── AuctionToHighestBidWrapper.scala
+│   │   │   ├── BidCountGCounterWrapper.scala
+│   │   │   ├── HighestBidLWWRegisterWrapper.scala
+│   │   │   ├── PassThroughDeltaWrapper.scala
+│   │   │   └── TQ2LWWMapWrapper.scala
+│   │   │
+│   │   └── serialization/              # CRDT serialization
+│   │       ├── AuctionPopularitySerialization.scala
+│   │       ├── DeltaCRDTSerialization.scala
+│   │       ├── WindowStateSerialization.scala
+│   │       └── query-specific/
+│   │           ├── NexmarkQ0Serialization.scala
+│   │           ├── NexmarkQ4Serialization.scala
+│   │           └── NexmarkQ7Serialization.scala
+│   │
+│   ├── examples/
+│   │   ├── nexmark/                    # Nexmark benchmark implementation
+│   │   │   ├── nodes/
+│   │   │   │   └── HolonNode.scala     # Nexmark node implementation
+│   │   │   ├── data/
+│   │   │   │   ├── Nexmark.scala
+│   │   │   │   ├── NexmarkProducer.scala
+│   │   │   │   ├── NexmarkProducerJson.scala
+│   │   │   │   └── NexmarkProducerPerPartition.scala
+│   │   │   ├── factories/              # Query factories
+│   │   │   │   ├── Q0Factory.scala
+│   │   │   │   ├── Q4Factory.scala
+│   │   │   │   └── Q7Factory.scala
+│   │   │   ├── queries/                 # Query implementations
+│   │   │   │   ├── Q0ProcessFun.scala
+│   │   │   │   ├── Q4ProcessFun.scala
+│   │   │   │   └── Q7ProcessFun.scala
+│   │   │   ├── consumers/              # Output consumers
+│   │   │   │   ├── LagAppendOutputConsumer.scala
+│   │   │   │   ├── OutputConsumer.scala
+│   │   │   │   └── OutputConsumerJson.scala
+│   │   │   └── Query.scala             # Main entry point
+│   │   │
+│   │   └── taxi/ (Unfinished)
+│   │       ├── nodes/
+│   │       │   └── HolonNode.scala
+│   │       ├── data/
+│   │       │   ├── TaxiProducer.scala
+│   │       │   ├── TaxiQuery.scala
+│   │       │   └── TaxiUtils.scala
+│   │       ├── factories/
+│   │       │   └── TQ2Factory.scala
+│   │       ├── queries/
+│   │       │   └── TQ2ProcessFun.scala
+│   │       └── consumers/
+│   │           └── OutputConsumer.scala
+│   │
+│   └── utils/                         # Shared utilities
+│       ├── cloud/                      # Cloud service clients
+│       │   ├── FirestoreClient.scala
+│       │   └── GCSClient.scala
+│       ├── ConsumerProducerSetup.scala
+│       ├── IdentityPartitioner.scala
+│       ├── KafkaDebugger.scala
+│       ├── LogConsumer.scala
+│       ├── LogConsumerRecords.scala
+│       ├── Logger.scala
+│       ├── LogProducer.scala
+│       └── ThrottleFilter.scala
+│
+├── examples/                          # Deployment examples
+│   ├── nexmark-local/                 # Local development
+│   ├── nexmark-remote/                # Remote deployment
+│   ├── nexmark-remote-java/           # Large-scale deployment
+│   ├── flink-local/                   # Flink comparison (local)
+│   ├── flink-remote/                  # Flink comparison (remote)
+│   └── flink-remote-java/             # Flink comparison (large-scale)
+│
+├── benchmarks/
+├── build.sbt
+├── full-build.sh
+└── HOLON-WIKI.md
+```
 
 ## Architecture
 
@@ -136,7 +356,7 @@ The system consists of several key components that work together:
 
 ### Holon Nodes
 
-**File**: [`src/main/scala/holon/Holon.scala`](src/main/scala/holon/Holon.scala)
+**File**: [`src/main/scala/holon/core/Holon.scala`](src/main/scala/holon/core/Holon.scala)
 
 The main interface for Holon nodes. Each node is identified by a unique ID and manages:
 
@@ -152,9 +372,11 @@ trait Holon {
 }
 ```
 
+**Implementation**: [`src/main/scala/holon/core/HolonImpl.scala`](src/main/scala/holon/core/HolonImpl.scala)
+
 ### Recovery System
 
-**File**: [`src/main/scala/holon/backend/Recovery.scala`](src/main/scala/holon/backend/Recovery.scala)
+**File**: [`src/main/scala/holon/streaming/recovery/Recovery.scala`](src/main/scala/holon/streaming/recovery/Recovery.scala)
 
 The core recovery system handles:
 
@@ -171,7 +393,7 @@ Key features:
 
 ### Partition Management
 
-**File**: [`src/main/scala/holon/backend/PartitionOwnershipManager.scala`](src/main/scala/holon/backend/PartitionOwnershipManager.scala)
+**File**: [`src/main/scala/holon/streaming/recovery/PartitionOwnershipManager.scala`](src/main/scala/holon/streaming/recovery/PartitionOwnershipManager.scala)
 
 Manages partition ownership across nodes:
 
@@ -182,7 +404,7 @@ Manages partition ownership across nodes:
 
 ### Failure Detection
 
-**File**: [`src/main/scala/holon/backend/FailureDetector.scala`](src/main/scala/holon/backend/FailureDetector.scala)
+**File**: [`src/main/scala/holon/streaming/recovery/FailureDetector.scala`](src/main/scala/holon/streaming/recovery/FailureDetector.scala)
 
 Implements distributed failure detection:
 
@@ -192,7 +414,7 @@ Implements distributed failure detection:
 
 ### Kafka System
 
-**File**: [`src/main/scala/holon/backend/KafkaSystem.scala`](src/main/scala/holon/backend/KafkaSystem.scala)
+**File**: [`src/main/scala/holon/streaming/messaging/KafkaSystem.scala`](src/main/scala/holon/streaming/messaging/KafkaSystem.scala)
 
 Manages Kafka infrastructure:
 
@@ -226,7 +448,7 @@ trait CRDTWrapper[T, V] {
 
 #### PassThroughDeltaWrapper
 
-**File** [`src\main\scala\holon\crdt\PassThroughDeltaWrapper.scala`](src\main\scala\holon\crdt\PassThroughDeltaWrapper.scala)
+**File**: [`src/main/scala/holon/crdt/wrappers/PassThroughDeltaWrapper.scala`](src/main/scala/holon/crdt/wrappers/PassThroughDeltaWrapper.scala)
 
 Does not perform any action, passes very event without updating state:
 
@@ -237,7 +459,7 @@ Does not perform any action, passes very event without updating state:
 
 #### AuctionToHighestBidWrapper
 
-**File**: [`src/main/scala/holon/crdt/AuctionToHighestBidWrapper.scala`](src/main/scala/holon/crdt/AuctionToHighestBidWrapper.scala)
+**File**: [`src/main/scala/holon/crdt/wrappers/AuctionToHighestBidWrapper.scala`](src/main/scala/holon/crdt/wrappers/AuctionToHighestBidWrapper.scala)
 
 Tracks the highest bid for each auction using a GSet:
 
@@ -248,7 +470,7 @@ Tracks the highest bid for each auction using a GSet:
 
 #### AuctionToCategoryWrapper
 
-**File**: [`src/main/scala/holon/crdt/AuctionToCategoryWrapper.scala`](src/main/scala/holon/crdt/AuctionToCategoryWrapper.scala)
+**File**: [`src/main/scala/holon/crdt/wrappers/AuctionToCategoryWrapper.scala`](src/main/scala/holon/crdt/wrappers/AuctionToCategoryWrapper.scala)
 
 Maps auctions to their categories:
 
@@ -259,7 +481,7 @@ Maps auctions to their categories:
 
 #### TQ2LWWMapWrapper
 
-**File**: [`src/main/scala/holon/crdt/TQ2LWWMapWrapper.scala`](src/main/scala/holon/crdt/TQ2LWWMapWrapper.scala)
+**File**: [`src/main/scala/holon/crdt/wrappers/TQ2LWWMapWrapper.scala`](src/main/scala/holon/crdt/wrappers/TQ2LWWMapWrapper.scala)
 
 Tracks highest value taxi trips using LWWMap:
 
@@ -270,7 +492,7 @@ Tracks highest value taxi trips using LWWMap:
 
 #### HighestBidLWWRegisterWrapper
 
-**File**: [`src/main/scala/holon/crdt/HighestBidLWWRegisterWrapper.scala`](src/main/scala/holon/crdt/HighestBidLWWRegisterWrapper.scala)
+**File**: [`src/main/scala/holon/crdt/wrappers/HighestBidLWWRegisterWrapper.scala`](src/main/scala/holon/crdt/wrappers/HighestBidLWWRegisterWrapper.scala)
 
 Tracks the single highest bid across all auctions:
 
@@ -294,10 +516,10 @@ Run the system directly using SBT without Docker:
 sbt compile
 
 # Run a specific query (adjust Config.scala for behavior)
-sbt "runMain holon.example.nexmark.Query"
+sbt "runMain holon.examples.nexmark.Query"
 ```
 
-**Configuration**: Modify [`src/main/scala/holon/Config.scala`](src/main/scala/holon/Config.scala) to adjust:
+**Configuration**: Modify [`src/main/scala/holon/core/Config.scala`](src/main/scala/holon/core/Config.scala) to adjust:
 - Number of nodes (`N_NODES`)
 - Partitions per node (`PARTITIONS_PER_NODE`)
 - Query type (`WORKLOAD`: 0=Q0, 4=Q4, 7=Q7)
@@ -508,7 +730,7 @@ docker build -t holon-node .
 
 ### Environment Variables
 
-**File**: [`src/main/scala/holon/Config.scala`](src/main/scala/holon/Config.scala)
+**File**: [`src/main/scala/holon/core/Config.scala`](src/main/scala/holon/core/Config.scala)
 
 #### Cluster Configuration
 
@@ -577,16 +799,16 @@ FIRESTORE_START_KEY=flags_ruben  # Firestore key prefix
 #### Q0: Pass-Through Query
 
 **Files**:
-- [`src/main/scala/holon/backend/Q0ProcessFun.scala`](src/main/scala/holon/backend/Q0ProcessFun.scala)
-- [`src/main/scala/holon/example/nexmark/Q0Factory.scala`](src/main/scala/holon/example/nexmark/Q0Factory.scala)
+- [`src/main/scala/holon/examples/nexmark/queries/Q0ProcessFun.scala`](src/main/scala/holon/examples/nexmark/queries/Q0ProcessFun.scala)
+- [`src/main/scala/holon/examples/nexmark/factories/Q0Factory.scala`](src/main/scala/holon/examples/nexmark/factories/Q0Factory.scala)
 
 Simple pass-through query for baseline performance testing.
 
 #### Q4: Average Winning Bid per Category
 
 **Files**:
-- [`src/main/scala/holon/backend/Q4ProcessFun.scala`](src/main/scala/holon/backend/Q4ProcessFun.scala)
-- [`src/main/scala/holon/example/nexmark/Q4Factory.scala`](src/main/scala/holon/example/nexmark/Q4Factory.scala)
+- [`src/main/scala/holon/examples/nexmark/queries/Q4ProcessFun.scala`](src/main/scala/holon/examples/nexmark/queries/Q4ProcessFun.scala)
+- [`src/main/scala/holon/examples/nexmark/factories/Q4Factory.scala`](src/main/scala/holon/examples/nexmark/factories/Q4Factory.scala)
 
 Complex aggregation query using multiple CRDTs:
 - `AuctionToHighestBidWrapper`: Tracks highest bids
@@ -595,17 +817,17 @@ Complex aggregation query using multiple CRDTs:
 #### Q7: Highest Bid Query
 
 **Files**:
-- [`src/main/scala/holon/backend/Q7ProcessFun.scala`](src/main/scala/holon/backend/Q7ProcessFun.scala)
-- [`src/main/scala/holon/example/nexmark/Q7Factory.scala`](src/main/scala/holon/example/nexmark/Q7Factory.scala)
+- [`src/main/scala/holon/examples/nexmark/queries/Q7ProcessFun.scala`](src/main/scala/holon/examples/nexmark/queries/Q7ProcessFun.scala)
+- [`src/main/scala/holon/examples/nexmark/factories/Q7Factory.scala`](src/main/scala/holon/examples/nexmark/factories/Q7Factory.scala)
 
 Global highest bid tracking using LWWMap.
 
 ### Taxi Query (TQ2 - Unfinished)
 
 **Files**:
-- [`src/main/scala/holon/backend/TQ2ProcessFun.scala`](src/main/scala/holon/backend/TQ2ProcessFun.scala)
-- [`src/main/scala/holon/example/taxi/TQ2Factory.scala`](src/main/scala/holon/example/taxi/TQ2Factory.scala)
-- [`src/main/scala/holon/crdt/TQ2LWWMapWrapper.scala`](src/main/scala/holon/crdt/TQ2LWWMapWrapper.scala)
+- [`src/main/scala/holon/examples/taxi/queries/TQ2ProcessFun.scala`](src/main/scala/holon/examples/taxi/queries/TQ2ProcessFun.scala)
+- [`src/main/scala/holon/examples/taxi/factories/TQ2Factory.scala`](src/main/scala/holon/examples/taxi/factories/TQ2Factory.scala)
+- [`src/main/scala/holon/crdt/wrappers/TQ2LWWMapWrapper.scala`](src/main/scala/holon/crdt/wrappers/TQ2LWWMapWrapper.scala)
 
 Real-world taxi data processing:
 - Tracks highest value taxi trips
@@ -812,9 +1034,9 @@ bash deploy.sh
 
 ### Key Files to Know
 
-- **Main Entry Point**: [`src/main/scala/holon/example/nexmark/Query.scala`](src/main/scala/holon/example/nexmark/Query.scala)
-- **Configuration**: [`src/main/scala/holon/Config.scala`](src/main/scala/holon/Config.scala)
-- **Core Recovery**: [`src/main/scala/holon/backend/Recovery.scala`](src/main/scala/holon/backend/Recovery.scala)
+- **Main Entry Point**: [`src/main/scala/holon/examples/nexmark/Query.scala`](src/main/scala/holon/examples/nexmark/Query.scala)
+- **Configuration**: [`src/main/scala/holon/core/Config.scala`](src/main/scala/holon/core/Config.scala)
+- **Core Recovery**: [`src/main/scala/holon/streaming/recovery/Recovery.scala`](src/main/scala/holon/streaming/recovery/Recovery.scala)
 - **Local Setup**: [`examples/nexmark-local/docker-compose.yml`](examples/nexmark-local/docker-compose.yml)
 - **Build Script**: [`full-build.sh`](full-build.sh)
 
