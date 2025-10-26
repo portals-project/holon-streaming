@@ -1,0 +1,11 @@
+package holon
+
+type LogConsumerRecords = Iterable[(Array[Byte], Array[Byte], Long)]
+
+trait LogConsumer {
+  def poll(): LogConsumerRecords
+  def seek(partition: Int, offset: Long): Unit
+  def lag(): Long
+  def offsets(): Iterable[(Int, Long)]
+  def close(): Unit
+}

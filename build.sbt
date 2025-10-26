@@ -73,7 +73,7 @@ libraryDependencies ++= Seq(
     "ch.qos.logback" % "logback-classic" % "1.2.11"
     )
 
-// Add sbt-assembly settings:\
+// Add sbt-assembly settings:
 assembly / assemblyJarName := s"${name.value}-assembly-${version.value}.jar"
 
 // Optionally, merge strategy for conflicts—common defaults:

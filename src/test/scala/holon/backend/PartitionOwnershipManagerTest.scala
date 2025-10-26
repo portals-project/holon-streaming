@@ -96,4 +96,25 @@ class PartitionOwnershipManagerTest extends AnyFunSuite {
         val newOwnedPartitions2 = ownershipManager.getNewOwnedPartitions(map4)
         assert(newOwnedPartitions2.size == 0)
     }
+
+    test("PartitionOwnershipManager: should get correct partitions to release") {
+        val ownershipManager = new PartitionOwnershipManager(0)
+
+        // Initialize ownership for partitions 0, 1, and 2
+        ownershipManager.initializePartitionOwnership(List(0, 1, 2))
+
+        // Create a new ownership map where partition 1 and 2 are reassigned to another node
+        val newOwnershipMap: scala.collection.mutable.Map[Int, OwnershipEntry] = scala.collection.mutable.Map()
+        newOwnershipMap.put(1, OwnershipEntry(1, 1)) // New owner with higher version
+        newOwnershipMap.put(2, OwnershipEntry(1, 2)) // New owner with higher version
+        newOwnershipMap.put(0, OwnershipEntry(0, 0)) // Current node retains ownership of partition 0
+
+        // Get partitions to release
+        val partitionsToRelease = ownershipManager.getPartitionsToRelease(newOwnershipMap)
+
+        // Assert that partitions 1 and 2 are identified for release
+        assert(partitionsToRelease.size == 2)
+        assert(partitionsToRelease.contains(1))
+        assert(partitionsToRelease.contains(2))
+    }
 }
