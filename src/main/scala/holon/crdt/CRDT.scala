@@ -1,4 +1,4 @@
-package holon.example
+package holon.crdt
 
 import upickle.default.*
 
