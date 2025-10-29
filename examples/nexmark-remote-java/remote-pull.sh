@@ -13,4 +13,4 @@ docker pull rubyies/output-consumer-full-deployment:latest
 echo "Pulling combined holon-nodes image..."
 docker pull rubyies/holon-nodes-full-deployment:latest
 
-echo "All images pulled successfully."
+echo "All images pulled successfully..."

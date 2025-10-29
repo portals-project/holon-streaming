@@ -1,9 +1,10 @@
-package holon.examples.nexmark
+package holon.examples.nexmark.nodes
 
 import holon.utils.*
 import holon.core.Config.*
 import holon.core.Utils.*
 import holon.core.{ConsumerRef, ProducerRef}
+import holon.examples.nexmark.factories.{Q0Factory, Q4Factory, Q7Factory}
 
 object HolonNode {
 

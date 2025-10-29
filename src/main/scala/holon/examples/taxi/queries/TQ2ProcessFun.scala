@@ -1,7 +1,7 @@
 package holon.examples.taxi.queries
 
 import holon.utils.Logger
-import holon.crdt.HighestBidLWWMapWrapper
+import holon.crdt.HighestBidLWWRegisterWrapper
 import holon.streaming.windowing.{WindowedRecordProcFun, WindowedQueryFun}
 import org.apache.pekko.cluster.ddata.LWWMap
 
@@ -12,6 +12,6 @@ class TQ2ProcessFun (partition: Int, crdts: List[WindowedRecordProcFun[_, _]]) e
 
   override protected def processWindow(window: Long, states: List[Any]): String = {
     // states.head is LWWRegister[Array[Byte]]
-    HighestBidLWWMapWrapper.value(states.head.asInstanceOf[LWWMap[String, Array[Byte]]])
+    HighestBidLWWRegisterWrapper.value(states.head.asInstanceOf[LWWMap[String, Array[Byte]]])
   }
 }

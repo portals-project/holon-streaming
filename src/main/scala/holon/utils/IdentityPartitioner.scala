@@ -1,4 +1,4 @@
-package holon.backend
+package holon.utils
 
 import upickle.default.*
 
@@ -15,10 +15,12 @@ class IdentityPartitioner extends Partitioner {
       value: Any,
       valueBytes: Array[Byte],
       cluster: Cluster
-  ): Int =
+  ): Int = {
     readBinary(keyBytes)
+  }
 
   override def close(): Unit = ()
 
   override def configure(configs: Map[String, _]): Unit = ()
 }
+

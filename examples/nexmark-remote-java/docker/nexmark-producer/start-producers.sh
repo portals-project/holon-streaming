@@ -8,7 +8,7 @@ for i in $(seq 0 $((PRODUCER_COUNT-1))); do
      -Dpekko.remote.artery.canonical.port=0 \
      -Dpekko.remote.artery.bind.port=0 \
      -cp /app/holon-assembly.jar \
-     holon.example.nexmark.NexmarkProducerPerPartition \
+     holon.examples.nexmark.data.NexmarkProducerPerPartition \
      "$i" &
 done
 wait

@@ -8,7 +8,7 @@ for i in $(seq 0 $((N_NODES-1))); do
       -Dpekko.remote.artery.canonical.port=0 \
       -Dpekko.remote.artery.bind.port=0 \
       -cp /app/holon-assembly.jar \
-      holon.example.nexmark.HolonNode \
+      holon.examples.nexmark.nodes.HolonNode \
       "$i" &
 done
 wait

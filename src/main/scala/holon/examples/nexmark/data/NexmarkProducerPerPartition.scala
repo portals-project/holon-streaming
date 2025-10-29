@@ -1,4 +1,4 @@
-package holon.examples.nexmark
+package holon.examples.nexmark.data
 
 import holon.utils.*
 import holon.core.Config.*

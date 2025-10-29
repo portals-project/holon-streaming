@@ -2,9 +2,9 @@ package holon.examples.nexmark
 
 import holon.utils.*
 import holon.core.Utils.*
-import holon.examples.nexmark.HolonNode.*
+import holon.examples.nexmark.nodes.HolonNode.*
 import holon.core.Config.*
-import holon.examples.nexmark.OutputConsumer.consumeOutput
+import holon.examples.nexmark.consumers.OutputConsumer.consumeOutput
 import holon.examples.nexmark.data.NexmarkProducer.runProducer
 
 object Query {

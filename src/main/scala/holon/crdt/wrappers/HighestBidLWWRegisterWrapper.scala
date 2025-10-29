@@ -5,7 +5,7 @@ import org.apache.pekko.cluster.ddata.{LWWMap, ORMap, ReplicatedDelta, SelfUniqu
 import org.apache.pekko.cluster.ddata.LWWRegister.Clock
 import upickle.legacy.{readBinary, writeBinary}
 
-object HighestBidLWWMapWrapper extends CRDTWrapper[LWWMap[String, Array[Byte]], String] {
+object HighestBidLWWRegisterWrapper extends CRDTWrapper[LWWMap[String, Array[Byte]], String] {
   type EventType = holon.examples.nexmark.data.Nexmark.Events.Bid
 
   // our single map key

@@ -1,4 +1,4 @@
-package holon.examples.nexmark
+package holon.examples.nexmark.factories
 
 import holon.streaming.processing.{ProcFun, ProcFunFactory}
 import holon.examples.nexmark.queries.Q0ProcessFun

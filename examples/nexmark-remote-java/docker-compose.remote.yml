@@ -1,16 +1,18 @@
 version: "3.8"
 
+# Using default bridge network without custom configuration
+
 x-config-settings: &config-settings
   RUN_FLINK_PRODUCER:       "false"
-  WORKLOAD:                "4"
-  N_NODES:                  "10"
-  PARTITIONS_PER_NODE:      "2"
-  PRODUCER_SLEEP_MS:        "100"
-  PRODUCER_BATCH_SIZE:      "256"
-  PRODUCER_COUNT:           "20"
+  WORKLOAD:                "7"
+  N_NODES:                  "50"
+  PARTITIONS_PER_NODE:      "5"
+  PRODUCER_SLEEP_MS:        "50"
+  PRODUCER_BATCH_SIZE:      "512"
+  PRODUCER_COUNT:           "125"
   EVENTS_PER_SECOND:        "10000"
   WINDOW_LENGTH:            "10000"
-  GARBAGE_COLLECTION_OFFSET: "10"
+  GARBAGE_COLLECTION_OFFSET: "3"
   FLUSH_THRESHOLD:          "500"
   ENABLE_RATE_LIMIT:        "false"
   PROCESSING_RATE_LIMIT:    "10000"
@@ -30,7 +32,7 @@ x-base-node-env: &base-node-env
   SLEEP_BETWEEN_POLLS: "0"
 
 x-shared-holon-env: &shared-holon-env
-  PARTITIONS_PER_NODE:    "2"
+  PARTITIONS_PER_NODE:    "5"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9093"
 
 #x-combined-holon-env: &combined-holon-env
@@ -87,7 +89,7 @@ services:
       - init-kafka
     environment:
       <<: *config-settings
-      NUM_NODES:     "10"
+      NUM_NODES:     "50"
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
@@ -98,7 +100,7 @@ services:
       - init-kafka
     environment:
       <<: *config-settings
-      PRODUCER_COUNT: "20"
+      PRODUCER_COUNT: "125"
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
@@ -112,3 +114,10 @@ services:
     volumes:
       - /home/jonas_spenger/projects/holon/holon-experiments/logs:/app/logs
       - /home/jonas_spenger/projects/holon/holon-experiments/snapshots:/app/snapshots
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.10.0/24

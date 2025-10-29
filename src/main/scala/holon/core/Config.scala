@@ -15,7 +15,7 @@ object Config {
   // holon cluster size
   var N_NODES: Int = sys.env.get("N_NODES").map(_.toInt).getOrElse(3) // default: 3
   var PARTITIONS_PER_NODE: Int = sys.env.get("PARTITIONS_PER_NODE").map(_.toInt).getOrElse(2) // default: 2
-  var WORKLOAD: Int = sys.env.get("WORKLOAD").map(_.toInt).getOrElse(7) // 0 = Q0, 4 = Q4, 7 = Q7
+  var WORKLOAD: Int = sys.env.get("WORKLOAD").map(_.toInt).getOrElse(4) // 0 = Q0, 4 = Q4, 7 = Q7
 
   // producer configuration
   var PRODUCER_SLEEP_MS: Int = sys.env.get("PRODUCER_SLEEP_MS").map(_.toInt).getOrElse(100) // default: 100ms

@@ -65,7 +65,7 @@ services:
   nexmark-producer-0:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -78,7 +78,7 @@ services:
   nexmark-producer-1:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -91,7 +91,7 @@ services:
   nexmark-producer-2:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -104,7 +104,7 @@ services:
   nexmark-producer-3:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -117,7 +117,7 @@ services:
   nexmark-producer-4:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/nexmark-producer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/nexmark-producer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -130,7 +130,7 @@ services:
   output-consumer:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/output-consumer/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/output-consumer/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -142,7 +142,7 @@ services:
   holon-node-0:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -156,7 +156,7 @@ services:
   holon-node-1:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -169,7 +169,7 @@ services:
   holon-node-2:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -182,7 +182,7 @@ services:
   holon-node-3:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
@@ -195,7 +195,7 @@ services:
   holon-node-4:
     build:
       context: ../..
-      dockerfile: ./examples/nexmark-remote/docker/holon-node/Dockerfile
+      dockerfile: ./examples/nexmark-remote-java/docker/holon-node/Dockerfile
     depends_on:
       - init-kafka
     environment:
