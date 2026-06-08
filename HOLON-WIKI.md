@@ -285,7 +285,7 @@ holon-streaming-clone/
 │
 ├── benchmarks/
 ├── build.sbt
-├── full-build.sh
+├── scripts/build/build-holon-images.sh
 └── HOLON-WIKI.md
 ```
 
@@ -1038,7 +1038,7 @@ bash deploy.sh
 - **Configuration**: [`src/main/scala/holon/core/Config.scala`](src/main/scala/holon/core/Config.scala)
 - **Core Recovery**: [`src/main/scala/holon/streaming/recovery/Recovery.scala`](src/main/scala/holon/streaming/recovery/Recovery.scala)
 - **Local Setup**: [`examples/nexmark-local/docker-compose.yml`](examples/nexmark-local/docker-compose.yml)
-- **Build Script**: [`full-build.sh`](full-build.sh)
+- **Build Script**: [`scripts/build/build-holon-images.sh`](scripts/build/build-holon-images.sh)
 
 ### Next Steps
 

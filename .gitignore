@@ -13,3 +13,5 @@ target/
 taxi-data/*
 logs/*
 snapshots
+.holon.env
+experiment-results/
