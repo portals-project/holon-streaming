@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+# pipefail requires bash; do not run this file with `sh` (POSIX sh rejects `set -o pipefail`).
 set -euo pipefail
 
 # 1) Wait for Kafka to be up
@@ -28,31 +29,27 @@ kafka-topics --bootstrap-server kafka:9092 \
   --partitions ${TOTAL_PARTITIONS} \
   --config message.timestamp.type=LogAppendTime
 
-# FOR Q4
-kafka-topics --bootstrap-server kafka:9092 \
-  --create --if-not-exists \
-  --topic auctionmax \
-  --replication-factor 1 \
-  --partitions 1 \
-  --config cleanup.policy=compact \
-  --config message.timestamp.type=LogAppendTime
-
-## Create the output topic with compaction so it can be used by upsert-kafka (needed for Q4)
-#kafka-topics --bootstrap-server kafka:9092 \
-#  --create --if-not-exists \
-#  --topic output \
-#  --replication-factor 1 \
-#  --partitions 1 \
-#  --config cleanup.policy=compact \
-#  --config message.timestamp.type=LogAppendTime
-
-# Create regular output topic (no compaction needed) uncomment for any other query
-kafka-topics --bootstrap-server kafka:9092 \
-  --create --if-not-exists \
-  --topic output \
-  --replication-factor 1 \
-  --partitions 1 \
-  --config message.timestamp.type=LogAppendTime
+# Q4 sinks via upsert-kafka, which requires a compacted topic to produce
+# correct keyed-upsert semantics. Q0/Q7 use the regular kafka connector
+# with null-keyed messages, so a plain append topic is correct for them.
+if [ "${WORKLOAD:-}" = "4" ]; then
+  echo "Creating compacted 'output' topic (Q4 / upsert-kafka)"
+  kafka-topics --bootstrap-server kafka:9092 \
+    --create --if-not-exists \
+    --topic output \
+    --replication-factor 1 \
+    --partitions 1 \
+    --config cleanup.policy=compact \
+    --config message.timestamp.type=LogAppendTime
+else
+  echo "Creating regular 'output' topic"
+  kafka-topics --bootstrap-server kafka:9092 \
+    --create --if-not-exists \
+    --topic output \
+    --replication-factor 1 \
+    --partitions 1 \
+    --config message.timestamp.type=LogAppendTime
+fi
 
 echo "Successfully created topics:"
 kafka-topics --bootstrap-server kafka:9092 --list

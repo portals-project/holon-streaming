@@ -6,4 +6,4 @@ java \
   -Dpekko.remote.artery.canonical.port=0 \
   -Dpekko.remote.artery.bind.port=0 \
   -cp /app/holon-assembly.jar \
-  holon.example.nexmark.OutputConsumerJson
+  holon.examples.nexmark.consumers.OutputConsumerJson

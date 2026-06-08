@@ -1,9 +1,9 @@
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre-jammy
 WORKDIR /app
 
 COPY "target/scala-3.3.4/execution-service-assembly-0.1.0-SNAPSHOT.jar" /app/holon-assembly.jar
 COPY examples/flink-remote-java/docker/lag-append-output-consumer/start-lag-append-consumer.sh /app/start-lag-append-consumer.sh
-RUN chmod +x /app/start-lag-append-consumer.sh
+RUN chmod +x /app/start-lag-append-consumer.sh && sed -i 's/\r$//' /app/start-lag-append-consumer.sh
 
 # Copy the service account JSON file
 COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json

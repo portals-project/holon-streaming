@@ -23,12 +23,12 @@
 
 
 # version 2: Build the application with compiled code
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre-jammy
 WORKDIR /app
 
 COPY "target/scala-3.3.4/execution-service-assembly-0.1.0-SNAPSHOT.jar" /app/holon-assembly.jar
 COPY examples/flink-remote-java/docker/output-consumer-json/json-consumer.sh /app/json-consumer.sh
-RUN chmod +x /app/json-consumer.sh
+RUN chmod +x /app/json-consumer.sh && sed -i 's/\r$//' /app/json-consumer.sh
 
 # Copy the service account JSON file
 COPY .gcp/gcs-service-account.json /app/.gcp/gcs-service-account.json

@@ -22,7 +22,7 @@
 # CMD ["sbt", "runMain holon.example.nexmark.NexmarkProducerPerPartition"]
 
 # version 2: Build the application with compiled code
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre-jammy
 WORKDIR /app
 
 COPY "target/scala-3.3.4/execution-service-assembly-0.1.0-SNAPSHOT.jar" /app/holon-assembly.jar
@@ -33,6 +33,6 @@ ENV GOOGLE_APPLICATION_CREDENTIALS=/app/.gcp/gcs-service-account.json
 ENV GOOGLE_FIRESTORE_CREDENTIALS=/app/.gcp/firebase-user-account.json
 
 COPY examples/flink-remote-java/docker/nexmark-producer-json/start-producers.sh /app/start-producers.sh
-RUN chmod +x /app/start-producers.sh
+RUN chmod +x /app/start-producers.sh && sed -i 's/\r$//' /app/start-producers.sh
 
 ENTRYPOINT ["/app/start-producers.sh"]
