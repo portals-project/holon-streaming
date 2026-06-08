@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+
 echo "Building & pushing all images…"
 
 # 1) init-kafka
@@ -21,6 +23,12 @@ docker build \
   -t rubyies/nexmark-producers-full-deployment:latest \
   .
 
+# 3b) producer-start-gate (shared with flink-remote-java; HTTP /ready + /start)
+docker build \
+  -f examples/flink-remote-java/docker/producer-start-gate/Dockerfile \
+  -t rubyies/flink-producer-start-gate-full-deployment:latest \
+  examples/flink-remote-java/docker/producer-start-gate
+
 # 4) output-consumer
 docker build \
   -f examples/nexmark-remote-java/docker/output-consumer/Dockerfile \
@@ -34,6 +42,8 @@ echo "Pushing…"
 docker push rubyies/init-kafka-full-deployment:latest
 docker push rubyies/holon-nodes-full-deployment:latest
 docker push rubyies/nexmark-producers-full-deployment:latest
+docker push rubyies/flink-producer-start-gate-full-deployment:latest
 docker push rubyies/output-consumer-full-deployment:latest
 
 echo "Done!"
+  

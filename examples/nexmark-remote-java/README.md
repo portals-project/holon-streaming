@@ -32,8 +32,8 @@ scp /path/to/local/file.txt jonas_spenger@croaker.eecs.kth.se:~/projects/
 scp jonas_spenger@croaker.eecs.kth.se:~/projects/ /path/to/local/docker-compose.yml
 
 # Command to send output logs to your local machine
-scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/holon-experiments/logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
-scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/flink-logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
+`scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/holon-experiments/logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
+`scp jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/flink-logs/output.log C:/Users/rvang/Documents/GitHub/holon-benchmark-analysis/local-logs/output.log
 # Command to update queries on the remote host
 scp C:/Users/rvang/Documents/GitHub/holon-streaming-clone/examples/flink-remote/queries/q0.sql jonas_spenger@croaker.eecs.kth.se:/home/jonas_spenger/projects/holon/flink-experiments/queries/q0.sql
 
