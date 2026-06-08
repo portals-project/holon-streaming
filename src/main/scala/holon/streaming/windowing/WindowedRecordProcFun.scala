@@ -64,7 +64,7 @@ case class WindowedRecordProcFun[T, V](crdt: CRDTWrapper[T, V], partition: Int, 
             }
 
             // log state size every 5 seconds
-           if (System.currentTimeMillis() % 5000 < 100) {
+            if (System.currentTimeMillis() % 5000 < 100) {
               // wherever a window is closed, emit state size
               val serializedState: Array[Byte] = writeBinary(windowMap)
               if USE_LOG_FILE then

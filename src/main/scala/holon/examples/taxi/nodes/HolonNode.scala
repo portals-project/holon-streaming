@@ -7,8 +7,6 @@ import holon.core.{ConsumerRef, ProducerRef}
 
 object HolonNode {
 
-    private val FirestoreClient = holon.streaming.cloud.FirestoreClient
-
     private val logger = Logger("HolonNode")
     Logger.setLevel("HolonNode", "INFO")
 
@@ -23,10 +21,11 @@ object HolonNode {
                   throw new IllegalArgumentException("Must supply node-id as first arg or via NODE_ID")
               }
 
-        while (!FirestoreClient.isStartFlagSet) {
-            logger.info("Node: ${NodeId} Waiting for start flag to be set.")
-            Thread.sleep(500)
-        }
+        StartGate.waitUntilStarted(
+          logger,
+          s"Node: $nodeId Waiting for start flag to be set.",
+          sleepMs = 500L
+        )
 
         SafeRun(RUNTIME) {
             val partitions = (nodeId * PARTITIONS_PER_NODE until (nodeId + 1) * PARTITIONS_PER_NODE).toList

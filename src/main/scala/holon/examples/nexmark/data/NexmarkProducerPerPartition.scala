@@ -8,7 +8,6 @@ import upickle.default.*
 import scala.collection.mutable
 
 object NexmarkProducerPerPartition {
-  private val FirestoreClient = holon.streaming.cloud.FirestoreClient
   private val logger = Logger("NexmarkProducerPerPartition")
   private val outputLog = LoggerFactory.getLogger("com.holon.system.output")
   Logger.setLevel("NexmarkProducerPerPartition", "INFO")
@@ -37,11 +36,11 @@ object NexmarkProducerPerPartition {
         s"producerIndex=${producerIndex}"
     )
 
-    // wait until Firestore "start" flag is set
-    while (!FirestoreClient.isStartFlagSet) {
-      logger.info(s"producer: ${producerIndex} Waiting for start flag to be set.")
-      Thread.sleep(1_000)
-    }
+    StartGate.waitUntilStarted(
+      logger,
+      s"producer: ${producerIndex} Waiting for start flag to be set.",
+      producerId = Some(producerIndex)
+    )
 
     // compute total number of Kafka partitions (N_NODES * PARTITIONS_PER_NODE)
     val totalPartitions = nrOfKafkaPartitions()

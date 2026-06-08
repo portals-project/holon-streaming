@@ -6,6 +6,7 @@ import holon.streaming.messaging.messages.Checkpoint
 import holon.core.Config.CHN_CONTROL
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
+import java.nio.charset.StandardCharsets
 import scala.collection.immutable.Map
 
 class DecentralizedCheckpointManager(outputCollector: holon.streaming.output.OutputCollector) extends CheckpointManager {
@@ -110,7 +111,7 @@ class DecentralizedCheckpointManager(outputCollector: holon.streaming.output.Out
     }
 
     private def readLocalFile(filePath: String): String = {
-        Files.readString(Paths.get(filePath))
+        new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8)
     }
 
     private def localFileExists(filePath: String): Boolean = {
