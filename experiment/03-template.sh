@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 # Sourced by run-experiment.sh — do not execute directly.
-# Phase 2: template listing/selection, knob defaults, summary, user confirmation.
+# Phase 3: template listing/selection (filtered by $PLATFORM), knob defaults,
+#          summary, user confirmation.
 
-TEMPLATE_DIR="$REPO_ROOT/examples/flink-remote-java/templates"
+TEMPLATE_DIR="$REPO_ROOT/templates"
+
+# Extract a field value (e.g. PLATFORM) from a template .env.
+template_field() {
+  local field="$1" file="$2"
+  grep -E "^${field}=" "$file" | head -n1 | sed -E "s/^${field}=\"?([^\"]*)\"?/\\1/"
+}
+
+# Platform of a template, defaulting to flink for templates predating PLATFORM=.
+template_platform() {
+  local p
+  p=$(template_field PLATFORM "$1")
+  echo "${p:-flink}"
+}
 
 list_templates() {
   if [[ ! -d "$TEMPLATE_DIR" ]]; then
@@ -16,14 +30,15 @@ list_templates() {
     warn "No templates found in $TEMPLATE_DIR"
     return 0
   fi
-  printf '%-28s  %s\n' "TEMPLATE" "DESCRIPTION"
-  printf '%-28s  %s\n' "--------" "-----------"
+  printf '%-24s  %-8s  %s\n' "TEMPLATE" "PLATFORM" "DESCRIPTION"
+  printf '%-24s  %-8s  %s\n' "--------" "--------" "-----------"
   for f in "${files[@]}"; do
-    local key name desc
+    local key name desc plat
     key=$(basename "$f" .env)
-    name=$(grep -E '^NAME=' "$f"        | head -n1 | sed -E 's/^NAME="?([^"]*)"?/\1/')
-    desc=$(grep -E '^DESCRIPTION=' "$f" | head -n1 | sed -E 's/^DESCRIPTION="?([^"]*)"?/\1/')
-    printf '%-28s  %s — %s\n' "$key" "$name" "$desc"
+    name=$(template_field NAME "$f")
+    desc=$(template_field DESCRIPTION "$f")
+    plat=$(template_platform "$f")
+    printf '%-24s  %-8s  %s — %s\n' "$key" "$plat" "$name" "$desc"
   done
 }
 
@@ -54,6 +69,10 @@ declare -A KNOBS=(
   [GARBAGE_COLLECTION_OFFSET]=10
   [FLUSH_THRESHOLD]=500
   [TOPIC_METRICS_INTERVAL]=5000
+  # Config flags (not part of the per-run .env / summary). Picked up from the
+  # template like any other knob; defaults apply for Custom runs.
+  [DEPLOYMENT]=flink-remote-java
+  [INCREASE_VOLUME]=true
 )
 TEMPLATE_NAME_LABEL="Custom"
 TEMPLATE_DESC=""
@@ -105,11 +124,22 @@ select_template() {
   fi
 
   shopt -s nullglob
-  local files=("$TEMPLATE_DIR"/*.env)
+  local all=("$TEMPLATE_DIR"/*.env)
   shopt -u nullglob
 
+  # Keep only templates for the selected platform.
+  local files=()
+  for f in "${all[@]}"; do
+    [[ "$(template_platform "$f")" == "$PLATFORM" ]] && files+=("$f")
+  done
+  if (( ${#files[@]} == 0 )); then
+    warn "No templates for platform '$PLATFORM' yet (looked in $TEMPLATE_DIR)."
+    log "Add one (set PLATFORM=$PLATFORM) or pick another platform."
+    exit 0
+  fi
+
   echo
-  log "Available templates:"
+  log "Available templates for $PLATFORM:"
   local i=1
   for f in "${files[@]}"; do
     local n d
