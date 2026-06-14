@@ -8,8 +8,10 @@ KEEP_RUNNING=0
 ASCII_BANNER=0
 TEMPLATE_NAME=""
 LIST_ONLY=0
+PLATFORM=""
 
 INSTANCE_STARTED=0
+VOLUME_RAISED=0
 HOST=""
 PUBLIC_IP=""
 EXPERIMENT_LABEL=""
@@ -48,6 +50,7 @@ Usage:
   $(basename "$0") [options]
 
 Options:
+  --platform NAME    Select platform (flink|holon); skips the interactive prompt
   --template NAME    Use template NAME (without .env extension)
   --list-templates   List available templates and exit
   --dry-run          Print every external command without running it
@@ -56,7 +59,7 @@ Options:
   -h, --help         Show this help
 
 Templates live in:
-  $REPO_ROOT/examples/flink-remote-java/templates
+  $REPO_ROOT/templates
 EOF
 }
 
@@ -95,6 +98,7 @@ BANNER
 
 while (($#)); do
   case "$1" in
+    --platform)        PLATFORM="${2:-}"; shift 2 ;;
     --template)        TEMPLATE_NAME="${2:-}"; shift 2 ;;
     --list-templates)  LIST_ONLY=1; shift ;;
     --dry-run)         DRY_RUN=1; shift ;;
@@ -121,6 +125,25 @@ cleanup() {
   elif (( INSTANCE_STARTED )) && (( KEEP_RUNNING )); then
     warn "EC2 instance left running ($INSTANCE_ID @ $PUBLIC_IP). Stop manually when done."
   fi
+
+  # Ramp the EBS volume back down to baseline if we raised it for this run.
+  # Best-effort: a failure here (e.g. AWS's ~6h modification cooldown) must never
+  # abort cleanup or block the EC2 stop above — just warn and let the user
+  # ramp it down manually later.
+  if (( VOLUME_RAISED )) && (( ! KEEP_RUNNING )); then
+    log "Ramping EBS volume back down to baseline"
+    local ebs_args=(down)
+    (( DRY_RUN )) && ebs_args+=(--dry-run)
+    if ! bash "$REPO_ROOT/scripts/aws/ebs-perf.sh" "${ebs_args[@]}"; then
+      warn "Could not ramp the volume down automatically — check and ramp it down manually:"
+      warn "  bash scripts/aws/ebs-perf.sh status"
+      warn "  bash scripts/aws/ebs-perf.sh down"
+    fi
+  elif (( VOLUME_RAISED )) && (( KEEP_RUNNING )); then
+    warn "EBS volume left at benchmark performance. Ramp it down manually when done:"
+    warn "  bash scripts/aws/ebs-perf.sh down"
+  fi
+
   if [[ -n "$RESULTS_DIR" && -d "$RESULTS_DIR" ]]; then
     log "Results: $RESULTS_DIR"
   fi
