@@ -3,9 +3,10 @@
 # HOLON unified experiment runner.
 #
 # End-to-end automation:
-#   AWS check  ->  template selection  ->  start EC2  ->  ssh wait
-#   ->  sync files  ->  deploy  ->  trigger start gate
-#   ->  monitor for RUNTIME ms  ->  collect results  ->  stop EC2
+#   AWS check  ->  select platform  ->  template selection  ->  ramp EBS up
+#   ->  start EC2  ->  ssh wait  ->  sync files  ->  deploy  ->  trigger start gate
+#   ->  monitor for RUNTIME ms  ->  collect results  ->  ask to ramp EBS down
+#   ->  stop EC2 (EXIT trap; volume left up unless you chose to ramp it down)
 #
 # Usage:
 #   ./run-experiment.sh                     # interactive
@@ -36,3 +37,5 @@ source "$REPO_ROOT/experiment/06-run.sh"         # deploy, confirm RUNNING, trig
 source "$REPO_ROOT/experiment/07-monitor.sh"     # runtime progress loop
 # shellcheck source=experiment/08-export.sh
 source "$REPO_ROOT/experiment/08-export.sh"      # collect results, print summary
+# shellcheck source=experiment/09-volume-down.sh
+source "$REPO_ROOT/experiment/09-volume-down.sh" # ask whether to ramp the EBS volume down

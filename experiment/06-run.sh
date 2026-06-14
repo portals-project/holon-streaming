@@ -50,6 +50,39 @@ if (( ! DRY_RUN )); then
   done
 fi
 
-log "Releasing producer start gate (POST :8090/start)"
-ssh_remote "curl -fsS -X POST http://localhost:8090/start"
-ok "Producers released — data is flowing"
+log "Waiting for all producers to announce readiness to the start gate"
+# The gate auto-flips once EXPECTED_PRODUCERS (=PRODUCER_COUNT) producers have
+# POSTed /announce, so every producer is up and blocked on /ready before any
+# data flows. We only fall back to the manual /start override if some producers
+# never check in within GATE_WAIT_TIMEOUT.
+expected="${KNOBS[PRODUCER_COUNT]}"
+GATE_WAIT_TIMEOUT="${GATE_WAIT_TIMEOUT:-300}"
+if (( DRY_RUN )); then
+  run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "curl -s http://localhost:8090/announced"
+  run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "curl -fsS -X POST http://localhost:8090/start  # fallback"
+else
+  gate_deadline=$(( SECONDS + GATE_WAIT_TIMEOUT ))
+  last_count=-1
+  while true; do
+    resp=$(ssh_remote_q "curl -fsS http://localhost:8090/announced" 2>/dev/null || echo '')
+    count=$(printf '%s' "$resp" | grep -o '"count":[0-9]*'    | grep -o '[0-9]*' | head -n1)
+    started=$(printf '%s' "$resp" | grep -o '"started":[a-z]*' | grep -o 'true\|false' | head -n1)
+    count=${count:-0}
+    started=${started:-false}
+    if [[ "$count" != "$last_count" ]]; then
+      log "Producers ready: ${count}/${expected} announced to start gate"
+      last_count="$count"
+    fi
+    if [[ "$started" == "true" ]] || (( count >= expected )); then
+      ok "All ${expected} producers up and announced — start gate released; data is flowing"
+      break
+    fi
+    if (( SECONDS >= gate_deadline )); then
+      warn "Only ${count}/${expected} producers announced after ${GATE_WAIT_TIMEOUT}s — forcing start gate"
+      ssh_remote "curl -fsS -X POST http://localhost:8090/start"
+      ok "Start gate forced with ${count}/${expected} producers — data is flowing"
+      break
+    fi
+    sleep 3
+  done
+fi

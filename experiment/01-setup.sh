@@ -12,6 +12,7 @@ PLATFORM=""
 
 INSTANCE_STARTED=0
 VOLUME_RAISED=0
+VOLUME_PROMPTED=0
 HOST=""
 PUBLIC_IP=""
 EXPERIMENT_LABEL=""
@@ -126,21 +127,14 @@ cleanup() {
     warn "EC2 instance left running ($INSTANCE_ID @ $PUBLIC_IP). Stop manually when done."
   fi
 
-  # Ramp the EBS volume back down to baseline if we raised it for this run.
-  # Best-effort: a failure here (e.g. AWS's ~6h modification cooldown) must never
-  # abort cleanup or block the EC2 stop above — just warn and let the user
-  # ramp it down manually later.
-  if (( VOLUME_RAISED )) && (( ! KEEP_RUNNING )); then
-    log "Ramping EBS volume back down to baseline"
-    local ebs_args=(down)
-    (( DRY_RUN )) && ebs_args+=(--dry-run)
-    if ! bash "$REPO_ROOT/scripts/aws/ebs-perf.sh" "${ebs_args[@]}"; then
-      warn "Could not ramp the volume down automatically — check and ramp it down manually:"
-      warn "  bash scripts/aws/ebs-perf.sh status"
-      warn "  bash scripts/aws/ebs-perf.sh down"
-    fi
-  elif (( VOLUME_RAISED )) && (( KEEP_RUNNING )); then
-    warn "EBS volume left at benchmark performance. Ramp it down manually when done:"
+  # We deliberately do NOT auto-ramp the EBS volume down here. AWS allows only one
+  # volume modification per ~6h, so ramping down after every run would lock you out
+  # of raising it again for your next experiment. The teardown step (09) asks
+  # whether to ramp down; this is only the safety net for when the run ends without
+  # reaching it (abort/error). Warn loudly so the cost isn't forgotten.
+  if (( VOLUME_RAISED )) && (( ! VOLUME_PROMPTED )); then
+    warn "EBS volume is STILL at benchmark performance — this costs extra."
+    warn "When you are done running experiments for this session, ramp it down (once per ~6h):"
     warn "  bash scripts/aws/ebs-perf.sh down"
   fi
 
