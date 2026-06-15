@@ -11,12 +11,20 @@ for k in QUERY WORKLOAD PARALLELISM TASKMANAGER_MEMORY JOBMANAGER_MEMORY \
          FLUSH_THRESHOLD TOPIC_METRICS_INTERVAL; do
   remote_env+="${k}=${KNOBS[$k]}"$'\n'
 done
-remote_env+="KAFKA_BOOTSTRAP_SERVERS=kafka:9092"$'\n'
 remote_env+="START_GATE_URL=http://producer-start-gate:8090"$'\n'
 remote_env+="USE_LOG_FILE=true"$'\n'
-remote_env+="RUN_FLINK_PRODUCER=true"$'\n'
 remote_env+="RUN_MAX_THROUGHPUT_PRODUCER=false"$'\n'
 remote_env+="SLEEP_BETWEEN_POLLS=0"$'\n'
+if [[ "$PLATFORM" == "holon" ]]; then
+  # Holon: the native Holon producer (not the Flink JSON producer); the broker's
+  # in-cluster listener is kafka:9093. NUM_NODES drives the holon-nodes loop.
+  remote_env+="KAFKA_BOOTSTRAP_SERVERS=kafka:9093"$'\n'
+  remote_env+="RUN_FLINK_PRODUCER=false"$'\n'
+  remote_env+="NUM_NODES=${KNOBS[N_NODES]}"$'\n'
+else
+  remote_env+="KAFKA_BOOTSTRAP_SERVERS=kafka:9092"$'\n'
+  remote_env+="RUN_FLINK_PRODUCER=true"$'\n'
+fi
 
 if (( DRY_RUN )); then
   echo "$(c_yellow '[dry-run]') would write to $REMOTE_BASE/.env:"
@@ -26,28 +34,52 @@ else
   ok ".env written"
 fi
 
-log "Running deploy.sh on remote"
-deploy_cmd="cd '$REMOTE_BASE' && QUERY='${KNOBS[QUERY]}' PARALLELISM='${KNOBS[PARALLELISM]}' TASKMANAGER_COUNT='${KNOBS[TASKMANAGER_COUNT]}' COMPOSE='$REMOTE_COMPOSE' bash deploy.sh"
+log "Running $REMOTE_DEPLOY_SCRIPT on remote"
+if [[ "$PLATFORM" == "holon" ]]; then
+  # Holon has no SQL job to submit and no taskmanager scaling — deploy.sh just
+  # brings the stack up; N_NODES/PRODUCER_COUNT drive in-container loops.
+  deploy_cmd="cd '$REMOTE_BASE' && COMPOSE='$REMOTE_COMPOSE' bash $REMOTE_DEPLOY_SCRIPT"
+else
+  deploy_cmd="cd '$REMOTE_BASE' && QUERY='${KNOBS[QUERY]}' PARALLELISM='${KNOBS[PARALLELISM]}' TASKMANAGER_COUNT='${KNOBS[TASKMANAGER_COUNT]}' COMPOSE='$REMOTE_COMPOSE' bash $REMOTE_DEPLOY_SCRIPT"
+fi
 if (( DRY_RUN )); then
   run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "$deploy_cmd"
 else
   ssh "${SSH_OPTS[@]}" "$HOST" "$deploy_cmd" | sed 's/^/   /'
 fi
 
-log "Confirming Flink job is RUNNING"
-if (( ! DRY_RUN )); then
-  for attempt in $(seq 1 30); do
-    if ssh "${SSH_OPTS[@]}" "$HOST" "curl -sf http://localhost:8081/jobs | grep -q '\"status\":\"RUNNING\"'" 2>/dev/null; then
-      ok "Flink job RUNNING"
-      break
-    fi
-    sleep 2
-    if (( attempt == 30 )); then
-      err "Flink job did not reach RUNNING within 60s"
-      ssh "${SSH_OPTS[@]}" "$HOST" "curl -s http://localhost:8081/jobs" | sed 's/^/   /'
-      exit 1
-    fi
-  done
+if [[ "$PLATFORM" == "holon" ]]; then
+  log "Confirming Holon nodes are running"
+  if (( ! DRY_RUN )); then
+    for attempt in $(seq 1 30); do
+      if ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && $REMOTE_COMPOSE -f '$REMOTE_COMPOSE_FILE' ps holon-nodes | grep -qiE 'running|Up'" 2>/dev/null; then
+        ok "Holon nodes running"
+        break
+      fi
+      sleep 2
+      if (( attempt == 30 )); then
+        err "Holon nodes container did not reach running within 60s"
+        ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && $REMOTE_COMPOSE -f '$REMOTE_COMPOSE_FILE' ps" | sed 's/^/   /'
+        exit 1
+      fi
+    done
+  fi
+else
+  log "Confirming Flink job is RUNNING"
+  if (( ! DRY_RUN )); then
+    for attempt in $(seq 1 30); do
+      if ssh "${SSH_OPTS[@]}" "$HOST" "curl -sf http://localhost:8081/jobs | grep -q '\"status\":\"RUNNING\"'" 2>/dev/null; then
+        ok "Flink job RUNNING"
+        break
+      fi
+      sleep 2
+      if (( attempt == 30 )); then
+        err "Flink job did not reach RUNNING within 60s"
+        ssh "${SSH_OPTS[@]}" "$HOST" "curl -s http://localhost:8081/jobs" | sed 's/^/   /'
+        exit 1
+      fi
+    done
+  fi
 fi
 
 log "Waiting for all producers to announce readiness to the start gate"

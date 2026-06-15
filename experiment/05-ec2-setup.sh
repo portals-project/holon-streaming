@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Sourced by run-experiment.sh — do not execute directly.
 # Phase 3: start EC2, wait for SSH, clean remote, sync files, pre-pull images, verify.
-
-SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-flink-remote.sh"
+# Platform-specific bits (SYNC_SCRIPT, REMOTE_COMPOSE_FILE, REMOTE_PULL_SCRIPT,
+# LOGS_DIRNAME, HAS_FLINK_UI) are resolved in 03-template.sh.
 
 # Start instance
 log "Starting EC2 instance: $INSTANCE_ID ($AWS_REGION)"
@@ -28,7 +28,7 @@ ok "Instance running at $PUBLIC_IP"
 # (links go live once docker compose finishes, ~30-60s after this point).
 echo
 log "Web UIs (clickable; live once stack is up):"
-printf '     %-12s http://%s:8081\n' "Flink:"      "$PUBLIC_IP"
+(( HAS_FLINK_UI )) && printf '     %-12s http://%s:8081\n' "Flink:" "$PUBLIC_IP"
 printf '     %-12s http://%s:8080\n' "Kafka:"      "$PUBLIC_IP"
 printf '     %-12s http://%s:8090\n' "Start gate:" "$PUBLIC_IP"
 echo
@@ -96,12 +96,18 @@ if (( ! DRY_RUN )); then
 fi
 
 # Clean slate
-# flink-checkpoints/{checkpoints,savepoints} are pre-created so Flink doesn't
-# have to mkdir them inside the container (which can fail under SELinux or
-# user-namespace remapping). 777 keeps it writable regardless of which
-# UID the container ends up running as.
+# Dirs are pre-created (and made 777) so the containers don't have to mkdir them
+# at runtime, which can fail under SELinux or user-namespace remapping; 777 keeps
+# them writable regardless of the UID the container ends up running as.
 log "Wiping remote $REMOTE_BASE for a clean run"
-ssh_remote "sudo rm -rf '$REMOTE_BASE' && mkdir -p '$REMOTE_BASE/queries' '$REMOTE_BASE/flink-connectors' '$REMOTE_BASE/flink-logs' '$REMOTE_BASE/flink-checkpoints/checkpoints' '$REMOTE_BASE/flink-checkpoints/savepoints' && chmod -R 777 '$REMOTE_BASE/flink-checkpoints' '$REMOTE_BASE/flink-logs'"
+if [[ "$PLATFORM" == "holon" ]]; then
+  # Holon: logs + snapshots are bind-mounted into the containers (./holon-logs,
+  # ./holon-snapshots in docker-compose.holon.yml).
+  ssh_remote "sudo rm -rf '$REMOTE_BASE' && mkdir -p '$REMOTE_BASE/$LOGS_DIRNAME' '$REMOTE_BASE/holon-snapshots' && chmod -R 777 '$REMOTE_BASE/$LOGS_DIRNAME' '$REMOTE_BASE/holon-snapshots'"
+else
+  # Flink: queries/connectors are synced in; checkpoints/savepoints/logs are mounts.
+  ssh_remote "sudo rm -rf '$REMOTE_BASE' && mkdir -p '$REMOTE_BASE/queries' '$REMOTE_BASE/flink-connectors' '$REMOTE_BASE/$LOGS_DIRNAME' '$REMOTE_BASE/flink-checkpoints/checkpoints' '$REMOTE_BASE/flink-checkpoints/savepoints' && chmod -R 777 '$REMOTE_BASE/flink-checkpoints' '$REMOTE_BASE/$LOGS_DIRNAME'"
+fi
 
 # File sync
 log "Syncing files to $HOST:$REMOTE_BASE"
@@ -112,22 +118,25 @@ sync_args=(all --key "$KEY" --host "$HOST" --remote-base "$REMOTE_BASE")
 # Pre-pull Docker images
 log "Pre-pulling Docker images on remote"
 if (( DRY_RUN )); then
-  run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && bash flink-remote-pull.sh"
+  run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && bash $REMOTE_PULL_SCRIPT"
 else
-  ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && bash flink-remote-pull.sh" | sed 's/^/   /'
+  ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_BASE' && bash $REMOTE_PULL_SCRIPT" | sed 's/^/   /'
 fi
 
-# Verify remote files and detect compose command
+# Verify remote files and detect compose command. Flink needs SQL query files in
+# queries/; Holon selects its workload via the WORKLOAD env knob, so it has none.
 log "Verifying remote files"
 verify_script=$(cat <<EOF
 set -e
 cd '$REMOTE_BASE'
-for f in docker-compose.flink.yml deploy.sh flink-remote-pull.sh; do
+for f in $REMOTE_COMPOSE_FILE $REMOTE_DEPLOY_SCRIPT $REMOTE_PULL_SCRIPT; do
   [[ -f "\$f" ]] || { echo "MISSING: \$f"; exit 1; }
 done
-ls queries/*.sql >/dev/null 2>&1 || { echo "MISSING: any .sql in queries/"; exit 1; }
-[[ -f "queries/${KNOBS[QUERY]}.sql" ]] || { echo "MISSING: queries/${KNOBS[QUERY]}.sql"; exit 1; }
-chmod +x deploy.sh flink-remote-pull.sh
+if [[ "$PLATFORM" != "holon" ]]; then
+  ls queries/*.sql >/dev/null 2>&1 || { echo "MISSING: any .sql in queries/"; exit 1; }
+  [[ -f "queries/${KNOBS[QUERY]}.sql" ]] || { echo "MISSING: queries/${KNOBS[QUERY]}.sql"; exit 1; }
+fi
+chmod +x $REMOTE_DEPLOY_SCRIPT $REMOTE_PULL_SCRIPT
 if docker compose version >/dev/null 2>&1; then
   echo COMPOSE=docker_compose
 elif command -v docker-compose >/dev/null 2>&1; then

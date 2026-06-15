@@ -194,3 +194,30 @@ echo
 read -r -p "Proceed with this run? [Y/n]: " yn
 yn="${yn:-Y}"
 [[ "$yn" =~ ^[Yy]$ ]] || { log "Aborted by user."; exit 0; }
+
+# ------------------------- platform profile ---------------------------------
+# Resolve everything the downstream phases (05-08) need to know that differs
+# between Flink and Holon: which deployment dir/sync/pull/compose to use, where
+# logs land on the remote, and whether there is a Flink web UI. Keep all the
+# platform branching here so the later phases stay declarative.
+
+case "$PLATFORM" in
+  holon)
+    DEPLOYMENT="nexmark-remote-java"
+    SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-holon-remote.sh"
+    REMOTE_COMPOSE_FILE="docker-compose.holon.yml"
+    REMOTE_PULL_SCRIPT="holon-remote-pull.sh"
+    REMOTE_DEPLOY_SCRIPT="deploy.sh"
+    LOGS_DIRNAME="holon-logs"
+    HAS_FLINK_UI=0
+    ;;
+  flink|*)
+    DEPLOYMENT="${KNOBS[DEPLOYMENT]:-flink-remote-java}"
+    SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-flink-remote.sh"
+    REMOTE_COMPOSE_FILE="docker-compose.flink.yml"
+    REMOTE_PULL_SCRIPT="flink-remote-pull.sh"
+    REMOTE_DEPLOY_SCRIPT="deploy.sh"
+    LOGS_DIRNAME="flink-logs"
+    HAS_FLINK_UI=1
+    ;;
+esac

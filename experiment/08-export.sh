@@ -11,7 +11,7 @@ log "Collecting results to $RESULTS_DIR"
 run_cmd mkdir -p "$RESULTS_DIR"
 if (( ! DRY_RUN )); then
   scp -i "$KEY" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-      -r "$HOST:$REMOTE_BASE/flink-logs/" "$RESULTS_DIR/" || warn "Some files may not have been copied."
+      -r "$HOST:$REMOTE_BASE/$LOGS_DIRNAME/" "$RESULTS_DIR/" || warn "Some files may not have been copied."
   if [[ -n "$TEMPLATE_FILE" && -f "$TEMPLATE_FILE" ]]; then
     cp "$TEMPLATE_FILE" "$RESULTS_DIR/template.env"
   else

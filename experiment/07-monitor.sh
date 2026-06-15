@@ -9,7 +9,7 @@ fmt_hms() { printf '%02d:%02d:%02d' $(( $1 / 3600 )) $(( ($1 % 3600) / 60 )) $((
 
 log "Experiment running for $(fmt_hms "$RUNTIME_SECS") (RUNTIME=${RUNTIME_MS} ms)"
 log "Live web UIs:"
-printf '     %-12s http://%s:8081\n' "Flink:" "$PUBLIC_IP"
+(( HAS_FLINK_UI )) && printf '     %-12s http://%s:8081\n' "Flink:" "$PUBLIC_IP"
 printf '     %-12s http://%s:8080\n' "Kafka:" "$PUBLIC_IP"
 log "Press Ctrl-C to abort and collect partial results."
 
