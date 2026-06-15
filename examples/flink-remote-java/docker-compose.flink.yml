@@ -129,9 +129,10 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
-  # Pulled image only (no local build context) so servers without the repo `docker/` tree can deploy.
+  # Generic start gate, shared with the Holon deployment (pulled image only, no
+  # local build context, so servers without the repo `docker/` tree can deploy).
   producer-start-gate:
-    image: rubyies/flink-producer-start-gate-full-deployment:latest
+    image: rubyies/producer-start-gate-full-deployment:latest
     environment:
       EXPECTED_PRODUCERS: "${PRODUCER_COUNT:-20}"
     ports:

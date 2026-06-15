@@ -12,8 +12,8 @@ docker pull rubyies/flink-init-kafka-full-deployment:latest
 echo "Pulling combined flink nexmark-producers image..."
 docker pull rubyies/flink-nexmark-producers-full-deployment:latest
 
-echo "Pulling flink producer-start-gate..."
-docker pull rubyies/flink-producer-start-gate-full-deployment:latest
+echo "Pulling producer-start-gate (generic, shared with Holon)..."
+docker pull rubyies/producer-start-gate-full-deployment:latest
 
 echo "Pulling flink output-consumer1..."
 docker pull rubyies/flink-lag-append-output-consumer-full-deployment:latest
