@@ -23,11 +23,11 @@ docker build \
   -t rubyies/flink-nexmark-producers-full-deployment:latest \
   .
 
-# 3b) producer-start-gate (HTTP /ready + /start)
+# 3b) producer-start-gate (generic, shared by Flink + Holon; HTTP /ready + /start)
 docker build \
-  -f examples/flink-remote-java/docker/producer-start-gate/Dockerfile \
-  -t rubyies/flink-producer-start-gate-full-deployment:latest \
-  examples/flink-remote-java/docker/producer-start-gate
+  -f examples/shared/producer-start-gate/Dockerfile \
+  -t rubyies/producer-start-gate-full-deployment:latest \
+  examples/shared/producer-start-gate
 
 # 4) output-consumer log append
 docker build \
@@ -46,7 +46,7 @@ docker login
 echo "Pushing…"
 docker push rubyies/flink-init-kafka-full-deployment:latest
 docker push rubyies/flink-nexmark-producers-full-deployment:latest
-docker push rubyies/flink-producer-start-gate-full-deployment:latest
+docker push rubyies/producer-start-gate-full-deployment:latest
 docker push rubyies/flink-lag-append-output-consumer-full-deployment:latest
 docker push rubyies/flink-json-output-consumer-full-deployment:latest
 
