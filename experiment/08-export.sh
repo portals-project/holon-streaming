@@ -25,17 +25,67 @@ if (( ! DRY_RUN )); then
   ok "Results collected"
 fi
 
-# Summary
+# Parse the raw log into base-result CSVs (best-effort — never aborts the run).
+# Same metrics consumer + logback (output.log) for both platforms, so one parser
+# covers Flink and Holon; tags a platform doesn't emit yield header-only CSVs.
+metrics_report=""
+if (( ! DRY_RUN )); then
+  LOG="$RESULTS_DIR/$LOGS_DIRNAME/output.log"
+  if [[ ! -f "$LOG" ]]; then
+    LOG=$(ls "$RESULTS_DIR/$LOGS_DIRNAME"/*.log 2>/dev/null | head -n1 || true)
+  fi
+  PY="$(command -v python3 || command -v python || true)"
+  if [[ -z "$PY" ]]; then
+    warn "Python not found — skipping metric CSVs (raw logs + summary still saved)."
+  elif [[ -z "$LOG" || ! -f "$LOG" ]]; then
+    warn "No log under $RESULTS_DIR/$LOGS_DIRNAME — skipping metric CSVs."
+  else
+    log "Parsing metrics from $(basename "$LOG") -> metrics/"
+    if metrics_report=$("$PY" "$REPO_ROOT/scripts/analysis/parse_output_log.py" \
+          --input "$LOG" --out-dir "$RESULTS_DIR/metrics" --base-name "$EXPERIMENT_LABEL" 2>&1); then
+      echo "$metrics_report" | sed 's/^/   /'
+      ok "Metric CSVs written to $RESULTS_DIR/metrics"
+    else
+      warn "Metric parsing failed (run is otherwise complete):"
+      echo "$metrics_report" | sed 's/^/   /'
+    fi
+  fi
+fi
+
+# Summary — built once, printed to console AND saved to summary.txt for the package.
+elapsed_line=""
+if (( ! DRY_RUN )) && (( start_ts > 0 )); then
+  elapsed_line=$(fmt_hms "$(( $(date +%s) - start_ts ))")
+fi
+
+build_summary() {
+  printf 'Experiment summary\n'
+  printf '  %-18s : %s\n' "Label"       "$EXPERIMENT_LABEL"
+  printf '  %-18s : %s\n' "Template"    "$TEMPLATE_NAME_LABEL"
+  [[ -n "$TEMPLATE_DESC" ]] && printf '  %-18s : %s\n' "Description" "$TEMPLATE_DESC"
+  printf '  %-18s : %s\n' "Platform"    "$PLATFORM"
+  printf '  %-18s : %s\n' "Deployment"  "${DEPLOYMENT:-}"
+  printf '  %-18s : %s\n' "Query"       "${KNOBS[QUERY]}"
+  printf '  %-18s : %s ms\n' "Runtime"  "${KNOBS[RUNTIME]}"
+  [[ -n "$elapsed_line" ]] && printf '  %-18s : %s\n' "Elapsed" "$elapsed_line"
+  printf '  %-18s : %s\n' "Instance"    "${INSTANCE_ID:-} @ ${PUBLIC_IP:-}"
+  printf '  %-18s : %s\n' "Timestamp"   "$ts"
+  printf '  ----\n  Knobs:\n'
+  for k in $(printf '%s\n' "${!KNOBS[@]}" | sort); do
+    printf '    %-24s = %s\n' "$k" "${KNOBS[$k]}"
+  done
+  if [[ -n "$metrics_report" ]]; then
+    printf '  ----\n'
+    printf '%s\n' "$metrics_report" | sed 's/^/  /'
+  fi
+}
+
 echo
 log "Experiment complete"
-printf '   %-18s : %s\n' "Label"       "$EXPERIMENT_LABEL"
-printf '   %-18s : %s\n' "Template"    "$TEMPLATE_NAME_LABEL"
-[[ -n "$TEMPLATE_DESC" ]] && printf '   %-18s : %s\n' "Description" "$TEMPLATE_DESC"
-printf '   %-18s : %s\n' "Query"       "${KNOBS[QUERY]}"
-printf '   %-18s : %s ms\n' "Runtime"  "${KNOBS[RUNTIME]}"
-if (( ! DRY_RUN )) && (( start_ts > 0 )); then
-  elapsed_secs=$(( $(date +%s) - start_ts ))
-  printf '   %-18s : %s\n' "Elapsed"   "$(fmt_hms "$elapsed_secs")"
+build_summary | sed 's/^/   /'
+if (( ! DRY_RUN )); then
+  build_summary > "$RESULTS_DIR/summary.txt"
+  ok "Summary written to $RESULTS_DIR/summary.txt"
 fi
 printf '   %-18s : %s\n' "Results"     "$RESULTS_DIR"
 echo

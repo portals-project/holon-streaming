@@ -115,6 +115,37 @@ sync_args=(all --key "$KEY" --host "$HOST" --remote-base "$REMOTE_BASE")
 (( DRY_RUN )) && sync_args+=(--dry-run)
 ( cd "$REPO_ROOT" && bash "$SYNC_SCRIPT" "${sync_args[@]}" )
 
+# Reclaim disk before pulling. Stop/start preserves the root EBS volume, so Docker
+# images accumulate across runs (the runner removes containers + REMOTE_BASE files
+# each run, but never images) and eventually fill /var/lib/docker — a fresh image
+# pull then dies with "no space left on device". Prune unused images + build cache
+# only when usage crosses PRUNE_THRESHOLD, so we don't re-pull everything every run.
+# `prune -af` keeps NAMED VOLUMES, so the sbt dependency/target caches persist.
+PRUNE_THRESHOLD="${PRUNE_THRESHOLD:-75}"
+log "Checking remote disk usage (prune at ${PRUNE_THRESHOLD}%)"
+disk_guard=$(cat <<EOF
+set -e
+dockdir=/var/lib/docker
+[ -d "\$dockdir" ] || dockdir=/
+used=\$(df -P "\$dockdir" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",\$5); print \$5}')
+used=\${used:-0}
+echo "Docker store \${used}% full"
+if [ "\$used" -ge ${PRUNE_THRESHOLD} ]; then
+  echo "above ${PRUNE_THRESHOLD}% — pruning unused images + build cache (named volumes kept)"
+  docker system prune -af || true
+  newused=\$(df -P "\$dockdir" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",\$5); print \$5}')
+  echo "after prune: \${newused:-?}% full"
+else
+  echo "below ${PRUNE_THRESHOLD}% — no prune needed"
+fi
+EOF
+)
+if (( DRY_RUN )); then
+  run_cmd ssh "${SSH_OPTS[@]}" "$HOST" "$disk_guard"
+else
+  ssh "${SSH_OPTS[@]}" "$HOST" "$disk_guard" | sed 's/^/   /'
+fi
+
 # Pre-pull Docker images
 log "Pre-pulling Docker images on remote"
 if (( DRY_RUN )); then

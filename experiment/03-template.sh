@@ -203,10 +203,22 @@ yn="${yn:-Y}"
 
 case "$PLATFORM" in
   holon)
-    DEPLOYMENT="nexmark-remote-java"
-    SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-holon-remote.sh"
-    REMOTE_COMPOSE_FILE="docker-compose.holon.yml"
-    REMOTE_PULL_SCRIPT="holon-remote-pull.sh"
+    # Two Holon profiles, chosen by the template's DEPLOYMENT field:
+    #   nexmark-remote-java (default) — prebuilt assembly images (fat JAR).
+    #   nexmark-remote                — SBT "on-the-fly": source synced + compiled
+    #                                   on the box, edit Scala locally and re-run
+    #                                   without reassembling.
+    if [[ "${KNOBS[DEPLOYMENT]:-}" == "nexmark-remote" ]]; then
+      DEPLOYMENT="nexmark-remote"
+      SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-holon-sbt-remote.sh"
+      REMOTE_COMPOSE_FILE="docker-compose.holon-sbt.yml"
+      REMOTE_PULL_SCRIPT="holon-sbt-pull.sh"
+    else
+      DEPLOYMENT="nexmark-remote-java"
+      SYNC_SCRIPT="$REPO_ROOT/scripts/sync/sync-holon-remote.sh"
+      REMOTE_COMPOSE_FILE="docker-compose.holon.yml"
+      REMOTE_PULL_SCRIPT="holon-remote-pull.sh"
+    fi
     REMOTE_DEPLOY_SCRIPT="deploy.sh"
     LOGS_DIRNAME="holon-logs"
     HAS_FLINK_UI=0
