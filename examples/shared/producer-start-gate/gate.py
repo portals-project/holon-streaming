@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""HTTP start gate.
+"""HTTP start gate — shared by the Flink and Holon deployments.
+
+This is generic infrastructure: it coordinates the start of a distributed run so
+that no data flows until every producer is up. It is not specific to either
+streaming system.
 
 /ready returns 503 until the gate is flipped, then 200.
 
