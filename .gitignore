@@ -10,4 +10,8 @@ metals.sbt
 project/project/
 target/
 *.sc
+taxi-data/*
+logs/*
 snapshots
+.holon.env
+experiment-results/

@@ -17,7 +17,7 @@ ThisBuild / scalacOptions ++= Seq(
   "-feature",
   "-unchecked",
   "-Wunused:all",
-  //  TODO: Disabled to avoid compilation errors, to be fixed
+  //  TODO: disabled to avoid compilation errors, to be fixed
   //  "-Xfatal-warnings"
 )
 
@@ -72,6 +72,15 @@ libraryDependencies ++= Seq(
     "org.slf4j" % "slf4j-api" % "2.0.9",
     "ch.qos.logback" % "logback-classic" % "1.2.11"
     )
+
+// Add sbt-assembly settings:
+assembly / assemblyJarName := s"${name.value}-assembly-${version.value}.jar"
+
+// Optionally, merge strategy for conflicts—common defaults:
+assembly / assemblyMergeStrategy := {
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case x => MergeStrategy.first
+}
 
 enablePlugins(AssemblyPlugin)
 

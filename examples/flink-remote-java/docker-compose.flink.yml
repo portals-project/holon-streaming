@@ -1,0 +1,182 @@
+x-config-settings: &config-settings
+  RUN_FLINK_PRODUCER:          "${RUN_FLINK_PRODUCER:-true}"
+  WORKLOAD:                    "${WORKLOAD:-7}"
+  N_NODES:                     "${N_NODES:-10}"
+  PARTITIONS_PER_NODE:         "${PARTITIONS_PER_NODE:-2}"
+  PRODUCER_SLEEP_MS:           "${PRODUCER_SLEEP_MS:-100}"
+  PRODUCER_BATCH_SIZE:         "${PRODUCER_BATCH_SIZE:-1024}"
+  PRODUCER_COUNT:              "${PRODUCER_COUNT:-20}"
+  EVENTS_PER_SECOND:           "${EVENTS_PER_SECOND:-10000}"
+  WINDOW_LENGTH:               "${WINDOW_LENGTH:-10000}"
+  GARBAGE_COLLECTION_OFFSET:   "${GARBAGE_COLLECTION_OFFSET:-10}"
+  FLUSH_THRESHOLD:             "${FLUSH_THRESHOLD:-500}"
+  ENABLE_RATE_LIMIT:           "${ENABLE_RATE_LIMIT:-false}"
+  PROCESSING_RATE_LIMIT:       "${PROCESSING_RATE_LIMIT:-10000}"
+  TOPIC_METRICS_INTERVAL:      "${TOPIC_METRICS_INTERVAL:-5000}"
+  USE_LOG_FILE:                "${USE_LOG_FILE:-true}"
+  RUN_MAX_THROUGHPUT_PRODUCER: "${RUN_MAX_THROUGHPUT_PRODUCER:-false}"
+  KAFKA_BOOTSTRAP_SERVERS:     "${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}"
+  RUNTIME:                     "${RUNTIME:-800000}"
+  SLEEP_BETWEEN_POLLS:         "${SLEEP_BETWEEN_POLLS:-0}"
+  START_GATE_URL:              "${START_GATE_URL:-http://producer-start-gate:8090}"
+
+
+x-taskmanager-defaults: &taskmanager-defaults
+  image: flink:1.18
+  user: root
+  depends_on:
+    - jobmanager
+  command: taskmanager
+  volumes:
+    - ./flink-connectors:/opt/flink/lib/user
+    - ./flink-checkpoints:/flink-checkpoints
+    - ./flink-logs:/opt/flink/log
+  environment:
+    FLINK_PROPERTIES: |
+      jobmanager.rpc.address: jobmanager
+      taskmanager.numberOfTaskSlots: 2
+      taskmanager.memory.process.size: ${TASKMANAGER_MEMORY:-4g}
+      state.checkpoints.dir:    file:///flink-checkpoints/checkpoints
+      state.savepoints.dir:     file:///flink-checkpoints/savepoints
+      state.backend:            filesystem
+      execution.checkpointing.interval:      5000
+      execution.checkpointing.tolerable-failed-checkpoints: 5
+      execution.checkpointing.max-concurrent-checkpoints:   1
+      heartbeat.interval:       10000
+      heartbeat.timeout:        60000
+
+services:
+
+#  FLINK SERVICES
+
+  jobmanager:
+    image: flink:1.18
+    container_name: flink-jobmanager
+    user: root
+    ports:
+      - "8081:8081"
+      - "6123:6123"
+    command: jobmanager
+    volumes:
+      - ./flink-connectors:/opt/flink/lib/user
+      - ./queries:/opt/flink/queries
+      - ./flink-checkpoints:/flink-checkpoints
+      - ./flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        jobmanager.memory.process.size: ${JOBMANAGER_MEMORY:-2g}
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:    10000
+        heartbeat.timeout:     60000
+
+  taskmanager:
+    <<: *taskmanager-defaults
+
+  #  KAFKA SERVICES
+  kafka:
+    # bitnami/kafka is no longer reliably pullable from Docker Hub; use apache/kafka (official image).
+    image: apache/kafka:4.0.2
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    ports:
+      - "29092:9092"
+
+#  init-kafka:
+#    build:
+#      context: ./docker/init-kafka
+#      dockerfile: Dockerfile
+#    depends_on:
+#      - kafka
+#    environment:
+#      - N_NODES=10
+
+  init-kafka:
+    image: rubyies/flink-init-kafka-full-deployment:latest
+    depends_on:
+      - kafka
+    environment:
+      <<: *config-settings
+    entrypoint:
+      - "/bin/bash"
+      - "/init-kafka.sh"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  # Generic start gate, shared with the Holon deployment (pulled image only, no
+  # local build context, so servers without the repo `docker/` tree can deploy).
+  producer-start-gate:
+    image: rubyies/producer-start-gate-full-deployment:latest
+    environment:
+      EXPECTED_PRODUCERS: "${PRODUCER_COUNT:-20}"
+    ports:
+      - "8090:8090"
+
+#  HOLON SERVICES
+  nexmark-producers:
+    image: rubyies/flink-nexmark-producers-full-deployment:latest
+    depends_on:
+      - init-kafka
+      - producer-start-gate
+    environment:
+      <<: *config-settings
+    volumes:
+      - ./flink-logs:/app/logs
+
+  output-consumer:
+    image: rubyies/flink-json-output-consumer-full-deployment:latest
+    container_name: output-consumer
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      <<: *config-settings
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    volumes:
+      - ./flink-logs:/app/logs
+
+  log-consumer:
+    image: rubyies/flink-lag-append-output-consumer-full-deployment:latest
+    container_name: log-consumer
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      <<: *config-settings
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    volumes:
+      - ./flink-logs:/app/logs
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.50.0.0/16

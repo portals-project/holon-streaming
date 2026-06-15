@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: output-consumer
+spec:
+  replicas: {{ .Values.outputConsumer.replicas }}
+  selector:
+    matchLabels:
+      io.kompose.service: output-consumer
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml --stdout
+        kompose.version: 1.35.0 (HEAD)
+      labels:
+        io.kompose.service: output-consumer
+    spec:
+{{/*      nodeSelector:*/}}
+{{/*        node-type: basic*/}}
+      containers:
+        - env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: N_NODES
+              value: "{{ $.Values.holon.n_nodes }}"
+            - name: PARTITIONS_PER_NODE
+              value: "{{ $.Values.holon.partitions_per_node }}"
+            - name: WINDOW_LENGTH
+              value: "{{ $.Values.holon.window_length }}"
+          image: {{ .Values.outputConsumer.image }}
+          name: output-consumer
+      restartPolicy: Always

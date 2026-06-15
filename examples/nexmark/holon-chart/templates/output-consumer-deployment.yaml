@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: output-consumer
+spec:
+  replicas: {{ .Values.outputConsumer.replicas }}
+  selector:
+    matchLabels:
+      io.kompose.service: output-consumer
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml --stdout
+        kompose.version: 1.35.0 (HEAD)
+      labels:
+        io.kompose.service: output-consumer
+    spec:
+      containers:
+        - env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          image: {{ .Values.outputConsumer.image }}
+          name: output-consumer
+{{/*          resources:*/}}
+{{/*            requests:*/}}
+{{/*              cpu: "250m"*/}}
+{{/*              memory: "512Mi"*/}}
+{{/*            limits:*/}}
+{{/*              cpu: "500m"*/}}
+{{/*              memory: "1Gi"*/}}
+      restartPolicy: Always

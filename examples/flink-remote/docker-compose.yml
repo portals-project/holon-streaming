@@ -1,0 +1,296 @@
+version: '3.8'
+
+services:
+
+  jobmanager:
+    image: flink:1.18
+    container_name: flink-jobmanager
+    user: root
+    ports:
+      - "8081:8081"
+      - "6123:6123"
+    command: jobmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/queries:/opt/flink/queries
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  taskmanager1:
+    image: flink:1.18
+    container_name: flink-taskmanager1
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  taskmanager2:
+    image: flink:1.18
+    container_name: flink-taskmanager2
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  taskmanager3:
+    image: flink:1.18
+    container_name: flink-taskmanager3
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  taskmanager4:
+    image: flink:1.18
+    container_name: flink-taskmanager4
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  taskmanager5:
+    image: flink:1.18
+    container_name: flink-taskmanager5
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-connectors:/opt/flink/lib/user
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-checkpoints:/flink-checkpoints
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/opt/flink/log
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.checkpoints.dir: file:///flink-checkpoints/checkpoints
+        state.savepoints.dir:  file:///flink-checkpoints/savepoints
+        state.backend:         filesystem
+        execution.checkpointing.interval:      5000
+        execution.checkpointing.tolerable-failed-checkpoints: 5
+        execution.checkpointing.max-concurrent-checkpoints:   1
+        heartbeat.interval:       10000
+        heartbeat.timeout:        30000
+
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_KRAFT_MODE=true
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "29092:9092"
+
+  init-kafka:
+    build:
+      context: ./docker/init-kafka
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    environment:
+      - N_NODES=10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  nexmark-producer-json1:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json1
+#    entrypoint:
+#      - /bin/sh
+#      - -c
+#      - |
+#        echo "Waiting for Kafka to be ready (via kafka-topics)…"
+#        until kafka-topics --bootstrap-server kafka:9092 --list > /dev/null 2>&1; do
+#          sleep 1
+#        done
+#        echo "Kafka is up; starting producer…"
+#        exec java -jar /app/nexmark-producer.jar
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+#      N_NODES: "10"
+#      PARTITIONS_PER_NODE: "1"
+      PRODUCER_INDEX: "0"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json2:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json2
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "1"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json3:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json3
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "2"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json4:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json4
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "3"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  nexmark-producer-json5:
+    build:
+      context: ../..                      # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/nexmark-producer-json/Dockerfile
+    container_name: nexmark-producer-json5
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PRODUCER_SLEEP_TIME_MS: "155" # was 100, q4: 155
+      PRODUCER_INDEX: "4"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  output-consumer:
+    build:
+      context: ../..                       # adjust if needed
+      dockerfile: ./examples/flink-remote/docker/output-consumer-json/Dockerfile
+    container_name: output-consumer
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs
+
+  lag-consumer:
+    build:
+      context: ../..
+      dockerfile: ./examples/flink-remote/docker/lag-append-output-consumer/Dockerfile   # (see step 3 below)
+    container_name: lag-consumer
+    depends_on:
+      - init-kafka
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      WINDOW_LENGTH: "10000"
+    volumes:
+      - /home/jonas_spenger/projects/holon/flink-experiments/flink-logs:/app/logs

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: kafka-chart
+description: A Helm chart running Kafka
+type: application
+version: 0.1.0
+appVersion: "1.16.0"
+

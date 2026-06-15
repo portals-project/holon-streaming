@@ -1,0 +1,12 @@
+kafka:
+  image: bitnami/kafka:3.7.0
+
+initKafka:
+  image: confluentinc/cp-kafka:6.1.1
+
+flink:
+  image: gcr.io/holon-458408/flink-custom:latest
+
+holon:
+  n_nodes: 5
+  partitions_per_node: 3
